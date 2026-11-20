@@ -4,6 +4,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { spline, loft } from './car';
 import { clamp, mulberry32 } from './noise';
 import { makePlateTexture } from './textures';
+import { VAN, vanShape, vanGreenhouse, vanBodyClassify } from './van-shape';
 
 // Оси моделей трафика: +Z — вперёд, +Y — вверх, +X — ЛЕВЫЙ борт (базис «вверх × вперёд»).
 /** Ключи материалов: детали модели склеиваются по ним — несколько draw call на машину. */
@@ -166,7 +167,7 @@ export class Shape {
   }
 }
 
-export type TrafficKind = 'sedan' | 'truck' | 'moto';
+export type TrafficKind = 'sedan' | 'truck' | 'moto' | 'van';
 
 export interface TrafficTemplate {
   kind: TrafficKind;
@@ -338,6 +339,41 @@ function buildMoto(): TrafficTemplate {
   };
 }
 
+/** Минивэн в трафике: та же форма, что у «Простора 7», но проще — без рейлингов и спойлера, фонари горизонтальные. */
+function buildVanTraffic(): TrafficTemplate {
+  const sh = vanShape();
+  const b = new Builder();
+  b.addGroups(loft(sh.body(84, 22), vanBodyClassify(sh), true, true), ['paint', 'black']);
+  const gh = vanGreenhouse(sh, 60, 22);
+  b.addGroups(loft(gh.rows, gh.classify, false, false), ['paint', 'glass', 'black']);
+  b.box(1.38, 0.48, 3.9, 'black', { x: 0, y: 0.5, z: -0.05 });
+  for (const side of [-1, 1]) {
+    // фары: блок со стеклом и светящейся полосой
+    const y = 0.78, x = 0.66, z = sh.surfaceZ(x, y, 1);
+    b.box(0.36, 0.12, 0.12, 'glass', { x: side * x, y, z: z - 0.04 }, 0.035, new THREE.Euler(0, side * 0.4, 0));
+    b.box(0.24, 0.03, 0.06, 'head', { x: side * (x - 0.02), y: y + 0.02, z: z - 0.005 }, 0.012, new THREE.Euler(0, side * 0.4, 0));
+    // зеркала
+    const mz = 1.18, my = sh.top(mz) + 0.07, mx = sh.xAt(mz, sh.top(mz) - 0.04) + 0.05;
+    b.box(0.14, 0.1, 0.08, 'paint', { x: side * mx, y: my, z: mz }, 0.025);
+    b.box(0.11, 0.08, 0.01, 'chrome', { x: side * mx, y: my, z: mz - 0.045 });
+  }
+  b.box(0.8, 0.03, 0.04, 'chrome', { x: 0, y: 0.7, z: sh.surfaceZ(0.4, 0.7, 1) + 0.01 });
+  const tail = new Builder(), bl = new Builder(), br = new Builder();
+  for (const side of [-1, 1]) {
+    const y = 0.92, x = 0.62, z = sh.surfaceZ(x, y, -1);
+    b.box(0.5, 0.13, 0.06, 'glass', { x: side * x, y, z: z + 0.015 }, 0.025);
+    tail.box(0.34, 0.06, 0.04, 'head', { x: side * (x - 0.04), y: y + 0.015, z: z - 0.01 }, 0.012);
+    (side > 0 ? bl : br).box(0.1, 0.05, 0.04, 'head', { x: side * (x + 0.17), y: y - 0.02, z: z - 0.008 }, 0.01);
+  }
+  const pz = sh.surfaceZ(0.27, 0.8, -1);
+  b.box(0.52, 0.112, 0.012, 'plate', { x: 0, y: 0.8, z: pz - 0.008 }, 0, new THREE.Euler(0, Math.PI, 0));
+  const axles = [VAN.axF, VAN.axR].map((z) => ({ z, y: VAN.R, ...axleGeometry(VAN.R, 0.22, 0.22, VAN.track, false) }));
+  return {
+    kind: 'van', length: 4.8, width: 1.9, parts: b.build(), wheelR: VAN.R, axles,
+    tail: tail.build().get('head')!, blinkL: bl.build().get('head')!, blinkR: br.build().get('head')!,
+  };
+}
+
 function buildTruck(): TrafficTemplate {
   const b = new Builder();
   const cabZ0 = 2.05, cabZ1 = 4.1, cabW = 2.36;
@@ -472,6 +508,7 @@ export class TrafficAssets {
   readonly sedan = buildSedan();
   readonly truck = buildTruck();
   readonly moto = buildMoto();
+  readonly van = buildVanTraffic();
   private paints = new Map<string, THREE.MeshPhysicalMaterial>();
   readonly mats: Record<Exclude<MatKey, 'paint' | 'paint2' | 'logo' | 'plate'>, THREE.Material>;
   readonly tailOff = new THREE.MeshStandardMaterial({ color: 0x3a0000, emissive: 0xff1a12, emissiveIntensity: 1.6, roughness: 0.3 });
@@ -519,11 +556,11 @@ export class TrafficAssets {
 
   /** Новый экземпляр машины трафика. */
   create(kind: TrafficKind): TrafficVisual {
-    const t = kind === 'sedan' ? this.sedan : kind === 'moto' ? this.moto : this.truck;
+    const t = kind === 'sedan' ? this.sedan : kind === 'moto' ? this.moto : kind === 'van' ? this.van : this.truck;
     const root = new THREE.Group();
     const body = new THREE.Group();
     root.add(body);
-    const paint = this.paint(this.pick(kind === 'sedan' ? SEDAN_COLORS : kind === 'moto' ? MOTO_COLORS : CAB_COLORS));
+    const paint = this.paint(this.pick(kind === 'sedan' || kind === 'van' ? SEDAN_COLORS : kind === 'moto' ? MOTO_COLORS : CAB_COLORS));
     const paint2 = this.paint(this.rnd() < 0.75 ? '#eef0f0' : this.pick([['#b8bcc2', 1], ['#2b4f8a', 1], ['#c9b89a', 1]]));
     const logo = this.logos[Math.floor(this.rnd() * this.logos.length)];
     const plate = this.plates[Math.floor(this.rnd() * this.plates.length)];

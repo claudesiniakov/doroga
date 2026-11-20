@@ -80,7 +80,7 @@ export function buildKedr(cfg: CarConfig, envIntensity = 1): CarModel {
     const s = (sOf[c] + sOf[c + 1]) / 2, z = p.z;
     if (s < 0.06) return 2;                                          // уплотнитель
     if (z > 0.36) return s > 0.6 && s < 0.8 ? 0 : 1;                  // A-стойка
-    if (z < -1.82) return s > 0.93 ? 0 : s > 0.14 ? 1 : 0;           // стекло пятой двери
+    if (z < -1.82) return s > 0.14 ? 1 : 0;                         // стекло пятой двери (на изломе)
     if (s > 0.86) return 0;                                          // крыша
     if (Math.abs(z + 0.32) < 0.06) return 2;                          // B-стойка
     if (Math.abs(z + 1.18) < 0.08) return 0;                          // C-стойка
@@ -92,9 +92,6 @@ export function buildKedr(cfg: CarConfig, envIntensity = 1): CarModel {
   body.add(ghm);
 
   add(new THREE.BoxGeometry(1.3, 0.5, 2.9), under, 0, 0.66, 0, false);
-  // стекло пятой двери — явной панелью с уплотнителем (на изломе лофт ненадёжен)
-  add(new RoundedBoxGeometry(1.16, 0.44, 0.02, 2, 0.05), plastic, 0, 1.3, zC - 0.004, false);
-  add(new RoundedBoxGeometry(1.08, 0.37, 0.02, 2, 0.045), glass, 0, 1.305, zC - 0.012, false);
 
   // ——— перед: решётка, круглые фары в хромовых ободках, поворотники, бампер ———
   const zf = (x: number, y: number) => sh.surfaceZ(x, y, 1);

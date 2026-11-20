@@ -38,7 +38,7 @@ export interface CrashEvent { severity: number; side: boolean; }
 export class Traffic {
   readonly group = new THREE.Group();
   private list: Vehicle[] = [];
-  private pool: Record<TrafficKind, TrafficVisual[]> = { sedan: [], truck: [], moto: [] };
+  private pool: Record<TrafficKind, TrafficVisual[]> = { sedan: [], truck: [], moto: [], van: [] };
   private rnd = mulberry32(4242);
   private frame: RoadFrame;
   private spawnTimer = 0;
@@ -120,7 +120,7 @@ export class Traffic {
 
   private trySpawn(p: PlayerState, s: number) {
     const r = this.rnd();
-    const kind: TrafficKind = r < 0.25 ? 'truck' : r < 0.37 ? 'moto' : 'sedan';
+    const kind: TrafficKind = r < 0.22 ? 'truck' : r < 0.34 ? 'moto' : r < 0.48 ? 'van' : 'sedan';
     const truck = kind === 'truck', moto = kind === 'moto';
     // мото быстрее потока: если игрок едет медленнее, чаще появляются сзади и обгоняют
     if (moto && p.v < 28 && s > p.s && this.rnd() < 0.6) s = p.s - 110 - this.rnd() * 40;
@@ -134,7 +134,7 @@ export class Traffic {
     v.lane = v.targetLane = lane;
     v.d = lane * LANE;
     // желаемая скорость: левее — быстрее; грузовики медленнее
-    const base = truck ? 72 + this.rnd() * 14 : moto ? 100 + this.rnd() * 32 : [102, 88, 76][lane + 1] + (this.rnd() - 0.5) * 18;
+    const base = truck ? 72 + this.rnd() * 14 : moto ? 100 + this.rnd() * 32 : [102, 88, 76][lane + 1] + (this.rnd() - 0.5) * 18 - (kind === 'van' ? 5 : 0);
     v.v0 = base / 3.6;
     v.v = v.v0;
     v.cooldown = 3 + this.rnd() * 5;

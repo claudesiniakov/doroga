@@ -37,5 +37,25 @@
       "brakes": 0.6
     },
     "tankL": 42
+  },
+  {
+    "id": "prostor",
+    "name": "Простор 7",
+    "tagline": "Семиместный минивэн: много места, мягкий ход и большой бак",
+    "color": "#2a4a7a",
+    "maxSpeedKmh": 175,
+    "accel": 5.0,
+    "brake": 9.5,
+    "laneChangeTime": 0.5,
+    "plate": "ПРС 007",
+    "tankL": 70,
+    "body": "van",
+    "roll": 1.35,
+    "stats": {
+      "speed": 0.66,
+      "accel": 0.55,
+      "handling": 0.6,
+      "brakes": 0.66
+    }
   }
 ]

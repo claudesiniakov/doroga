@@ -29,6 +29,7 @@ export class DriveScene {
   crashes = 0;
   onCrash?: (e: CrashEvent) => void;
   private shakeAmp = 0;
+  private camLift = 0;
   private mountains = new THREE.Group();
   private sea: THREE.Mesh;
   private waterNormal: THREE.Texture;
@@ -178,6 +179,9 @@ export class DriveScene {
     if (this.car && this.car !== car) this.car.root.removeFromParent();
     this.car = car;
     this.player.length = car.length;
+    // высокие машины — камера чуть выше, чтобы корма не закрывала дорогу
+    const bb = new THREE.Box3().setFromObject(car.body);
+    this.camLift = Math.max(0, bb.max.y - bb.min.y - 1.3) * 1.1;
     this.player.width = car.width;
     this.cfg = cfg;
     car.root.position.set(0, 0, 0);
@@ -371,7 +375,7 @@ export class DriveScene {
     }
     const k = smoothstep(CRUISE * 0.6, 55, this.v);
     const dist = (this.camFar ? 8.4 : 6.3) + k * 0.8;
-    const height = (this.camFar ? 2.6 : 1.85) + k * 0.15;
+    const height = (this.camFar ? 2.6 : 1.85) + k * 0.15 + this.camLift;
     // камера смотрит вдоль дороги, а не строго за кузовом — плавнее на перестроениях
     out.copy(f.fwd).multiplyScalar(-dist).addScaledVector(f.up, height).addScaledVector(f.right, -this.d * 0.08);
     out.y = Math.max(out.y, height * 0.75);

@@ -4,6 +4,7 @@ import cars from './cars.json';
 import { Renderer, detectQuality, QualityName } from './render';
 import { buildCar, CarConfig, CarModel } from './car';
 import { buildKedr } from './car-kedr';
+import { buildVan } from './car-van';
 import { TrafficAssets } from './traffic-models';
 import { GarageScene } from './garage';
 import { DriveScene } from './drive';
@@ -44,7 +45,7 @@ async function main() {
   await nextFrame();
 
   const configs = cars as CarConfig[];
-  const models: CarModel[] = configs.map((c) => (c.body === 'suv' ? buildKedr(c) : buildCar(c)));
+  const models: CarModel[] = configs.map((c) => (c.body === 'suv' ? buildKedr(c) : c.body === 'van' ? buildVan(c) : buildCar(c)));
   let sel = 0;
   try {
     const saved = localStorage.getItem('doroga.car');
@@ -440,7 +441,7 @@ async function runShot(kind: string, ctx: {
     const tr = d.traffic;
     tr.clear();
     const out: string[] = [];
-    for (const k of ['sedan', 'truck', 'moto'] as const) {
+    for (const k of ['sedan', 'truck', 'moto', 'van'] as const) {
       tr.debugPlace(k, d.s + 30, 0, 90);
       const vis = (tr.group.children[tr.group.children.length - 1]) as THREE.Group;
       vis.updateMatrixWorld(true);
@@ -558,7 +559,7 @@ async function runShot(kind: string, ctx: {
     const secs = Number(p.get('secs') || 120);
     let overlaps = 0, walls = 0, maxCount = 0, minV = 1e9, laneShift = 0, nextShift = 2;
     let tSim = 0;
-    const stats = { sedan: 0, truck: 0, moto: 0 };
+    const stats = { sedan: 0, truck: 0, moto: 0, van: 0 };
     for (let i = 0; i < secs * 60; i++) {
       tSim += 1 / 60;
       if (tSim > nextShift) { laneShift = Math.random() < 0.5 ? -1 : 1; nextShift = tSim + 1 + Math.random() * 3; }
@@ -594,13 +595,24 @@ async function runShot(kind: string, ctx: {
   } else if (kind === 'garage') {
     ctx.enterGarage();
     const tm = p.get('tm');
-    if (tm === 'sedan' || tm === 'truck' || tm === 'moto') {
+    if (tm === 'sedan' || tm === 'truck' || tm === 'moto' || tm === 'van') {
       const vis = new TrafficAssets().create(tm);
       const car = ctx.garage.scene.getObjectByName('car');
       if (car) car.visible = false;
       ctx.garage.scene.add(vis.root);
     }
     if (p.get('yaw')) ctx.garage.yaw = Number(p.get('yaw'));
+    if (p.get('dbg') === 'gh') {
+      // отладка: «аквариум» — красный кузов / зелёное стекло / синий пластик, обе стороны; задние грани — жёлтые
+      ctx.garage.scene.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (m.isMesh && Array.isArray(m.material) && m.material.length === 3) {
+          m.material = [0xff2020, 0x20ff40, 0x2040ff].map((c) => new THREE.MeshBasicMaterial({ color: c, side: THREE.FrontSide }));
+          const back = new THREE.Mesh(m.geometry, new THREE.MeshBasicMaterial({ color: 0xffee00, side: THREE.BackSide }));
+          m.add(back);
+        }
+      });
+    }
     for (let i = 0; i < steps; i++) ctx.frame(1 / 60);
     const cv = p.get('cam');
     if (cv) {

@@ -38,7 +38,9 @@ export interface CrashEvent { severity: number; side: boolean; }
 export class Traffic {
   readonly group = new THREE.Group();
   private list: Vehicle[] = [];
-  private pool: Record<TrafficKind, TrafficVisual[]> = { sedan: [], truck: [], moto: [], van: [] };
+  private pool: Record<TrafficKind, TrafficVisual[]> = { sedan: [], truck: [], moto: [], van: [], tiller: [] };
+  /** Сбитые мотоциклы: летят по баллистике с кувырком в сторону от трассы, потом исчезают. */
+  private flying: { v: Vehicle; s: number; d: number; h: number; vs: number; vd: number; vh: number; t: number; rot: THREE.Euler; w: THREE.Vector3 }[] = [];
   private rnd = mulberry32(4242);
   private frame: RoadFrame;
   private spawnTimer = 0;
@@ -56,7 +58,9 @@ export class Traffic {
 
   clear() {
     for (const v of this.list) this.release(v);
+    for (const f of this.flying) this.release(f.v);
     this.list = [];
+    this.flying = [];
   }
 
   /** Плотность растёт с пройденным расстоянием: от ~11 до ~22 машин в зоне. */
@@ -120,24 +124,26 @@ export class Traffic {
 
   private trySpawn(p: PlayerState, s: number) {
     const r = this.rnd();
-    const kind: TrafficKind = r < 0.22 ? 'truck' : r < 0.34 ? 'moto' : r < 0.48 ? 'van' : 'sedan';
+    // мотоблок с повозкой — редкость, только впереди и только в правой полосе
+    const tiller = s > p.s && this.rnd() < 0.03 && !this.list.some((o) => o.kind === 'tiller');
+    const kind: TrafficKind = tiller ? 'tiller' : r < 0.22 ? 'truck' : r < 0.34 ? 'moto' : r < 0.48 ? 'van' : 'sedan';
     const truck = kind === 'truck', moto = kind === 'moto';
     // мото быстрее потока: если игрок едет медленнее, чаще появляются сзади и обгоняют
     if (moto && p.v < 28 && s > p.s && this.rnd() < 0.6) s = p.s - 110 - this.rnd() * 40;
     // грузовики — только в правой и средней полосе, чаще в правой; мото — чаще левее
-    const lanes = truck ? [1, 1, 0] : moto ? [-1, -1, 0, 0, 1] : [-1, 0, 0, 1, 1];
+    const lanes = tiller ? [1] : truck ? [1, 1, 0] : moto ? [-1, -1, 0, 0, 1] : [-1, 0, 0, 1, 1];
     const lane = lanes[Math.floor(this.rnd() * lanes.length)];
-    if (!this.laneFree(lane, s, 45, 45, p)) return false;
+    if (!this.laneFree(lane, s, tiller ? 80 : 45, tiller ? 80 : 45, p)) return false;
     if (this.wouldBlockAll(lane, s, 40)) return false;
     const v = new Vehicle(kind, this.acquire(kind));
     v.s = s;
     v.lane = v.targetLane = lane;
     v.d = lane * LANE;
     // желаемая скорость: левее — быстрее; грузовики медленнее
-    const base = truck ? 72 + this.rnd() * 14 : moto ? 100 + this.rnd() * 32 : [102, 88, 76][lane + 1] + (this.rnd() - 0.5) * 18 - (kind === 'van' ? 5 : 0);
+    const base = tiller ? 20 + this.rnd() * 10 : truck ? 72 + this.rnd() * 14 : moto ? 100 + this.rnd() * 32 : [102, 88, 76][lane + 1] + (this.rnd() - 0.5) * 18 - (kind === 'van' ? 5 : 0);
     v.v0 = base / 3.6;
     v.v = v.v0;
-    v.cooldown = 3 + this.rnd() * 5;
+    v.cooldown = tiller ? Infinity : 3 + this.rnd() * 5;   // мотоблок не перестраивается
     this.list.push(v);
     this.place(v, 0, 0);
     return true;
@@ -161,6 +167,7 @@ export class Traffic {
     this.list.sort((a, b) => a.s - b.s);
     for (const v of this.list) this.drive(v, dt, p);
     for (const v of this.list) this.place(v, dt, time);
+    this.updateFlying(dt, p);
     this.collide(p);
   }
 
@@ -182,7 +189,8 @@ export class Traffic {
   /** Модель следования IDM + решения о перестроении. */
   private drive(v: Vehicle, dt: number, p: PlayerState) {
     const truck = v.kind === 'truck', moto = v.kind === 'moto';
-    const aMax = truck ? 0.9 : moto ? 2.6 : 1.6, bComf = truck ? 1.8 : moto ? 3.2 : 2.6;
+    const tiller = v.kind === 'tiller';
+    const aMax = tiller ? 0.4 : truck ? 0.9 : moto ? 2.6 : 1.6, bComf = truck || tiller ? 1.8 : moto ? 3.2 : 2.6;
     const s0 = truck ? 9 : moto ? 4 : 6, T = truck ? 1.8 : moto ? 0.9 : 1.3;
     const idm = (gap: number, lv: number) => {
       const dvl = v.v - lv;
@@ -204,6 +212,7 @@ export class Traffic {
       if (busy >= 2) a = Math.min(a, -1.8);
     }
     a = clamp(a, -8, aMax);
+    if (tiller) a = Math.min(a, (v.v0 - v.v) * 2);    // не быстрее 30 км/ч даже после толчка
     v.braking = a < -0.9;
     v.v = Math.max(0, v.v + a * dt);
     v.s += v.v * dt;
@@ -290,12 +299,54 @@ export class Traffic {
       const oy = (v.width + p.width) / 2 - 0.12 - Math.abs(dd);
       if (ox <= 0 || oy <= 0) continue;
       const side = oy < ox * 0.6;
+      if (v.kind === 'moto') { this.knockOff(v, p); this.onCrash?.({ severity: 0.2, side }); this.crashCooldown = 0.6; return; }
       const severity = side ? 0.35 : clamp(Math.abs(p.v - v.v) / 15, 0.25, 1);
       this.crashCooldown = 1.0;
       // удар передаёт немного скорости машине трафика
       if (!side && ds > 0) v.v = Math.min(v.v0 + 3, v.v + (p.v - v.v) * 0.35);
       this.onCrash?.({ severity, side });
       return;
+    }
+  }
+
+  /** Сбить мотоцикл: снять с потока и отправить в полёт с кувырком прочь от трассы. */
+  private knockOff(v: Vehicle, p: PlayerState) {
+    this.list.splice(this.list.indexOf(v), 1);
+    const away = Math.abs(v.d - p.d) > 0.3 ? Math.sign(v.d - p.d) : v.d >= 0 ? 1 : -1;   // в сторону ближайшей обочины
+    const push = Math.max(6, Math.abs(p.v - v.v));
+    const r = () => this.rnd() - 0.5;
+    this.flying.push({
+      v, s: v.s, d: v.d, h: 0,
+      // вперёд — быстрее машины игрока (летит перед капотом, его видно), вбок — ровно за обочину
+      vs: p.v + 3 + push * 0.3, vd: away * (ROAD.half + 3 + this.rnd() * 4 - away * v.d) / 1.7, vh: 6 + this.rnd() * 1.5,
+      t: 0, rot: new THREE.Euler(0, 0, v.lean, 'YXZ'),
+      w: new THREE.Vector3(r() * 9 - 3, r() * 6, away * (5 + this.rnd() * 5)),
+    });
+  }
+
+  private _q = new THREE.Quaternion();
+  private updateFlying(dt: number, p: PlayerState) {
+    for (let i = this.flying.length - 1; i >= 0; i--) {
+      const f = this.flying[i];
+      f.t += dt;
+      f.vh -= 9.81 * dt;
+      f.s += f.vs * dt; f.d += f.vd * dt; f.h += f.vh * dt;
+      if (f.h <= 0) {                                  // удар о землю: отскок и трение, кувырок затухает
+        f.h = 0;
+        if (f.vh < -2) { f.vh *= -0.32; f.w.multiplyScalar(0.55); } else { f.vh = 0; f.w.multiplyScalar(Math.max(0, 1 - dt * 5)); }
+        const k = Math.max(0, 1 - dt * 2.5);
+        f.vs *= k; f.vd *= k;
+      }
+      f.rot.x += f.w.x * dt; f.rot.y += f.w.y * dt; f.rot.z += f.w.z * dt;
+      const fr = this.path.frame(f.s, this.frame);
+      const root = f.v.vis.root;
+      root.position.copy(fr.pos).addScaledVector(fr.right, f.d).addScaledVector(fr.up, f.h);
+      this._x.crossVectors(fr.up, fr.fwd).normalize();
+      this._m.makeBasis(this._x, fr.up, fr.fwd);
+      root.quaternion.setFromRotationMatrix(this._m).multiply(this._q.setFromEuler(f.rot));
+      f.v.vis.body.rotation.set(0, 0, 0);
+      f.v.vis.blinkL.material = f.v.vis.blinkR.material = this.assets.blinkOff;
+      if (f.t > 9 || f.s < p.s - DESPAWN_BEHIND) { this.release(f.v); this.flying.splice(i, 1); }
     }
   }
 

@@ -863,6 +863,22 @@ async function runShot(kind: string, ctx: {
       log.push(`  ДТП ${crashes} → класс ${cls()}`);
     }
     console.warn('KBM ' + log.join(' | '));
+  } else if (kind === 'knock') {
+    // сбить мотоцикл: он должен улететь с трассы (|d| за край дороги), а не остаться на полосе
+    const d = ctx.drive;
+    await ctx.startDrive(true, 1290);
+    d.traffic.clear();
+    d.lane = 0; d.d = 0;
+    d.traffic.debugPlace('moto', d.s + 9, 0, 60);
+    const tr = d.traffic as any;
+    const out: string[] = [];
+    for (let i = 0; i < 300; i++) {
+      d.v = 110 / 3.6;
+      ctx.frame(1 / 60);
+      const f = tr.flying[0];
+      if (f && i % 25 === 0) out.push(`t=${f.t.toFixed(2)} ds=${(f.s - d.s).toFixed(1)} d=${f.d.toFixed(1)} h=${f.h.toFixed(1)} vis=${f.v.vis.root.parent ? 'да' : 'нет'}`);
+    }
+    console.warn('KNOCK crashes=' + d.crashes + ' moto в потоке=' + d.traffic.vehicles.filter((v) => v.kind === 'moto').length + ' | ' + out.join(' | '));
   } else if (kind === 'blink') {
     // левый поворотник должен быть слева по ходу: проверяем в мировых координатах
     const d = ctx.drive;
@@ -870,7 +886,7 @@ async function runShot(kind: string, ctx: {
     const tr = d.traffic;
     tr.clear();
     const out: string[] = [];
-    for (const k of ['sedan', 'truck', 'moto', 'van'] as const) {
+    for (const k of ['sedan', 'truck', 'moto', 'van', 'tiller'] as const) {
       tr.debugPlace(k, d.s + 30, 0, 90);
       const vis = (tr.group.children[tr.group.children.length - 1]) as THREE.Group;
       vis.updateMatrixWorld(true);
@@ -993,7 +1009,7 @@ async function runShot(kind: string, ctx: {
     const secs = Number(p.get('secs') || 120);
     let overlaps = 0, walls = 0, maxCount = 0, minV = 1e9, laneShift = 0, nextShift = 2;
     let tSim = 0;
-    const stats = { sedan: 0, truck: 0, moto: 0, van: 0 };
+    const stats = { sedan: 0, truck: 0, moto: 0, van: 0, tiller: 0 };
     for (let i = 0; i < secs * 60; i++) {
       tSim += 1 / 60;
       if (tSim > nextShift) { laneShift = Math.random() < 0.5 ? -1 : 1; nextShift = tSim + 1 + Math.random() * 3; }
@@ -1075,7 +1091,8 @@ async function runShot(kind: string, ctx: {
       const s0 = ctx.drive.s;
       const nearS = Number(p.get('near'));
       ctx.drive.traffic.debugPlace('truck', s0 + 40, lane + (lane < 1 ? 1 : -1) * 1, 90);
-      ctx.drive.traffic.debugPlace(p.get('mk') === 'moto' ? 'moto' : 'sedan', s0 + nearS, lane + (lane < 1 ? 1 : -1) * 1, 88);
+      const mk = (['moto', 'tiller'].includes(p.get('mk') ?? '') ? p.get('mk') : 'sedan') as 'moto' | 'tiller' | 'sedan';
+      ctx.drive.traffic.debugPlace(mk, s0 + nearS, p.get('same') ? lane : lane + (lane < 1 ? 1 : -1) * 1, mk === 'tiller' ? 25 : Number(p.get('mkv') || 88));
       ctx.drive.traffic.debugPlace('sedan', s0 + 60, lane === -1 ? 1 : -1, 90);
     }
     for (let i = 0; i < steps; i++) {

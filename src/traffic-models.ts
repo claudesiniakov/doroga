@@ -8,7 +8,7 @@ import { VAN, vanShape, vanGreenhouse, vanBodyClassify } from './van-shape';
 
 // Оси моделей трафика: +Z — вперёд, +Y — вверх, +X — ЛЕВЫЙ борт (базис «вверх × вперёд»).
 /** Ключи материалов: детали модели склеиваются по ним — несколько draw call на машину. */
-type MatKey = 'paint' | 'paint2' | 'glass' | 'black' | 'chrome' | 'grey' | 'head' | 'plate' | 'logo' | 'chevron' | 'rubber' | 'rim';
+type MatKey = 'paint' | 'paint2' | 'glass' | 'black' | 'chrome' | 'grey' | 'head' | 'plate' | 'logo' | 'chevron' | 'rubber' | 'rim' | 'wood';
 const TEXTURED: MatKey[] = ['plate', 'logo', 'chevron'];
 
 class Builder {
@@ -165,7 +165,7 @@ export class Shape {
   }
 }
 
-export type TrafficKind = 'sedan' | 'truck' | 'moto' | 'van';
+export type TrafficKind = 'sedan' | 'truck' | 'moto' | 'van' | 'tiller';
 
 export interface TrafficTemplate {
   kind: TrafficKind;
@@ -337,6 +337,98 @@ function buildMoto(): TrafficTemplate {
   };
 }
 
+/**
+ * Мотоблок с повозкой: мотоблок впереди (две колёсные «грунтозацепы», мотор, длинные ручки),
+ * за ним — дощатая тележка на одной оси, на передке сидит водитель и держит ручки.
+ */
+function buildTiller(): TrafficTemplate {
+  const b = new Builder();
+  const between = (a: THREE.Vector3, c: THREE.Vector3, r: number, key: MatKey) => {
+    const len = a.distanceTo(c);
+    const g = new THREE.CapsuleGeometry(r, Math.max(0.01, len - r * 2 + r * 0.6), 4, 10);
+    g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), c.clone().sub(a).normalize()));
+    return b.add(g, key, a.clone().add(c).multiplyScalar(0.5));
+  };
+  const RT = 0.3, zT = 1.42;          // ось мотоблока
+  const RC = 0.27, zC = -0.55;        // ось тележки
+  // ——— мотоблок ———
+  b.box(0.3, 0.2, 0.34, 'grey', { x: 0, y: RT + 0.02, z: zT }, 0.04);                       // редуктор
+  b.box(0.12, 0.34, 0.14, 'grey', { x: 0, y: RT + 0.26, z: zT - 0.1 }, 0.03);               // колонна
+  b.box(0.36, 0.26, 0.4, 'paint', { x: 0, y: 0.78, z: zT - 0.02 }, 0.05);                   // кожух двигателя
+  b.box(0.3, 0.12, 0.26, 'paint', { x: 0.02, y: 0.97, z: zT + 0.04 }, 0.05);               // бак
+  b.add(new THREE.CylinderGeometry(0.035, 0.035, 0.04, 12), 'black', { x: 0.02, y: 1.05, z: zT + 0.04 }); // пробка
+  b.add(new THREE.CylinderGeometry(0.09, 0.09, 0.12, 16).rotateZ(Math.PI / 2), 'black', { x: -0.24, y: 0.82, z: zT + 0.02 }); // воздушный фильтр
+  b.add(new THREE.CylinderGeometry(0.04, 0.045, 0.22, 12).rotateX(Math.PI / 2), 'chrome', { x: 0.2, y: 0.74, z: zT + 0.2 }); // глушитель
+  for (let k = 0; k < 4; k++) b.box(0.38, 0.012, 0.03, 'black', { x: 0, y: 0.7 + k * 0.045, z: zT + 0.19 }); // решётка
+  b.box(0.12, 0.07, 0.05, 'head', { x: 0, y: 0.62, z: zT + 0.23 }, 0.02);                  // фара
+  b.box(0.7, 0.04, 0.24, 'black', { x: 0, y: RT * 2 + 0.06, z: zT }, 0.015);               // крылья над колёсами
+  b.box(0.1, 0.06, 0.22, 'black', { x: 0, y: 0.26, z: zT - 0.32 }, 0.02);                  // сцепка
+  b.box(0.08, 0.05, 0.5, 'grey', { x: 0, y: 0.28, z: zT - 0.62 }, 0.02);                   // дышло к тележке
+  // ручки: от мотоблока назад-вверх к водителю
+  for (const side of [-1, 1]) {
+    const a = new THREE.Vector3(side * 0.12, 0.92, zT - 0.15), m = new THREE.Vector3(side * 0.24, 1.0, zT - 0.62), e = new THREE.Vector3(side * 0.28, 0.98, zT - 0.9);
+    between(a, m, 0.018, 'grey');
+    between(m, e, 0.018, 'grey');
+    between(e, new THREE.Vector3(side * 0.34, 0.98, zT - 0.95), 0.024, 'black');            // рукоятки
+  }
+  // ——— тележка: дощатый кузов на раме ———
+  const bedF = 0.62, bedB = -1.25, bedW = 1.24, floorY = 0.58, sideH = 0.34;
+  const bedL = bedF - bedB, bedZ = (bedF + bedB) / 2;
+  b.box(0.08, 0.08, bedL + 0.1, 'grey', { x: 0.42, y: floorY - 0.08, z: bedZ });             // лонжероны
+  b.box(0.08, 0.08, bedL + 0.1, 'grey', { x: -0.42, y: floorY - 0.08, z: bedZ });
+  b.box(bedW, 0.04, bedL, 'wood', { x: 0, y: floorY, z: bedZ });                            // пол
+  const planks = 3, ph = sideH / planks;
+  for (let k = 0; k < planks; k++) {
+    const y = floorY + 0.02 + ph * (k + 0.5);
+    for (const side of [-1, 1]) b.box(0.035, ph - 0.012, bedL, 'wood', { x: side * (bedW / 2 - 0.018), y, z: bedZ });
+    b.box(bedW, ph - 0.012, 0.035, 'wood', { x: 0, y, z: bedB + 0.018 });                    // задний борт
+    b.box(bedW, ph - 0.012, 0.035, 'wood', { x: 0, y, z: bedF - 0.018 });                    // передний борт
+  }
+  for (const z of [bedF - 0.02, bedZ, bedB + 0.02]) for (const side of [-1, 1])
+    b.box(0.05, sideH + 0.04, 0.05, 'grey', { x: side * (bedW / 2 + 0.005), y: floorY + sideH / 2 + 0.02, z });   // стойки
+  // груз: мешки с картошкой и бидон
+  for (const [x, z, r] of [[0.25, -0.3, 0.2], [-0.2, -0.45, 0.22], [0.05, -0.85, 0.21], [-0.3, -0.95, 0.19]] as const)
+    b.add(new THREE.SphereGeometry(1, 14, 10), 'paint2', { x, y: floorY + 0.17, z }, new THREE.Euler(0, x * 3, 0.2), { x: r * 1.15, y: 0.17, z: r * 1.4 });
+  b.add(new THREE.CylinderGeometry(0.13, 0.15, 0.42, 18), 'chrome', { x: 0.35, y: floorY + 0.23, z: 0.15 });
+  b.add(new THREE.CylinderGeometry(0.07, 0.11, 0.1, 18), 'chrome', { x: 0.35, y: floorY + 0.49, z: 0.15 });
+  // сиденье-доска на переднем борту и водитель
+  b.box(0.7, 0.05, 0.3, 'wood', { x: 0, y: floorY + sideH + 0.04, z: bedF - 0.2 });
+  const hip = new THREE.Vector3(0, floorY + sideH + 0.17, bedF - 0.22), sh = new THREE.Vector3(0, hip.y + 0.5, bedF - 0.12);
+  between(hip, sh, 0.17, 'paint2');                                                         // ватник
+  b.add(new THREE.SphereGeometry(0.11, 16, 12), 'wood', { x: 0, y: sh.y + 0.2, z: sh.z + 0.02 }, undefined, { x: 1, y: 1.08, z: 1 }); // голова
+  b.add(new THREE.SphereGeometry(0.125, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.5), 'black', { x: 0, y: sh.y + 0.24, z: sh.z + 0.01 }); // кепка
+  b.box(0.2, 0.025, 0.12, 'black', { x: 0, y: sh.y + 0.25, z: sh.z + 0.14 });             // козырёк
+  for (const side of [-1, 1]) {
+    const s = new THREE.Vector3(side * 0.18, sh.y - 0.04, sh.z), el = new THREE.Vector3(side * 0.27, sh.y - 0.26, sh.z + 0.22);
+    between(s, el, 0.055, 'paint2');
+    between(el, new THREE.Vector3(side * 0.32, 0.98, zT - 0.93), 0.05, 'paint2');            // руки на ручках
+    const hp = new THREE.Vector3(side * 0.12, hip.y, hip.z), kn = new THREE.Vector3(side * 0.17, hip.y + 0.04, hip.z + 0.42);
+    between(hp, kn, 0.075, 'black');
+    between(kn, new THREE.Vector3(side * 0.17, floorY + 0.12, bedF + 0.35), 0.065, 'black'); // ноги на дышле
+    b.box(0.1, 0.08, 0.22, 'black', { x: side * 0.17, y: floorY + 0.06, z: bedF + 0.4 }, 0.02);
+  }
+  // колёса: мотоблок — «грунтозацепы» (ёлочка), тележка — обычные
+  const tiller = axleGeometry(RT, 0.16, 0.17, 0.36, false);
+  const lugs = new Builder();
+  for (const side of [-1, 1]) for (let k = 0; k < 14; k++) {
+    const a = (k / 14) * Math.PI * 2;
+    for (const h of [-1, 1])
+      lugs.add(new THREE.BoxGeometry(0.075, 0.04, 0.05), 'rubber', { x: side * 0.36 + h * 0.04, y: Math.cos(a) * (RT + 0.01), z: Math.sin(a) * (RT + 0.01) }, new THREE.Euler(a, h * 0.5, 0));
+  }
+  const tillerRubber = mergeGeometries([tiller.rubber, lugs.build().get('rubber')!], false)!;
+  const cart = axleGeometry(RC, 0.15, 0.13, 0.5, false);   // колёса под кузовом
+  const tail = new Builder(), bl = new Builder(), br = new Builder();
+  for (const side of [-1, 1]) tail.box(0.1, 0.06, 0.02, 'head', { x: side * 0.5, y: floorY + 0.14, z: bedB - 0.01 }, 0.01); // катафоты
+  b.add(new THREE.CircleGeometry(0.16, 3).rotateY(Math.PI), 'chevron', { x: 0, y: floorY + 0.2, z: bedB - 0.02 });         // «тихоходный» знак
+  bl.box(0.04, 0.03, 0.02, 'head', { x: 0.6, y: floorY + 0.3, z: bedB - 0.01 }, 0.008);
+  br.box(0.04, 0.03, 0.02, 'head', { x: -0.6, y: floorY + 0.3, z: bedB - 0.01 }, 0.008);
+  return {
+    kind: 'tiller', length: zT + RT + 0.25 - bedB, width: 1.3, parts: b.build(), wheelR: 0.28,
+    axles: [{ z: zT, y: RT, rubber: tillerRubber, rim: tiller.rim }, { z: zC, y: RC, rubber: cart.rubber, rim: cart.rim }],
+    tail: tail.build().get('head')!, blinkL: bl.build().get('head')!, blinkR: br.build().get('head')!,
+  };
+}
+
 /** Минивэн в трафике: та же форма, что у «Простора 7», но проще — без рейлингов и спойлера, фонари горизонтальные. */
 function buildVanTraffic(): TrafficTemplate {
   const sh = vanShape();
@@ -499,6 +591,7 @@ const SEDAN_COLORS: [string, number][] = [
   ['#e9e9e6', 4], ['#b8bcc2', 4], ['#1a1b1e', 3], ['#5a5f66', 3], ['#1d2c4a', 2], ['#7d1218', 1.5], ['#c9b89a', 1], ['#2f4a3a', 1], ['#d0d4d8', 2],
 ];
 const MOTO_COLORS: [string, number][] = [['#c4101a', 3], ['#1f4f9c', 2], ['#111214', 3], ['#f2f2f0', 2], ['#f5c518', 1], ['#2e8b3e', 1], ['#e06a12', 1]];
+const TILLER_COLORS: [string, number][] = [['#c4251c', 3], ['#e06a12', 2], ['#2e7d3a', 1], ['#1f4f9c', 1]];
 const CAB_COLORS: [string, number][] = [['#f0f0ee', 3], ['#b3171c', 2], ['#1f4f9c', 2], ['#e07a12', 1], ['#2b2e33', 1]];
 const BRANDS: [string, string][] = [['ТРАНЗИТ-7', '#1f4f9c'], ['ВЕКТОР', '#c4101a'], ['СЕВЕРНЫЙ ПУТЬ', '#16723a'], ['', '#888']];
 
@@ -507,6 +600,7 @@ export class TrafficAssets {
   readonly truck = buildTruck();
   readonly moto = buildMoto();
   readonly van = buildVanTraffic();
+  readonly tiller = buildTiller();
   private paints = new Map<string, THREE.MeshPhysicalMaterial>();
   readonly mats: Record<Exclude<MatKey, 'paint' | 'paint2' | 'logo' | 'plate'>, THREE.Material>;
   readonly tailOff = new THREE.MeshStandardMaterial({ color: 0x3a0000, emissive: 0xff1a12, emissiveIntensity: 1.6, roughness: 0.3 });
@@ -516,6 +610,8 @@ export class TrafficAssets {
   readonly logos: THREE.Material[];
   readonly plates: THREE.Material[];
   private rnd = mulberry32(99);
+  /** Ткань (мешки, ватник) — матовая, без лака. */
+  private cloth = new THREE.MeshStandardMaterial({ color: 0x5d5a4a, roughness: 0.95 });
 
   constructor() {
     this.mats = {
@@ -527,6 +623,7 @@ export class TrafficAssets {
       chevron: new THREE.MeshStandardMaterial({ map: chevronTexture(), roughness: 0.35, emissive: 0xffffff, emissiveIntensity: 0.08 }),
       rubber: new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.88 }),
       rim: new THREE.MeshStandardMaterial({ color: 0xb8bcc2, metalness: 0.9, roughness: 0.3 }),
+      wood: new THREE.MeshStandardMaterial({ color: 0x8a6440, roughness: 0.85 }),
     };
     (this.mats.chevron as THREE.MeshStandardMaterial).emissiveMap = (this.mats.chevron as THREE.MeshStandardMaterial).map;
     this.logos = BRANDS.map(([n, a]) => n
@@ -610,12 +707,12 @@ export class TrafficAssets {
 
   /** Новый экземпляр машины трафика. */
   create(kind: TrafficKind): TrafficVisual {
-    const t = kind === 'sedan' ? this.sedan : kind === 'moto' ? this.moto : kind === 'van' ? this.van : this.truck;
+    const t = kind === 'sedan' ? this.sedan : kind === 'moto' ? this.moto : kind === 'van' ? this.van : kind === 'tiller' ? this.tiller : this.truck;
     const root = new THREE.Group();
     const body = new THREE.Group();
     root.add(body);
-    const paint = this.paint(this.pick(kind === 'sedan' || kind === 'van' ? SEDAN_COLORS : kind === 'moto' ? MOTO_COLORS : CAB_COLORS));
-    const paint2 = this.paint(this.rnd() < 0.75 ? '#eef0f0' : this.pick([['#b8bcc2', 1], ['#2b4f8a', 1], ['#c9b89a', 1]]));
+    const paint = this.paint(this.pick(kind === 'sedan' || kind === 'van' ? SEDAN_COLORS : kind === 'moto' ? MOTO_COLORS : kind === 'tiller' ? TILLER_COLORS : CAB_COLORS));
+    const paint2 = kind === 'tiller' ? this.cloth : this.paint(this.rnd() < 0.75 ? '#eef0f0' : this.pick([['#b8bcc2', 1], ['#2b4f8a', 1], ['#c9b89a', 1]]));
     const logo = this.logos[Math.floor(this.rnd() * this.logos.length)];
     const plate = this.plates[Math.floor(this.rnd() * this.plates.length)];
     for (const [k, g] of t.parts) {

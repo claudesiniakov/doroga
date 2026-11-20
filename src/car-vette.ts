@@ -3,6 +3,36 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { Shape } from './traffic-models';
 import { loft, spline, bodyStations, CarConfig, CarModel } from './car';
 import { makePlateTexture } from './textures';
+import absolutLogo from './brand/absolut-logo.svg?raw';
+
+/**
+ * Логотип страховщика (векторный, с сайта): знак «a.» — на двери, название в две строки — на корме.
+ * В исходнике viewBox 0 0 279 61: знак занимает x 0…80, название — x 92…279.
+ */
+function brandTextures() {
+  const mk = (w: number, h: number) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+  const markC = mk(1024, 1024), wordC = mk(2048, 720);
+  const mark = new THREE.CanvasTexture(markC), word = new THREE.CanvasTexture(wordC);
+  for (const t of [mark, word]) { t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; }
+  const img = new Image();
+  img.onload = () => {
+    const k = img.naturalWidth / 279;             // пикселей на единицу viewBox
+    // дверь: белая скруглённая подложка + знак «a.»
+    const g = markC.getContext('2d')!;
+    g.fillStyle = '#ffffff';
+    g.beginPath(); g.roundRect(24, 24, 976, 976, 150); g.fill();
+    const mw = 80 * k, mh = 61 * k, s = 760 / Math.max(mw, mh);
+    g.drawImage(img, 0, 0, mw, mh, 512 - (mw * s) / 2, 512 - (mh * s) / 2, mw * s, mh * s);
+    mark.needsUpdate = true;
+    // корма: «Абсолют / Страхование» в цветах логотипа
+    const w = wordC.getContext('2d')!;
+    const sx = 92 * k, sw = (279 - 92) * k, sh = 61 * k, s2 = Math.min(1960 / sw, 680 / sh);
+    w.drawImage(img, sx, 0, sw, sh, 1024 - (sw * s2) / 2, 360 - (sh * s2) / 2, sw * s2, sh * s2);
+    word.needsUpdate = true;
+  };
+  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(absolutLogo);
+  return { mark, word };
+}
 
 /**
  * «Комета» в духе современного среднемоторного американского спорткара (без марок и логотипов):
@@ -43,42 +73,7 @@ vec3 liveryColor(vec3 p, vec3 n, vec3 base) {
   return c;
 }`;
 
-function logoTexture(text: string) {
-  const c = document.createElement('canvas');
-  c.width = 2048; c.height = 320;
-  const g = c.getContext('2d')!;
-  g.clearRect(0, 0, 2048, 320);
-  g.font = 'italic 900 210px "Arial Black", Arial, sans-serif';
-  g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.lineJoin = 'round';
-  g.lineWidth = 26; g.strokeStyle = '#ffffff'; g.strokeText(text, 1024, 168);
-  g.fillStyle = '#0a1f5c'; g.fillText(text, 1024, 168);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 8;
-  return t;
-}
 
-/** Эмблема на дверь: большая «a» в синем круге с белой окантовкой. */
-function letterTexture(letter: string) {
-  const S = 1024;
-  const c = document.createElement('canvas');
-  c.width = c.height = S;
-  const g = c.getContext('2d')!;
-  g.clearRect(0, 0, S, S);
-  g.beginPath(); g.arc(S / 2, S / 2, S * 0.47, 0, Math.PI * 2);
-  g.fillStyle = '#ffffff'; g.fill();
-  g.beginPath(); g.arc(S / 2, S / 2, S * 0.43, 0, Math.PI * 2);
-  g.fillStyle = '#0a1f5c'; g.fill();
-  g.font = `900 ${Math.round(S * 0.72)}px "Arial Black", Arial, sans-serif`;
-  g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillStyle = '#ffffff';
-  g.fillText(letter, S / 2, S * 0.47);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 8;
-  return t;
-}
 
 export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity = 1): CarModel {
   const { R, axF, axR, track, halfLen } = VETTE;
@@ -172,7 +167,7 @@ export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity =
   for (let r = 0; r < GR; r++) {
     const z = zC + ((zA - zC) * r) / (GR - 1);
     const yb = sh.top(z) - 0.012, H = Math.max(0, roof(z) - yb);
-    const wb = sh.xAt(z, yb) - 0.04, wr = Math.min(wb, 0.62);
+    const wb = sh.xAt(z, yb) - 0.02, wr = Math.min(wb, 0.74); // кабина шире
     const ring: THREE.Vector3[] = [];
     for (let k = 0; k <= GK; k++) {
       const phi = Math.PI - (Math.PI * k) / GK;
@@ -341,15 +336,15 @@ export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity =
     wheels.push({ spin, steer, front });
   }
 
-  // ——— надписи спонсора (видны вместе с ливреей) ———
-  const logoMat = new THREE.MeshStandardMaterial({ map: logoTexture(cfg.sponsor ?? 'absolutins.ru'), transparent: true, roughness: 0.35, polygonOffset: true, polygonOffsetFactor: -3 });
+  // ——— логотип страховщика (виден вместе с ливреей) ———
   const logos = new THREE.Group();
   logos.visible = false;
   body.add(logos);
   // на дверях — большая «a» по центру (с наклоном по изгибу борта)
-  const letterMat = new THREE.MeshStandardMaterial({ map: letterTexture((cfg.sponsor ?? 'absolutins.ru').charAt(0)), transparent: true, roughness: 0.3, polygonOffset: true, polygonOffsetFactor: -3 });
+  const brand = brandTextures();
+  const letterMat = new THREE.MeshStandardMaterial({ map: brand.mark, transparent: true, roughness: 0.3, polygonOffset: true, polygonOffsetFactor: -3 });
   for (const side of [-1, 1]) {
-    const z = 0.2, y = 0.6, size = 0.44;
+    const z = 0.2, y = 0.6, size = 0.42;
     const p = new THREE.Mesh(new THREE.PlaneGeometry(size, size), letterMat);
     p.position.set(side * (sh.xAt(z, y) + 0.006), y, z);
     const dxdy = (sh.xAt(z, y + 0.1) - sh.xAt(z, y - 0.1)) / 0.2;
@@ -360,8 +355,8 @@ export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity =
   }
   // на корме — полное название между фонарями и номером
   {
-    const y = 0.8, z = sh.surfaceZ(0.45, y, -1) - 0.008;
-    const p = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.156), logoMat);
+    const y = 0.81, z = sh.surfaceZ(0.45, y, -1) - 0.008;
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(0.74, 0.26), new THREE.MeshStandardMaterial({ map: brand.word, transparent: true, roughness: 0.35, polygonOffset: true, polygonOffsetFactor: -3 }));
     p.position.set(0, y, z);
     p.rotation.y = Math.PI;
     logos.add(p);

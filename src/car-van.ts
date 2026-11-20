@@ -43,9 +43,8 @@ export function buildVan(cfg: CarConfig, envIntensity = 1): CarModel {
   ghm.castShadow = true;
   body.add(ghm);
   add(new THREE.BoxGeometry(1.4, 0.5, 3.9), under, 0, 0.5, -0.05, false);
-  // щётка пятой двери и спойлер на крыше
+  // щётка пятой двери
   add(new THREE.BoxGeometry(0.42, 0.018, 0.012).rotateZ(0.5), plastic, 0.1, 1.16, gh.zC - 0.03, false);
-  add(new RoundedBoxGeometry(1.16, 0.04, 0.2, 2, 0.018), paint, 0, 1.77, -2.22).rotation.x = -0.1;
 
   // ——— перед: стреловидные фары по форме носа, решётка, противотуманки ———
   for (const side of [-1, 1]) {
@@ -115,21 +114,24 @@ export function buildVan(cfg: CarConfig, envIntensity = 1): CarModel {
       add(new THREE.CapsuleGeometry(0.012, 0.14, 4, 8).rotateX(Math.PI / 2), chrome, side * (sh.xAt(z, y) + 0.006), y, z, false);
     }
     // зеркало
-    const mz = 1.18, my = sh.top(mz) + 0.07, mx = side * (sh.xAt(mz, sh.top(mz) - 0.04) + 0.06);
+    // зеркало на ножке у основания стойки
+    const mz = 1.12, my = sh.top(mz) + 0.08, bx = sh.xAt(mz, sh.top(mz) - 0.04), mx = side * (bx + 0.12);
+    add(new RoundedBoxGeometry(0.12, 0.035, 0.05, 2, 0.012), plastic, side * (bx + 0.05), my - 0.04, mz + 0.01, false);
     const hz = new THREE.Mesh(new THREE.SphereGeometry(1, 18, 12), paint);
-    hz.scale.set(0.09, 0.07, 0.08);
+    hz.scale.set(0.1, 0.065, 0.06);
     hz.position.set(mx, my, mz);
     hz.castShadow = true;
     body.add(hz);
     const face = new THREE.Mesh(new THREE.CircleGeometry(1, 18), chrome);
     face.scale.set(0.075, 0.055, 1);
-    face.position.set(mx, my, mz - 0.075);
+    face.position.set(mx, my, mz - 0.058);
     face.rotation.y = Math.PI;
     body.add(face);
     // рейлинг
-    const x = side * 0.66, y = 1.83;
-    tube([new THREE.Vector3(x, y - 0.05, 0.6), new THREE.Vector3(x, y, 0.45), new THREE.Vector3(x, y, -1.95), new THREE.Vector3(x, y - 0.05, -2.1)], 0.016, chrome, true);
-    for (const z of [0.52, -0.7, -2.02]) add(new RoundedBoxGeometry(0.05, 0.08, 0.1, 2, 0.015), plastic, x, y - 0.05, z, false);
+    // рейлинг — только над плоской частью крыши, концы опущены к ней
+    const x = side * 0.64, y = 1.82;
+    tube([new THREE.Vector3(x, y - 0.045, 0.3), new THREE.Vector3(x, y, 0.18), new THREE.Vector3(x, y, -1.75), new THREE.Vector3(x, y - 0.045, -1.88)], 0.016, chrome, true);
+    for (const z of [0.26, -0.75, -1.84]) add(new RoundedBoxGeometry(0.05, 0.07, 0.1, 2, 0.015), plastic, x, y - 0.045, z, false);
   }
 
   // ——— подкрылки ———

@@ -251,8 +251,10 @@ export function buildCar(cfg: CarConfig, envIntensity = 1): CarModel {
       if (Math.abs(z + 0.3) < 0.035) return 2;                        // B-стойка
       return 1;
     }
-    if (s > 0.45 && s < 0.84) return 0;                               // C-стойка
-    return 1;
+    // за B-стойкой: заднее стекло сверху, форточка спереди, остальное — сплошная C-стойка (без «завитков» на скосе)
+    if (s > 0.8) return 1;
+    if (s < 0.45 && z > -1.1) return 1;
+    return 0;
   }, false, false);
   const gh = new THREE.Mesh(ghGeo, [paint, glass, black]);
   gh.castShadow = true;
@@ -292,7 +294,7 @@ export function buildCar(cfg: CarConfig, envIntensity = 1): CarModel {
     strip(surfPts(xs, () => 0.865, -1, -0.006), 0.026, lensMat);
     strip(surfPts(xs, () => 0.865, -1, 0.012), 0.011, tailMat);
     for (const side of [-1, 1]) {
-      const cx = [0.6, 0.7, 0.8].map((x) => side * x);
+      const cx = [0.58, 0.64, 0.7].map((x) => side * x);
       strip(surfPts(cx, () => 0.81, -1, 0.01), 0.018, tailMat);
     }
   }
@@ -363,10 +365,6 @@ export function buildCar(cfg: CarConfig, envIntensity = 1): CarModel {
 
   // ——— спойлер-утка и выхлоп ———
   {
-    const lip = new THREE.Mesh(new THREE.BoxGeometry(1.08, 0.018, 0.11), paint);
-    lip.position.set(0, topY(-2.1) + 0.01, -2.1);
-    lip.rotation.x = 0.12;
-    body.add(lip);
     for (const side of [-1, 1]) {
       const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.048, 0.14, 24, 1, true), chrome);
       pipe.rotation.x = Math.PI / 2;
@@ -381,13 +379,15 @@ export function buildCar(cfg: CarConfig, envIntensity = 1): CarModel {
   // ——— диффузор с рёбрами под номером ———
   {
     const zr = surfaceZ(0.6, 0.3, -1);
-    const diff = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.13, 0.32), black);
-    diff.position.set(0, 0.255, zr + 0.14);
+    // целиком под кузовом: не шире заднего свеса и не выступает назад
+    const diff = new THREE.Mesh(new THREE.BoxGeometry(1.16, 0.1, 0.3), black);
+    diff.position.set(0, 0.27, zr + 0.2);
     body.add(diff);
     for (let i = -3; i <= 3; i++) {
       if (Math.abs(i) === 2) continue; // место под выхлоп
       const fin = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.11, 0.3), black);
-      fin.position.set(i * 0.17, 0.25, zr + 0.13);
+      if (Math.abs(i) > 2) continue;
+      fin.position.set(i * 0.17, 0.26, zr + 0.16);
       body.add(fin);
     }
   }

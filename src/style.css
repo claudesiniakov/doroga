@@ -93,20 +93,43 @@ button { font: inherit; color: inherit; cursor: pointer; }
   display: flex; justify-content: space-between; align-items: center; pointer-events: none;
 }
 .hud-top > * { pointer-events: auto; }
-.odo { display: flex; align-items: baseline; gap: 6px; padding: 9px 14px; border-radius: 12px; background: var(--glass); border: 1px solid var(--line); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
-.odo b { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.odo span { color: var(--ink-2); font-size: 12px; letter-spacing: .1em; }
+.hud-top { align-items: flex-start; }
+.hud-right { display: grid; gap: 8px; justify-items: end; }
+/* одометр под спидометром: барабаны с цифрами, десятые — инверсные */
+.odo { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); width: max-content; display: grid; gap: 5px; }
+.odo-row { display: flex; align-items: center; gap: 6px; }
+.drums {
+  display: flex; align-items: center; gap: 2px; padding: 3px; border-radius: 7px;
+  background: linear-gradient(#0b0c0e, #1a1c20 50%, #0b0c0e); border: 1px solid rgba(255,255,255,.16);
+  box-shadow: inset 0 2px 6px rgba(0,0,0,.8), 0 4px 14px rgba(0,0,0,.35);
+}
+.drum {
+  --h: 22px; position: relative; display: block; width: 16px; height: var(--h); overflow: hidden; border-radius: 3px;
+  background: linear-gradient(#050506, #24262b 45%, #24262b 55%, #050506);
+}
+.drum > span {
+  display: block; height: var(--h); line-height: var(--h); text-align: center; color: #f2f2ee;
+  font: 700 16px/22px ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  transform: translateY(calc(var(--p, 0) * -1 * var(--h)));
+}
+.drum::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(rgba(0,0,0,.55), transparent 30%, transparent 70%, rgba(0,0,0,.55)); }
+.drum.tenth { background: linear-gradient(#b8b6ad, #f4f2ea 45%, #f4f2ea 55%, #b8b6ad); }
+.drum.tenth > span { color: #c4321c; }
+.drums .dot { width: 3px; height: 3px; border-radius: 50%; background: #f2f2ee; align-self: flex-end; margin: 0 1px 3px; }
+.odo-goal { white-space: nowrap; color: var(--ink-2); font-size: 12px; letter-spacing: .06em; text-shadow: 0 1px 6px rgba(0,0,0,.6); }
+.odo .tripbar { position: static; display: block; width: 100%; height: 3px; border-radius: 3px; background: rgba(255,255,255,.16); overflow: hidden; }
 .icon-btn {
   width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--glass);
   backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); display: grid; place-items: center;
 }
 .icon-btn svg { width: 18px; height: 18px; fill: var(--ink); }
-.speedo { position: absolute; right: calc(28px + var(--safe-r)); bottom: calc(22px + var(--safe-b)); width: 200px; height: 120px; }
-.arc { width: 100%; height: 100%; overflow: visible; }
+.speedo { position: absolute; right: calc(28px + var(--safe-r)); bottom: calc(18px + var(--safe-b)); width: 200px; height: 158px; }
+.arc { width: 100%; height: 120px; overflow: visible; }
 .arc path { fill: none; stroke-width: 6; stroke-linecap: round; }
 .arc .track { stroke: rgba(255, 255, 255, .14); }
 .arc .fill { stroke: url(#none); stroke: var(--accent); stroke-dasharray: 252; stroke-dashoffset: 252; filter: drop-shadow(0 0 6px rgba(255,140,60,.7)); transition: stroke-dashoffset .08s linear; }
-.num { position: absolute; left: 0; right: 0; bottom: 6px; text-align: center; text-shadow: 0 2px 14px rgba(0,0,0,.55); }
+.num { position: absolute; left: 0; right: 0; top: 50px; text-align: center; text-shadow: 0 2px 14px rgba(0,0,0,.55); }
 .num b { display: block; font-size: 52px; line-height: 1; font-weight: 750; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
 .num span { color: var(--ink-2); font-size: 11px; letter-spacing: .2em; text-transform: uppercase; }
 .controls-hint {

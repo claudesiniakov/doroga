@@ -517,6 +517,21 @@ async function main() {
 
   const SPEEDO_LEN = 252;
   const speedEl = $('speed'), arcEl = $('speedArc'), odoEl = $('odo');
+  // одометр: барабаны крутятся как настоящие — десятые плавно, старшие разряды докручиваются при переносе
+  const drums = [...odoEl.querySelectorAll<HTMLElement>('.drum')].reverse();   // [десятые, единицы, десятки, сотни]
+  const drumPos = drums.map(() => -1);
+  function setOdo(tenths: number) {
+    const v = Math.max(0, tenths);
+    const frac = v % 1;
+    for (let i = 0; i < drums.length; i++) {
+      const unit = 10 ** i;
+      const digit = Math.floor(v / unit) % 10;
+      const rolling = i === 0 ? frac : (v % unit) >= unit - 1 ? frac : 0;   // все младшие на «9» — переносим
+      const p = Math.round((digit + rolling) * 100) / 100;
+      if (p !== drumPos[i]) { drumPos[i] = p; drums[i].style.setProperty('--p', String(p)); }
+    }
+  }
+  setOdo(0);
   let lastSpeed = -1;
 
   const fuelBox = $('fuelBox'), fuelBar = $('fuelBar'), fuelL = $('fuelL'), coinsEl = $('coins'), banner = $('banner');
@@ -599,7 +614,7 @@ async function main() {
         speedEl.textContent = String(kmh);
         arcEl.style.strokeDashoffset = String(SPEEDO_LEN * (1 - Math.min(1, kmh / cfg.maxSpeedKmh)));
       }
-      odoEl.textContent = (drive.tripDone / 1000).toFixed(1);
+      setOdo(drive.tripDone / 100);
       $('odoGoal').textContent = `/ ${drive.tripKm} км`;
       $('tripBar').style.width = `${Math.min(100, (drive.tripDone / (drive.tripKm * 1000)) * 100)}%`;
     }

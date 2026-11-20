@@ -75,7 +75,6 @@
   <section id="hud" class="screen">
     <div class="hud-top">
       <div class="hud-left">
-        <div class="odo"><b id="odo">0.0</b><span id="odoGoal">/ 4 км</span><i class="tripbar"><i id="tripBar"></i></i></div>
         <div class="fuel" id="fuelBox">
           <span class="ic">⛽</span>
           <span class="fbar"><i id="fuelBar"></i></span>
@@ -86,9 +85,11 @@
           <span class="fbar"><i id="hpBar"></i></span>
           <b id="hpVal">100</b><span class="u">%</span>
         </div>
-        <div class="coins"><span class="coin"></span><b id="coins">100</b><span class="chips" id="insChips"></span></div>
       </div>
-      <button id="pauseBtn" class="icon-btn" aria-label="Пауза"><svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button>
+      <div class="hud-right">
+        <div class="coins"><span class="chips" id="insChips"></span><span class="coin"></span><b id="coins">100</b></div>
+        <button id="pauseBtn" class="icon-btn" aria-label="Пауза"><svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button>
+      </div>
     </div>
     <div class="banner" id="banner"></div>
     <div class="toast" id="toast"></div>
@@ -98,6 +99,11 @@
         <path d="M20 110 A80 80 0 0 1 180 110" class="fill" id="speedArc" />
       </svg>
       <div class="num"><b id="speed">0</b><span>км/ч</span></div>
+      <div class="odo" aria-label="Пройдено">
+        <div class="odo-row"><div class="drums" id="odo"><span class="drum"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></span><span class="drum"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></span><span class="drum"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></span><i class="dot"></i><span class="drum tenth"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></span></div>
+<span class="odo-goal" id="odoGoal">/ 4 км</span></div>
+        <i class="tripbar"><i id="tripBar"></i></i>
+      </div>
     </div>
     <div class="controls-hint" id="ctrlHint">
       <span><kbd>←</kbd><kbd>→</kbd> полоса</span><span><kbd>↑</kbd> газ</span><span><kbd>↓</kbd> тормоз</span><span><kbd>C</kbd> камера</span>

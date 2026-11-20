@@ -279,3 +279,24 @@ kbd {
 @media (max-height: 640px) { .kbm-note { display: none; } .kbm-table td { padding: 3px 8px; } }
 .kbm-table th.grp { text-align: center; padding-bottom: 2px; }
 .kbm-table th.n { text-align: center; padding-top: 2px; }
+
+/* ——— протокол ДПС ——— */
+#protocol { display: grid; place-items: center; background: rgba(5, 6, 8, .45); }
+.paper {
+  width: min(460px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto;
+  padding: 24px 26px 20px; border-radius: 6px; color: #1d2228;
+  background: linear-gradient(180deg, #fbfaf5, #f1eee4); box-shadow: 0 30px 80px rgba(0,0,0,.55);
+  font-family: "Times New Roman", Georgia, serif; transform: rotate(-.6deg);
+}
+.p-head { display: flex; align-items: center; gap: 14px; border-bottom: 1.5px solid #1d2228; padding-bottom: 10px; margin-bottom: 12px; }
+.p-emb { flex: none; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; font: 800 12px Arial, sans-serif; color: #fff; background: radial-gradient(circle at 35% 35%, #3b6fd1, #1f4fae); box-shadow: inset 0 0 0 3px #f2c94c; }
+.p-title { font-weight: 700; font-size: 20px; letter-spacing: .14em; }
+.p-sub { font-size: 13px; }
+.p-num { margin-left: auto; font: 600 13px "Courier New", monospace; color: #b0261a; white-space: nowrap; }
+.p-fields { margin: 0; display: grid; grid-template-columns: 1fr; gap: 2px; font-size: 14px; }
+.p-fields dt { font: 600 10.5px Arial, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: #6b6f75; margin-top: 8px; }
+.p-fields dd { margin: 0; padding: 2px 0 4px; border-bottom: 1px dotted #9aa0a6; font-family: "Courier New", monospace; font-size: 13.5px; }
+.p-sign { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; align-items: end; margin: 18px 0 16px; font-size: 13px; }
+.p-scrawl { font: italic 22px "Brush Script MT", "Segoe Script", cursive; color: #22408a; border-bottom: 1px solid #1d2228; }
+.p-line { border-bottom: 1px solid #1d2228; height: 22px; }
+.paper .go { height: 50px; font-family: inherit; }

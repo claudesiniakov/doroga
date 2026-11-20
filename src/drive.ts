@@ -63,7 +63,14 @@ export class DriveScene {
    * intro — заставка; drive — езда; pitIn — заезд к колонке; refuel — стоим у колонки;
    * pitOut — выезд со съезда; empty — бак пуст, машина катится; stopped — заезд окончен.
    */
-  phase: 'intro' | 'drive' | 'pitIn' | 'refuel' | 'pitOut' | 'empty' | 'wrecked' | 'stopped' = 'intro';
+  phase: 'intro' | 'drive' | 'pitIn' | 'refuel' | 'pitOut' | 'policeIn' | 'protocol' | 'policeOut' | 'empty' | 'wrecked' | 'stopped' = 'intro';
+  // ДПС: без ОСАГО — случайная проверка, не больше одной за заезд
+  static readonly POLICE_FINE = 8;
+  /** Где стоит патруль (null — в этом заезде проверки нет). */
+  policeS: number | null = null;
+  policeFine = 0;
+  onPolice?: () => void;
+  private police!: { vis: { root: THREE.Group }; red: THREE.MeshStandardMaterial; blue: THREE.MeshStandardMaterial };
   // топливо и деньги
   static readonly START_COINS = 100;
   static readonly LITERS_PER_KM = 2;
@@ -206,6 +213,8 @@ export class DriveScene {
     // страховки покупаются на старте из стартовых монет
     this.coins = DriveScene.START_COINS - (this.insurance.kasko ? DriveScene.KASKO : 0) - (this.insurance.osago ? this.insurance.osagoPrice : 0);
     this.pitExit = null;
+    this.policeFine = 0;
+    this.schedulePolice();
     this.placeCar(0);
     this.world.prime(this.s, this.car.root.position);
     this.crashes = 0;
@@ -236,6 +245,20 @@ export class DriveScene {
       a = t < 0.6 ? 0 : (CRUISE - this.v) * 0.9 + 2.5;
       if (t > 1.2) this.lane = 1;
       if (this.introT >= this.introDur) this.phase = 'drive';
+    } else if (this.phase === 'policeIn') {
+      // к обочине и остановка за патрульной машиной
+      const left = Math.max(0, this.policeS! - 10 - this.s);
+      a = clamp((Math.sqrt(2 * 2.4 * left) - this.v) * 3, -7, 1);
+      brake = 1;
+      if (left < 0.4 && this.v < 0.6) {
+        this.v = 0; a = 0;
+        this.phase = 'protocol';
+        this.policeFine = Math.min(DriveScene.POLICE_FINE, this.coins);
+        this.coins -= this.policeFine;
+        this.onPolice?.();
+      }
+    } else if (this.phase === 'protocol') {
+      this.v = 0; a = 0; brake = 1;
     } else if (this.phase === 'pitIn') {
       // плавная остановка ровно у колонки
       const left = Math.max(0, this.pitExit!.sStop - this.s);
@@ -267,6 +290,12 @@ export class DriveScene {
       // съезд кончается — вливаемся обратно
       if (this.lane === 2 && path.extraAt(this.s + 35) < EXIT_W * 0.7) this.lane = 1;
       if (this.phase === 'pitOut' && this.lane !== 2) this.phase = 'drive';
+      if (this.phase === 'policeOut' && Math.abs(this.d - this.lane * ROAD.laneWidth) < 0.4) this.phase = 'drive';
+      // патруль впереди: машина сама уходит на обочину
+      if (this.phase === 'drive' && this.policeS !== null && this.policeFine === 0 && this.s > this.policeS - 160 && this.s < this.policeS - 40) {
+        this.phase = 'policeIn';
+        this.lane = 3;
+      }
       // в полосе съезда перед колонкой — заезд на заправку
       const ex = path.exitNear(this.s, 0);
       // заезд к колонке — только если успеваем мягко остановиться (≈2.6 м/с²)
@@ -280,7 +309,7 @@ export class DriveScene {
       else a = clamp((CRUISE - this.v) * 0.35, this.phase === 'pitOut' ? -2.2 : -2.2, this.phase === 'pitOut' ? 3.2 : 1.8);
     }
     // тормозом ниже MIN_SPEED не сбросить, но после удара/заправки скорость может быть меньше — машина разгонится сама
-    const floor = this.phase === 'drive' || this.phase === 'pitOut' ? Math.min(MIN_SPEED, this.v) : 0;
+    const floor = this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'policeOut' ? Math.min(MIN_SPEED, this.v) : 0;
     this.v = clamp(this.v + a * dt, floor, vmax);
     if (input.brake > 0 && this.v <= MIN_SPEED + 0.01) brake = input.brake;
     this.lastBrake = brake;
@@ -290,12 +319,13 @@ export class DriveScene {
     // расход: 2 л на км
     if (this.phase !== 'intro') {
       this.fuel = Math.max(0, this.fuel - (ds / 1000) * DriveScene.LITERS_PER_KM);
-      if (this.fuel <= 0 && (this.phase === 'drive' || this.phase === 'pitOut')) this.phase = 'empty';
+      if (this.fuel <= 0 && (this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'policeOut' || this.phase === 'policeIn')) this.phase = 'empty';
       if (this.health <= 0 && (this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'empty')) this.phase = 'wrecked';
     }
 
     // смена полосы: пружина с критическим демпфированием
-    const target = this.lane === 2 ? ROAD.half + EXIT_W / 2 : this.lane * ROAD.laneWidth;
+    // полоса 2 — съезд, 3 — правая обочина (остановка ДПС)
+    const target = this.lane === 2 ? ROAD.half + EXIT_W / 2 : this.lane === 3 ? ROAD.half - 1.0 : this.lane * ROAD.laneWidth;
     const w = (this.phase === 'intro' ? 2.2 : 4.6 / cfg.laneChangeTime) ;
     const acc = w * w * (target - this.d) - 2 * w * this.dv;
     this.dv += acc * dt;
@@ -327,6 +357,7 @@ export class DriveScene {
     this.updateSun();
     this.world.update(this.s, this.car.root.position);
     this.traffic.update(dt, this.playerState(), this.odometer, time);
+    this.updatePolice(time);
     this.shakeAmp = Math.max(0, this.shakeAmp - dt * 1.6);
     this.sky.material.uniforms.time.value = time;
     this.updateCamera(dt, time);
@@ -453,6 +484,44 @@ export class DriveScene {
     return l;
   }
 
+  /** Патруль на случайном километре (вдали от съездов) — только если нет ОСАГО, с вероятностью ~65 %. */
+  private schedulePolice() {
+    this.policeS = null;
+    if (this.insurance.osago || Math.random() > 0.65) return;
+    const path = this.world.path;
+    for (let tries = 0; tries < 20; tries++) {
+      const s = this.s + 1800 + Math.random() * 7200;
+      if (!path.exitNear(s + 300, 900)) { this.policeS = s; return; }
+    }
+  }
+
+  /** Патрульная машина стоит на обочине, мигалка мигает. */
+  private updatePolice(time: number) {
+    if (!this.police) {
+      this.police = this.traffic.assets.createPolice() as typeof this.police;
+      this.scene.add(this.police.vis.root);
+    }
+    const root = this.police.vis.root;
+    const ps = this.policeS;
+    root.visible = ps !== null && ps - this.s < 1100 && ps - this.s > -200;
+    if (!root.visible) return;
+    const f = this.world.path.frame(ps!);
+    root.position.copy(f.pos).addScaledVector(f.right, ROAD.half - 1.0);
+    this._x.crossVectors(f.up, f.fwd).normalize();
+    this._m.makeBasis(this._x, f.up, f.fwd);
+    root.quaternion.setFromRotationMatrix(this._m);
+    const on = Math.floor(time * 6) % 2 === 0;
+    this.police.red.emissiveIntensity = on ? 6 : 0.2;
+    this.police.blue.emissiveIntensity = on ? 0.2 : 6;
+  }
+
+  /** Подписать протокол и уехать. */
+  leavePolice() {
+    if (this.phase !== 'protocol') return;
+    this.phase = 'policeOut';
+    this.lane = 1;
+  }
+
   /** Цена ремонта на pct процентов (с КАСКО — бесплатно). */
   repairCost(pct: number) {
     return this.insurance.kasko ? 0 : Math.ceil(pct / 10 - 1e-6) * DriveScene.REPAIR_PRICE;
@@ -498,7 +567,7 @@ export class DriveScene {
 
   /** Удар о машину трафика: потеря скорости, отброс, встряска. */
   private crash(e: CrashEvent) {
-    if (this.phase !== 'drive' && this.phase !== 'pitOut') return;
+    if (this.phase !== 'drive' && this.phase !== 'pitOut' && this.phase !== 'policeOut') return;
     this.crashes++;
     const r = this.traffic.resolve(this.playerState());
     this.s += r.ds;

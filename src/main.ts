@@ -11,14 +11,14 @@ import { GarageScene } from './garage';
 import { DriveScene } from './drive';
 import { Input } from './input';
 
-type State = 'loading' | 'garage' | 'drive' | 'pause' | 'station' | 'over';
+type State = 'loading' | 'garage' | 'drive' | 'pause' | 'station' | 'over' | 'protocol';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const params = new URLSearchParams(location.search);
 const SHOT = params.get('shot'); // служебный режим для автоматических снимков
 if (SHOT) document.documentElement.classList.add('shot');
 
-const screens = ['loading', 'garage', 'hud', 'pause', 'station', 'over', 'kbm'] as const;
+const screens = ['loading', 'garage', 'hud', 'pause', 'station', 'over', 'kbm', 'protocol'] as const;
 function show(...ids: string[]) {
   for (const s of screens) $(s).classList.toggle('show', ids.includes(s));
 }
@@ -278,6 +278,27 @@ async function main() {
     if (drive.stationKind === 'repair') drive.repair(10); else drive.refuel(10);
     updateStation();
   });
+  // ——— ДПС: протокол за езду без ОСАГО ———
+  drive.onPolice = () => {
+    state = 'protocol';
+    input.enabled = false;
+    const n = String(Math.floor(1000000 + Math.random() * 8999999));
+    $('prNum').textContent = `77 ДР № ${n}`;
+    $('prPlace').textContent = `трасса, ${(drive.odometer / 1000).toFixed(1).replace('.', ',')} км`;
+    $('prCar').textContent = `${cfg.name}, г/н ${cfg.plate}`;
+    $('prFine').textContent = drive.policeFine >= DriveScene.POLICE_FINE ? `штраф ${drive.policeFine} монет`
+      : `штраф ${DriveScene.POLICE_FINE} монет (списано ${drive.policeFine} — больше нет)`;
+    $('prSign').textContent = `Подписать · −${drive.policeFine} монет`;
+    show('hud', 'protocol');
+  };
+  $('prSign').addEventListener('click', () => {
+    if (state !== 'protocol') return;
+    drive.leavePolice();
+    state = 'drive';
+    input.clear();
+    input.enabled = true;
+    show('hud');
+  });
   // ——— удары: здоровье и ОСАГО ———
   let toastTimer = 0;
   drive.onDamage = ({ damage, fine, covered }) => {
@@ -333,6 +354,7 @@ async function main() {
       if (e.code === 'Escape' || e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') $('stLeave').click();
     }
     if (state === 'over' && e.code === 'Enter') $('ovAgain').click();
+    if (state === 'protocol' && (e.code === 'Enter' || e.code === 'Space')) $('prSign').click();
     if (state === 'garage' && (e.code === 'Enter' || e.code === 'Space')) $('go').click();
     if (state === 'garage' && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) selectCar(sel + (e.code === 'ArrowLeft' ? -1 : 1));
   });
@@ -412,7 +434,10 @@ async function main() {
     const kind = drive.nextExitKind;
     const place = kind === 'repair' ? '🔧 Автосервис' : '⛽ Заправка';
     const toPlace = kind === 'repair' ? drive.nextRepairDist : toStation;
-    if (ph === 'pitIn' || ph === 'refuel') setBanner(drive.stationKind === 'repair' ? '🔧 Заезжаем в автосервис' : '⛽ Заезжаем на заправку');
+    const toPolice = drive.policeS !== null && drive.policeFine === 0 ? drive.policeS - drive.s : Infinity;
+    if (ph === 'policeIn' || ph === 'protocol') setBanner('🚓 Остановка ДПС<small>проверка документов</small>', true);
+    else if (ph === 'drive' && toPolice > 0 && toPolice < 450) setBanner(`🚓 Впереди пост ДПС<small>через ${r50(toPolice)} м · полиса ОСАГО нет</small>`, true);
+    else if (ph === 'pitIn' || ph === 'refuel') setBanner(drive.stationKind === 'repair' ? '🔧 Заезжаем в автосервис' : '⛽ Заезжаем на заправку');
     else if (ph === 'empty') setBanner('Топливо кончилось', true);
     else if (ph === 'wrecked') setBanner('Машина разбита', true);
     else if (ph === 'drive' && drive.lane === 2) setBanner(`${place}<small>${kind === 'repair' ? 'бокс' : 'колонка'} через ${r50(toPlace)} м</small>`);
@@ -435,7 +460,7 @@ async function main() {
       renderer.render(garage.scene, garage.camera, time);
       return;
     }
-    if (state === 'station' || state === 'over') {
+    if (state === 'station' || state === 'over' || state === 'protocol') {
       // мир живёт: трафик едет мимо, машина стоит
       drive.update(dt, { throttle: 0, brake: 0, laneShift: 0 }, time);
       updateHud();
@@ -475,7 +500,38 @@ async function runShot(kind: string, ctx: {
   const p = new URLSearchParams(location.search);
   const steps = Number(p.get('steps') || 90);
   if (kind === 'sim') (ctx.drive.world.constructor as any).stats = { base: [], scatter: [], far: [] };
-  if (kind === 'kbmtest') {
+  if (kind === 'police') {
+    const d = ctx.drive, log: string[] = [];
+    const osago = document.getElementById('insOsago')!;
+    // с ОСАГО — патруля нет ни в одном заезде
+    if (!osago.classList.contains('on')) { osago.click(); document.getElementById('kbmBuy')!.click(); }
+    let withOsago = 0;
+    for (let k = 0; k < 30; k++) { await ctx.startDrive(true, 300); if (d.policeS !== null) withOsago++; }
+    log.push(`с ОСАГО: патрулей в 30 заездах = ${withOsago}`);
+    osago.click(); // снять ОСАГО
+    let without = 0;
+    for (let k = 0; k < 30; k++) { await ctx.startDrive(true, 300); if (d.policeS !== null) without++; }
+    log.push(`без ОСАГО: патрулей в 30 заездах = ${without}`);
+    await ctx.startDrive(true, 300);
+    d.policeS = d.s + 400;
+    const c0 = d.coins;
+    let t = 0;
+    const step = () => { t += 1 / 60; d.update(1 / 60, { throttle: 0, brake: 0, laneShift: 0 }, t); };
+    while (d.phase !== 'protocol' && t < 60) step();
+    const car = (d.scene.getObjectByName('car') as THREE.Object3D).position;
+    const pf = d.world.path.frame(d.policeS!);
+    log.push(`остановка: phase=${d.phase}, до патруля ${(d.policeS! - d.s).toFixed(1)} м, обочина d=${d.d.toFixed(2)}, списано ${c0 - d.coins}, протокол=${document.getElementById('protocol')!.classList.contains('show')}, видно патруль=${car.distanceTo(pf.pos) < 20}`);
+    ctx.frame(1 / 60);
+    if (p.get('stay')) { (window as any).__ready = true; return; }
+    (document.getElementById('prSign') as HTMLElement).click();
+    for (let i = 0; i < 60 * 12; i++) step();
+    log.push(`после: phase=${d.phase}, полоса ${d.lane}, ${(d.v * 3.6).toFixed(0)} км/ч`);
+    const c1 = d.coins;
+    d.policeS = d.s + 400;   // повторная попытка в том же заезде
+    for (let i = 0; i < 60 * 30; i++) step();
+    log.push(`повторно в том же заезде: phase=${d.phase}, списано ${c1 - d.coins}`);
+    console.warn('POLICE ' + log.join(' | '));
+  } else if (kind === 'kbmtest') {
     // годы: без ДТП с ОСАГО → с 2 ДТП с ОСАГО → 3 ДТП без ОСАГО (класс не меняется)
     localStorage.removeItem('doroga.kbm');
     const log: string[] = [];
@@ -698,6 +754,7 @@ async function runShot(kind: string, ctx: {
     ctx.drive.lane = lane;
     if (!intro) ctx.drive.d = lane * 3.5;
     const v = p.get('v');
+    if (p.get('police')) ctx.drive.policeS = ctx.drive.s + Number(p.get('police'));
     if (p.get('near')) {
       ctx.drive.traffic.clear();
       const s0 = ctx.drive.s;

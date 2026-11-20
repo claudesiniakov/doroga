@@ -45,7 +45,7 @@ export class Traffic {
   private crashCooldown = 0;
   onCrash?: (e: CrashEvent) => void;
 
-  constructor(private path: RoadPath, private assets: TrafficAssets) {
+  constructor(private path: RoadPath, readonly assets: TrafficAssets) {
     this.group.name = 'traffic';
     this.frame = path.frame(0);
   }
@@ -100,7 +100,7 @@ export class Traffic {
       const ds = o.s - s;
       if (ds > -gapBehind && ds < gapAhead) return false;
     }
-    if (Math.abs(p.d - lane * LANE) < LANE * 0.8) {
+    if (Math.abs(p.d - lane * LANE) < LANE * 0.6) {
       const ds = p.s - s;
       if (ds > -gapBehind && ds < gapAhead) return false;
     }
@@ -172,7 +172,7 @@ export class Traffic {
       const g = o.s - v.s - (o.length + v.length) / 2;
       if (g < gap) { gap = g; lv = o.v; }
     }
-    if (p.s > v.s && Math.abs(p.d - lane * LANE) < LANE * 0.8) {
+    if (p.s > v.s && Math.abs(p.d - lane * LANE) < LANE * 0.6) {
       const g = p.s - v.s - (p.length + v.length) / 2;
       if (g < gap) { gap = g; lv = p.v; }
     }

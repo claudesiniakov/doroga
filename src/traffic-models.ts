@@ -554,6 +554,62 @@ export class TrafficAssets {
     return m;
   }
 
+  /** Патрульная машина ДПС: седан в белой окраске, синяя полоса с надписью, мигалка; рядом инспектор. */
+  createPolice() {
+    const vis = this.create('sedan');
+    const white = this.paint('#f2f3f1');
+    vis.body.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (m.isMesh && [...this.paints.values()].includes(m.material as THREE.MeshPhysicalMaterial)) m.material = white;
+    });
+    // полоса «ДПС» по бортам
+    const c = document.createElement('canvas');
+    c.width = 1024; c.height = 128;
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#1f4fae'; g.fillRect(0, 34, 1024, 60);
+    g.fillStyle = '#fff'; g.font = '900 58px "Arial Black", Arial'; g.textBaseline = 'middle'; g.textAlign = 'center';
+    g.fillText('ДПС', 512, 66);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    const stripeMat = new THREE.MeshStandardMaterial({ map: t, transparent: true, roughness: 0.5, polygonOffset: true, polygonOffsetFactor: -2 });
+    for (const side of [-1, 1]) {
+      const pl = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 0.42), stripeMat);
+      pl.position.set(side * 0.915, 0.66, 0.05);
+      pl.rotation.y = side * Math.PI / 2;
+      vis.body.add(pl);
+    }
+    // мигалка: основание и два светящихся блока (красный/синий)
+    const bar = new THREE.Mesh(new RoundedBoxGeometry(1.0, 0.08, 0.26, 2, 0.03), this.mats.black);
+    bar.position.set(0, 1.48, -0.15);
+    vis.body.add(bar);
+    const red = new THREE.MeshStandardMaterial({ color: 0x400000, emissive: 0xff2010, emissiveIntensity: 0.2 });
+    const blue = new THREE.MeshStandardMaterial({ color: 0x000a40, emissive: 0x2050ff, emissiveIntensity: 0.2 });
+    for (const [x, m] of [[-0.25, red], [0.25, blue]] as const) {
+      const l = new THREE.Mesh(new RoundedBoxGeometry(0.44, 0.1, 0.22, 2, 0.04), m);
+      l.position.set(x, 1.55, -0.15);
+      vis.body.add(l);
+    }
+    // инспектор в светоотражающем жилете — сбоку от машины, со стороны дороги
+    const man = new THREE.Group();
+    const dark = new THREE.MeshStandardMaterial({ color: 0x1f2630, roughness: 0.8 });
+    const vest = new THREE.MeshStandardMaterial({ color: 0xc8f03a, emissive: 0x4a6a00, emissiveIntensity: 0.4, roughness: 0.6 });
+    const skin = new THREE.MeshStandardMaterial({ color: 0xd9a782, roughness: 0.7 });
+    const part = (g: THREE.BufferGeometry, m: THREE.Material, x: number, y: number, z: number, rz = 0) => {
+      const mesh = new THREE.Mesh(g, m); mesh.position.set(x, y, z); mesh.rotation.z = rz; mesh.castShadow = true; man.add(mesh);
+    };
+    for (const x of [-0.1, 0.1]) part(new THREE.CapsuleGeometry(0.07, 0.75, 4, 8), dark, x, 0.45, 0);
+    part(new THREE.CapsuleGeometry(0.19, 0.42, 4, 10), vest, 0, 1.15, 0);
+    part(new THREE.CapsuleGeometry(0.055, 0.5, 4, 8), dark, -0.27, 1.12, 0, 0.12);
+    part(new THREE.CapsuleGeometry(0.055, 0.45, 4, 8), dark, 0.3, 1.3, 0.1, -1.2);       // поднятая рука с жезлом
+    part(new THREE.CylinderGeometry(0.022, 0.022, 0.45, 8), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x880000, emissiveIntensity: 0.6 }), 0.62, 1.5, 0.1, -0.9);
+    part(new THREE.SphereGeometry(0.12, 14, 10), skin, 0, 1.58, 0);
+    part(new THREE.CylinderGeometry(0.15, 0.13, 0.08, 16), dark, 0, 1.7, 0.02);       // фуражка
+    man.position.set(1.3, 0, 2.2);   // слева от машины (к дороге), у переднего колеса
+    man.rotation.y = -0.6;
+    vis.root.add(man);
+    return { vis, red, blue };
+  }
+
   /** Новый экземпляр машины трафика. */
   create(kind: TrafficKind): TrafficVisual {
     const t = kind === 'sedan' ? this.sedan : kind === 'moto' ? this.moto : kind === 'van' ? this.van : this.truck;

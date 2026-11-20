@@ -5,6 +5,7 @@ import { Renderer, detectQuality, QualityName } from './render';
 import { buildCar, CarConfig, CarModel } from './car';
 import { buildKedr } from './car-kedr';
 import { buildVan } from './car-van';
+import { buildVette } from './car-vette';
 import { TrafficAssets } from './traffic-models';
 import { KBM, loadKbm, saveKbm, osagoPrice, kbmNext, fmtK } from './kbm';
 import { GarageScene } from './garage';
@@ -40,7 +41,8 @@ async function main() {
   await nextFrame();
 
   const configs = cars as CarConfig[];
-  const models: CarModel[] = configs.map((c) => (c.body === 'suv' ? buildKedr(c) : c.body === 'van' ? buildVan(c) : buildCar(c)));
+  const models: CarModel[] = configs.map((c) => (c.body === 'suv' ? buildKedr(c) : c.body === 'van' ? buildVan(c)
+    : c.body === 'vette' ? buildVette({ ...c, sponsor: 'absolutins.ru' }) : buildCar(c)));
   let sel = 0;
   try {
     const saved = localStorage.getItem('doroga.car');
@@ -259,6 +261,8 @@ async function main() {
   const ins = { kasko: false, osago: false };
   try { Object.assign(ins, JSON.parse(localStorage.getItem('doroga.ins') || '{}')); } catch { /* нет хранилища */ }
   function insCost() { return (ins.kasko ? kaskoPrice : 0) + (ins.osago ? osagoPrice(kbm) : 0); }
+  // ливрея страховщика — при любой купленной страховке (видна сразу в гараже и в поездке)
+  function applyLivery() { const on = ins.kasko || ins.osago; for (const m of models) m.setLivery?.(on); }
   function renderIns() {
     // не дороже кошелька: лишнее снимается
     if (insCost() > wallet && ins.kasko) ins.kasko = false;
@@ -271,6 +275,7 @@ async function main() {
     $('kbmNow').textContent = fmtK(KBM[kbm].k);
     $('kbmCls').textContent = KBM[kbm].cls;
     $('startCoins').textContent = String(wallet - insCost());
+    applyLivery();
     updateEconomyUI();
     try { localStorage.setItem('doroga.ins', JSON.stringify({ kasko: ins.kasko, osago: ins.osago })); } catch { /* нет хранилища */ }
   }

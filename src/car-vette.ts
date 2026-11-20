@@ -148,9 +148,6 @@ export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity =
   rows.push(f1, f0);
   const bodyGeo = loft(rows, (p) => {
     const ax = Math.abs(p.x);
-    if (p.z > 2.0 && p.y < 0.36 && ax < 0.7) return 1;                       // нижняя решётка
-    if (p.z > 1.9 && p.y < 0.2) return 1;                                    // сплиттер
-    if (p.z < -2.27 && p.y < 0.47) return 1;                                 // диффузор (по плоскости кормы — ровный край)
     if (p.y < sh.base(p.z) + 0.06 && ax > 0.55) return 1;                   // пороги
     return 0;
   }, true, true);
@@ -167,7 +164,8 @@ export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity =
   for (let r = 0; r < GR; r++) {
     const z = zC + ((zA - zC) * r) / (GR - 1);
     const yb = sh.top(z) - 0.012, H = Math.max(0, roof(z) - yb);
-    const wb = sh.xAt(z, yb) - 0.02, wr = Math.min(wb, 0.74); // кабина шире
+    // ширина — по «плечам» кузова (чуть ниже верха), а не по самому верху, где сечение сходится к середине
+    const wb = sh.xAt(z, sh.top(z) - 0.09) - 0.015, wr = wb * 0.9; // кабина почти во всю ширину кузова
     const ring: THREE.Vector3[] = [];
     for (let k = 0; k <= GK; k++) {
       const phi = Math.PI - (Math.PI * k) / GK;
@@ -189,6 +187,41 @@ export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity =
   gh.castShadow = true;
   body.add(gh);
   add(new THREE.BoxGeometry(1.25, 0.42, 3.4), under, 0, 0.4, -0.05, false);
+
+  /**
+   * Гладкая панель по поверхности торца (front +1 / rear -1): сетка x×y, z — по поверхности кузова.
+   * Так решётки и диффузор без «ступенек» сетки кузова.
+   */
+  const endPatch = (end: 1 | -1, x0: number, x1: number, y0: (x: number) => number, y1: (x: number) => number, m: THREE.Material, off = 0.005) => {
+    const nx = 40, ny = 8, pos: number[] = [], idx: number[] = [];
+    for (let i = 0; i <= nx; i++) {
+      const x = x0 + ((x1 - x0) * i) / nx;
+      for (let j = 0; j <= ny; j++) {
+        const y = y0(x) + ((y1(x) - y0(x)) * j) / ny;
+        pos.push(x, y, sh.surfaceZ(x, y, end) + end * off);
+      }
+    }
+    for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) {
+      const a = i * (ny + 1) + j, b = a + 1, d = a + ny + 1, e = d + 1;
+      if (end > 0) idx.push(a, d, b, b, d, e); else idx.push(a, b, d, b, e, d);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    const mesh = add(g, m, 0, 0, 0, false);
+    (mesh.material as THREE.Material).side = THREE.DoubleSide;
+    return mesh;
+  };
+  // передняя нижняя решётка: трапеция с плавно скруглёнными краями
+  endPatch(1, -0.66, 0.66, (x) => 0.2 + 0.03 * (Math.abs(x) / 0.66) ** 2, (x) => 0.36 - 0.05 * (Math.abs(x) / 0.66) ** 3, black);
+  for (let k = 1; k <= 3; k++) {
+    const y = 0.22 + k * 0.035;
+    tube([-0.6, -0.3, 0, 0.3, 0.6].map((x) => onSurf(x, y, 1, 0.012)), 0.006, carbon);
+  }
+  // диффузор: панель по плоскости кормы + рёбра
+  endPatch(-1, -0.78, 0.78, () => 0.2, (x) => 0.46 - 0.06 * (Math.abs(x) / 0.78) ** 2, black);
+  for (const x of [-0.5, -0.3, 0.3, 0.5]) add(new THREE.BoxGeometry(0.012, 0.1, 0.12), carbon, x, 0.32, sh.surfaceZ(Math.abs(x), 0.32, -1) + 0.03, false);
 
   // боковые воздухозаборники: гладкая трапеция по изгибу борта (сетка кузова дала бы «ступеньки»)
   for (const side of [-1, 1]) {

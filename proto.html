@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#07080a" />
+  <title>Прототип «Кометы»</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #07080a; color: #f4efe8;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; touch-action: none; }
+    canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+    .bar { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+      display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; width: min(720px, calc(100vw - 24px));
+      padding: 10px; border-radius: 16px; background: rgba(14,15,18,.6); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255,255,255,.1); }
+    .bar button { height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.05); color: inherit; font: 600 14px inherit; cursor: pointer; }
+    .bar button.on { background: linear-gradient(100deg, #ff7a2f, #ffb35c); color: #1a0d04; border-color: transparent; }
+    .title { position: fixed; left: 20px; top: calc(16px + env(safe-area-inset-top)); font-weight: 800; letter-spacing: .3em; font-size: 13px; }
+    .title small { display: block; letter-spacing: .02em; font-weight: 500; color: rgba(244,239,232,.6); margin-top: 6px; font-size: 12.5px; }
+  </style>
+</head>
+<body>
+  <canvas id="gl"></canvas>
+  <div class="title">ПРОТОТИП · КОМЕТА<small>белая, в духе среднемоторного спорткара · ливрея при страховке</small></div>
+  <div class="bar">
+    <button id="liv">Страховка: нет</button>
+    <button data-yaw="-0.3">Спереди ¾</button>
+    <button data-yaw="-1.22">Сбоку</button>
+    <button data-yaw="2.4">Сзади ¾</button>
+    <button data-yaw="1.92">Другой бок</button>
+    <button id="spin" class="on">Вращение</button>
+  </div>
+  <script type="module" src="./src/proto.ts"></script>
+</body>
+</html>

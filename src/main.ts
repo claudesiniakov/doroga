@@ -607,7 +607,8 @@ async function main() {
   }
 
   enterGarage();
-  renderer.gl.setAnimationLoop((t) => { clock.update(t); frame(Math.min(clock.getDelta(), 0.1)); });
+  // первый кадр таймера может дать отрицательный интервал — ограничиваем снизу нулём
+  renderer.gl.setAnimationLoop((t) => { clock.update(t); frame(Math.max(0, Math.min(clock.getDelta(), 0.1))); });
 }
 
 /** Детерминированные кадры для автоматических снимков (scripts/shot.mjs). */

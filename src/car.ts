@@ -156,7 +156,7 @@ export function loft(rows: THREE.Vector3[][], classify: (a: THREE.Vector3, r: nu
   const idx: number[] = [];
   for (const [g, list] of [...groups.entries()].sort((x, y) => x[0] - y[0])) {
     geo.addGroup(idx.length, list.length, g);
-    idx.push(...list);
+    for (let k = 0; k < list.length; k++) idx.push(list[k]); // без распаковки: на густых сетках она переполняет стек
   }
   geo.setIndex(idx);
   geo.computeVertexNormals();
@@ -172,6 +172,8 @@ export interface CarModel {
   headMat: THREE.MeshStandardMaterial;
   setBrake(on: number): void;
   setHeadlights(on: number): void;
+  /** Ливрея страховки (если у машины есть). */
+  setLivery?(on: boolean): void;
   length: number;
   width: number;
   wheelR: number;

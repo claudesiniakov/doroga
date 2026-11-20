@@ -26,6 +26,7 @@
       <div class="eyebrow" id="carEyebrow">Гараж</div>
       <h1 id="carName">—</h1>
       <p id="carTag" class="tag"></p>
+      <div class="tankline" id="carTank"></div>
       <ul class="stats" id="carStats"></ul>
       <div class="slots" id="slots"></div>
       <button id="go" class="go">Поехать</button>
@@ -35,9 +36,18 @@
 
   <section id="hud" class="screen">
     <div class="hud-top">
-      <div class="odo"><b id="odo">0.0</b><span>км</span></div>
+      <div class="hud-left">
+        <div class="odo"><b id="odo">0.0</b><span>км</span></div>
+        <div class="fuel" id="fuelBox">
+          <span class="ic">⛽</span>
+          <span class="fbar"><i id="fuelBar"></i></span>
+          <b id="fuelL">60</b><span class="u">л</span>
+        </div>
+        <div class="coins"><span class="coin"></span><b id="coins">100</b></div>
+      </div>
       <button id="pauseBtn" class="icon-btn" aria-label="Пауза"><svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button>
     </div>
+    <div class="banner" id="banner"></div>
     <div class="speedo">
       <svg viewBox="0 0 200 120" class="arc">
         <path d="M20 110 A80 80 0 0 1 180 110" class="track" />
@@ -64,6 +74,31 @@
           <button data-q="low">Низкая</button><button data-q="medium">Средняя</button><button data-q="high">Высокая</button>
         </div>
       </div>
+    </div>
+  </section>
+
+  <section id="station" class="screen">
+    <div class="panel menu">
+      <div class="eyebrow">Заправка «Топливо 24»</div>
+      <h2>Заправиться?</h2>
+      <div class="tank-big"><span class="fbar big"><i id="stTankBar"></i></span><div class="tank-nums"><b id="stTank">0</b> / <span id="stCap">60</span> л</div></div>
+      <div class="st-row"><span>Монеты</span><b><span class="coin"></span><span id="stCoins">100</span></b></div>
+      <div class="st-row"><span>Цена</span><b>1 монета за литр</b></div>
+      <button id="stFull" class="go">Полный бак</button>
+      <button id="stTen" class="ghost">+10 л</button>
+      <button id="stLeave" class="ghost">Уехать</button>
+    </div>
+  </section>
+
+  <section id="over" class="screen">
+    <div class="panel menu">
+      <div class="eyebrow">Заезд окончен</div>
+      <h2>Топливо кончилось</h2>
+      <div class="st-row"><span>Проехали</span><b id="ovKm">0 км</b></div>
+      <div class="st-row"><span>Осталось монет</span><b><span class="coin"></span><span id="ovCoins">0</span></b></div>
+      <div class="st-row"><span>Рекорд</span><b id="ovBest">0 км</b></div>
+      <button id="ovAgain" class="go">Ещё раз</button>
+      <button id="ovGarage" class="ghost">В гараж</button>
     </div>
   </section>
 

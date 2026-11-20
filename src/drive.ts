@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
-import { RoadWorld, RoadFrame, makeRoadMaterials } from './road';
+import { RoadWorld, RoadFrame, makeRoadMaterials, EXIT_W, Exit } from './road';
 import { ROAD, makeRoadTextures, makeGroundTextures, makeGravelTextures, makeSandTextures } from './textures';
 import { CarModel, CarConfig } from './car';
 import { Traffic, PlayerState, CrashEvent } from './traffic';
@@ -58,7 +58,21 @@ export class DriveScene {
   private camFar = false;
   introT = 0;
   readonly introDur = 4.2;
-  phase: 'intro' | 'drive' = 'intro';
+  /**
+   * intro — заставка; drive — езда; pitIn — заезд к колонке; refuel — стоим у колонки;
+   * pitOut — выезд со съезда; empty — бак пуст, машина катится; stopped — заезд окончен.
+   */
+  phase: 'intro' | 'drive' | 'pitIn' | 'refuel' | 'pitOut' | 'empty' | 'stopped' = 'intro';
+  // топливо и деньги
+  static readonly START_COINS = 100;
+  static readonly LITERS_PER_KM = 2;
+  static readonly PRICE = 1; // монет за литр
+  fuel = 0;
+  coins = DriveScene.START_COINS;
+  get tank() { return this.cfg.tankL; }
+  onStation?: () => void;
+  onEmpty?: () => void;
+  private pitExit: Exit | null = null;
   odometer = 0;
 
   constructor(envGen: THREE.PMREMGenerator, textureSize: number, anisotropy: number, seed: number) {
@@ -168,6 +182,9 @@ export class DriveScene {
     this.introT = skipIntro ? this.introDur : 0;
     this.phase = skipIntro ? 'drive' : 'intro';
     this.odometer = 0;
+    this.fuel = this.cfg.tankL;
+    this.coins = DriveScene.START_COINS;
+    this.pitExit = null;
     this.placeCar(0);
     this.world.prime(this.s, this.car.root.position);
     this.crashes = 0;
@@ -198,23 +215,63 @@ export class DriveScene {
       a = t < 0.6 ? 0 : (CRUISE - this.v) * 0.9 + 2.5;
       if (t > 1.2) this.lane = 1;
       if (this.introT >= this.introDur) this.phase = 'drive';
+    } else if (this.phase === 'pitIn') {
+      // плавная остановка ровно у колонки
+      const left = Math.max(0, this.pitExit!.sStop - this.s);
+      const vTarget = Math.sqrt(2 * 2.6 * left);
+      a = clamp((vTarget - this.v) * 3, -7, 1);
+      brake = 1;
+      if (left < 0.4 && this.v < 0.6) {
+        this.v = 0; a = 0;
+        this.phase = 'refuel';
+        this.onStation?.();
+      }
+    } else if (this.phase === 'refuel' || this.phase === 'stopped') {
+      this.v = 0; a = 0; brake = 1;
+    } else if (this.phase === 'empty') {
+      // бак пуст: накат до остановки
+      a = -1.6 - this.v * 0.02;
+      if (this.v + a * dt <= 0.05) {
+        this.v = 0; a = 0;
+        this.phase = 'stopped';
+        this.onEmpty?.();
+      }
     } else {
-      if (input.laneShift) this.lane = clamp(this.lane + input.laneShift, -1, 1);
+      const path = this.world.path;
+      // полоса 2 — съезд: доступна, только пока он открыт впереди
+      const exitOpen = this.exitOpen;
+      if (input.laneShift && this.phase === 'drive') this.lane = clamp(this.lane + input.laneShift, -1, exitOpen ? 2 : 1);
+      // съезд кончается — вливаемся обратно
+      if (this.lane === 2 && path.extraAt(this.s + 35) < EXIT_W * 0.7) this.lane = 1;
+      if (this.phase === 'pitOut' && this.lane !== 2) this.phase = 'drive';
+      // в полосе съезда перед колонкой — заезд на заправку
+      const ex = path.exitNear(this.s, 0);
+      // заезд к колонке — только если успеваем мягко остановиться (≈2.6 м/с²)
+      const need = (this.v * this.v) / (2 * 4.5) + 4;
+      if (this.phase === 'drive' && this.lane === 2 && ex && this.s > ex.sStop - 140 && ex.sStop - this.s > need) {
+        this.pitExit = ex;
+        this.phase = 'pitIn';
+      }
       if (input.throttle > 0) a = cfg.accel * Math.pow(Math.max(0, 1 - this.v / vmax), 0.6) * input.throttle;
       else if (input.brake > 0) { a = -cfg.brake * input.brake; brake = input.brake; }
-      else a = clamp((CRUISE - this.v) * 0.35, -2.2, 1.8);
+      else a = clamp((CRUISE - this.v) * 0.35, this.phase === 'pitOut' ? -2.2 : -2.2, this.phase === 'pitOut' ? 3.2 : 1.8);
     }
-    // тормозом ниже MIN_SPEED не сбросить, но после удара скорость может быть меньше — машина разгонится сама
-    const floor = this.phase === 'intro' ? 0 : Math.min(MIN_SPEED, this.v);
+    // тормозом ниже MIN_SPEED не сбросить, но после удара/заправки скорость может быть меньше — машина разгонится сама
+    const floor = this.phase === 'drive' || this.phase === 'pitOut' ? Math.min(MIN_SPEED, this.v) : 0;
     this.v = clamp(this.v + a * dt, floor, vmax);
     if (input.brake > 0 && this.v <= MIN_SPEED + 0.01) brake = input.brake;
     this.lastBrake = brake;
     const ds = this.v * dt;
     this.s += ds;
     this.odometer += ds;
+    // расход: 2 л на км
+    if (this.phase !== 'intro') {
+      this.fuel = Math.max(0, this.fuel - (ds / 1000) * DriveScene.LITERS_PER_KM);
+      if (this.fuel <= 0 && (this.phase === 'drive' || this.phase === 'pitOut')) this.phase = 'empty';
+    }
 
     // смена полосы: пружина с критическим демпфированием
-    const target = this.lane * ROAD.laneWidth;
+    const target = this.lane === 2 ? ROAD.half + EXIT_W / 2 : this.lane * ROAD.laneWidth;
     const w = (this.phase === 'intro' ? 2.2 : 4.6 / cfg.laneChangeTime) ;
     const acc = w * w * (target - this.d) - 2 * w * this.dv;
     this.dv += acc * dt;
@@ -285,6 +342,12 @@ export class DriveScene {
 
   private chaseOffset(out: THREE.Vector3, look: THREE.Vector3) {
     const f = this.frame;
+    if (this.phase === 'pitIn' || this.phase === 'refuel') {
+      // у колонки: камера слева-спереди и выше — видно машину, навес и колонки
+      out.copy(f.fwd).multiplyScalar(13).addScaledVector(f.right, -6.5).addScaledVector(f.up, 3.4);
+      look.copy(f.right).multiplyScalar(2.2).addScaledVector(f.up, 1.9).addScaledVector(f.fwd, -1);
+      return;
+    }
     const k = smoothstep(CRUISE * 0.6, 55, this.v);
     const dist = (this.camFar ? 8.4 : 6.3) + k * 0.8;
     const height = (this.camFar ? 2.6 : 1.85) + k * 0.15;
@@ -356,6 +419,33 @@ export class DriveScene {
     }
   }
 
+  /** Залить литры (не больше, чем влезет и чем хватит монет). Возвращает фактически залитое. */
+  refuel(liters: number): number {
+    // литры — целые (доливка до полного — округляется вверх), цена — 1 монета за литр
+    const space = Math.ceil(this.tank - this.fuel - 1e-6);
+    const l = Math.max(0, Math.min(Math.floor(liters), space, Math.floor(this.coins / DriveScene.PRICE)));
+    this.fuel = Math.min(this.tank, this.fuel + l);
+    this.coins -= l * DriveScene.PRICE;
+    return l;
+  }
+
+  /** Уехать от колонки. */
+  leaveStation() {
+    if (this.phase !== 'refuel') return;
+    this.phase = this.fuel > 0 ? 'pitOut' : 'empty';
+    if (this.phase === 'empty') { this.phase = 'stopped'; this.onEmpty?.(); }
+  }
+
+  /** Можно ли сейчас перестроиться на съезд (полоса открыта впереди). */
+  get exitOpen() {
+    const p = this.world.path;
+    return p.extraAt(this.s + 40) > EXIT_W * 0.8 && p.extraAt(this.s + 90) > EXIT_W * 0.8;
+  }
+
+  /** Расстояние до ближайшей колонки впереди, м. */
+  get nextStationDist() { return this.world.path.nextExit(this.s).sStop - this.s; }
+  get nextExitStartDist() { return this.world.path.nextExit(this.s).s0 - this.s; }
+
   private playerState(): PlayerState {
     const p = this.player;
     p.s = this.s; p.v = this.v; p.d = this.d; p.lane = this.lane;
@@ -364,7 +454,7 @@ export class DriveScene {
 
   /** Удар о машину трафика: потеря скорости, отброс, встряска. */
   private crash(e: CrashEvent) {
-    if (this.phase !== 'drive') return;
+    if (this.phase !== 'drive' && this.phase !== 'pitOut') return;
     this.crashes++;
     const r = this.traffic.resolve(this.playerState());
     this.s += r.ds;

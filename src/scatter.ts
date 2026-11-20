@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { RoadWorld } from './road';
+import { EXIT_W } from './road';
 import { ROAD } from './textures';
 import { BiomeId } from './biomes';
-import { PropId, BuildingParts, house, tower, gasStation, withColor } from './props';
+import { PropId, BuildingParts, house, tower, exitStation, withColor } from './props';
 import { mulberry32, fbm1 } from './noise';
 
 const STEP = 2;
@@ -92,6 +93,8 @@ export function scatterChunk(world: RoadWorld, k: number, i0: number, i1: number
     parts.solid.push(withColor(g, color, false).applyMatrix4(_m));
   };
   const tmp = new THREE.Vector3(), f = new THREE.Vector3(), r = new THREE.Vector3();
+  /** Сдвиг правой обочины на ширину полосы съезда. */
+  const ex = (i: number, side: number) => (side > 0 ? p.extraAt(i * STEP) : 0);
 
   // ——— пояс у дороги ———
   for (let i = i0; i < i1; i++) {
@@ -101,24 +104,24 @@ export function scatterChunk(world: RoadWorld, k: number, i0: number, i1: number
     fwd(i, f); right(i, r);
     // сигнальные столбики каждые 50 м
     if (i % 25 === 0) {
-      for (const side of [-1, 1]) put('delineator', ground(i, side * (half + 1.15), tmp, 0.05), quatZ(f.clone().negate()), 1);
+      for (const side of [-1, 1]) if (side < 0 || p.stationFlat(s) < 0.02) put('delineator', ground(i, side * (half + 1.15 + ex(i, side)), tmp, 0.05), quatZ(f.clone().negate()), 1);
     }
     // фонари в городе: в шахматном порядке, вынос к дороге
     if (i % 18 === 0 && city > 0.35) {
       const side = i % 36 === 0 ? -1 : 1;
       const xDir = r.clone().multiplyScalar(-side);          // вынос (локальный +X) — к дороге
-      put('lamp', ground(i, side * (half + 1.9), tmp, 0.1), quatZ(new THREE.Vector3().crossVectors(xDir, UP)), 1);
+      put('lamp', ground(i, side * (half + 1.9 + ex(i, side)), tmp, 0.1), quatZ(new THREE.Vector3().crossVectors(xDir, UP)), 1);
     }
     // ЛЭП справа в пригороде и пустыне: опоры через 50 м, провода к следующей
     if (i % 25 === 12 && wires_ > 0.45) {
-      const so = half + 8.5;
+      const so = half + 8.5 + ex(i, 1);
       const base = ground(i, so, new THREE.Vector3(), 0.2);
       put('powerPole', base, quatZ(f), 1);
       const j = i + 25;
       p.ensure(j * STEP + STEP * 2);
       const wj = p.weightsAt(j);
       if (wj.suburb + wj.desert > 0.45) {
-        const baseJ = ground(j, so, new THREE.Vector3(), 0.2);
+        const baseJ = ground(j, half + 8.5 + ex(j, 1), new THREE.Vector3(), 0.2);
         const fj = fwd(j);
         for (const zo of [-1, 0, 1]) {
           const a = base.clone().addScaledVector(f, zo).setY(base.y + 9.62);
@@ -136,7 +139,8 @@ export function scatterChunk(world: RoadWorld, k: number, i0: number, i1: number
     if (i % 4 === 0 && w.suburb > 0.5 && fbm1(s / 260, 2, p.seed + 3) > -0.05) {
       for (const side of [-1, 1]) {
         if (fbm1(s / 140 + side * 7, 2, p.seed + 4) > 0.15) continue;
-        put('fence', ground(i, side * 12.5, tmp, 0.05), quatZ(f), 1);
+        if (p.stationFlat(s) > 0 && side > 0) continue;
+        put('fence', ground(i, side * (12.5 + ex(i, side)), tmp, 0.05), quatZ(f), 1);
         foot.push({ side, s0: s - 1, s1: s + 9, o0: 12, o1: 13 });
       }
     }
@@ -154,7 +158,7 @@ export function scatterChunk(world: RoadWorld, k: number, i0: number, i1: number
     const i = Math.round(s / STEP);
     if (i < i0 || i >= i1) return;
     fwd(i, f);
-    const base = ground(i, half + 2.4, new THREE.Vector3(), 0.1);
+    const base = ground(i, half + 2.4 + ex(i, 1), new THREE.Vector3(), 0.1);
     const q = quatZ(f.clone().negate()).clone();
     solidAt(new THREE.CylinderGeometry(0.05, 0.05, height, 8).translate(0, height / 2, 0), 0x9aa0a6, base, q);
     solidAt(new THREE.BoxGeometry(w + 0.04, h + 0.04, 0.04).translate(0, height + h / 2 - 0.1, 0.03), 0x8a8f94, base, q);
@@ -175,25 +179,32 @@ export function scatterChunk(world: RoadWorld, k: number, i0: number, i1: number
     }
   }
 
-  // ——— события: заправка ———
-  for (const seg of [p.biomes.segmentAt(s0c), p.biomes.segmentAt(s1c - 1)]) {
-    if (seg.id !== 'suburb' && seg.id !== 'desert') continue;
-    const sEv = seg.start + 520;
-    if (sEv < s0c || sEv >= s1c || sEv > seg.end - 300) continue;
-    const i = Math.round(sEv / STEP);
-    fwd(i, f); right(i, r);
-    const c = ground(i, half + 12, new THREE.Vector3(), 0.35);
-    _m.compose(_pos.copy(c).sub(origin), quatZ(r.clone().negate()), _sc.set(1, 1, 1));
-    gasStation(parts, _m);
-    foot.push({ side: 1, s0: sEv - 14, s1: sEv + 14, o0: half + 2, o1: half + 34 });
-    // стела с вывеской у въезда
-    const ps = ground(i - 9, half + 4, new THREE.Vector3(), 0.1);
-    const q = quatZ(fwd(i - 9).negate()).clone();
-    solidAt(new THREE.BoxGeometry(0.5, 7, 0.5).translate(0, 3.5, 0), 0xdedede, ps, q);
-    const board = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.9), kit.sign('fuel'));
-    board.position.copy(ps).sub(origin).add(new THREE.Vector3(0, 6.4, 0)).addScaledVector(fwd(i - 9), -0.27);
-    board.quaternion.copy(q);
-    group.add(board);
+  // ——— заправка у съезда и знаки перед ней ———
+  {
+    const e = p.exitNear(s0c, 0) ?? p.exitNear(s1c - 1, 0) ?? p.exitNear(s0c, 800);
+    if (e) {
+      sign(e.s0 - 500, 'dir:ТОПЛИВО 24|500 м', 2.6, 0.95, 1.9);
+      sign(e.s0 - 30, 'dir:ТОПЛИВО 24|↘', 2.2, 0.95, 1.9);
+      foot.push({ side: 1, s0: e.s0, s1: e.sEnd, o0: 0, o1: half + EXIT_W + 3.5 });
+      if (e.sStop >= s0c && e.sStop < s1c) {
+        const i = Math.round(e.sStop / STEP);
+        fwd(i, f); right(i, r);
+        const c = p.point(i, half + EXIT_W / 2, 0, new THREE.Vector3());
+        _basis.makeBasis(f, UP, r);
+        _q.setFromRotationMatrix(_basis);
+        _m.compose(_pos.copy(c).sub(origin), _q, _sc.set(1, 1, 1));
+        exitStation(parts, _m);
+        foot.push({ side: 1, s0: e.sStop - 45, s1: e.sStop + 45, o0: 0, o1: half + 40 });
+        // стела с вывеской
+        const ps = ground(i - 22, half + EXIT_W + 4, new THREE.Vector3(), 0.1);
+        const q = quatZ(fwd(i - 22).negate()).clone();
+        solidAt(new THREE.BoxGeometry(0.5, 7, 0.5).translate(0, 3.5, 0), 0xdedede, ps, q);
+        const board = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.9), kit.sign('fuel'));
+        board.position.copy(ps).sub(origin).add(new THREE.Vector3(0, 6.4, 0)).addScaledVector(fwd(i - 22), -0.27);
+        board.quaternion.copy(q);
+        group.add(board);
+      }
+    }
   }
 
   // ——— здания рядами ———

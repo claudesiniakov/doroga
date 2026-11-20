@@ -47,7 +47,7 @@ try {
     const t0 = Date.now();
     await page.goto(`${base}?${q}&q=${process.env.Q || 'high'}`);
     await page.waitForFunction(() => window.__ready === true, null, { timeout: 300000 });
-    await page.screenshot({ path: `shots/${name}.png`, timeout: 240000 });
+    await page.screenshot({ path: `shots/${name}.png`, timeout: 480000 });
     console.log(`${name}: ${((Date.now() - t0) / 1000).toFixed(1)} с`, logs.length ? '\n  ' + logs.slice(0, 8).join('\n  ') : '');
     await page.close();
   }

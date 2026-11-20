@@ -15,7 +15,8 @@
       "handling": 0.76,
       "brakes": 0.72
     },
-    "body": "coupe"
+    "body": "coupe",
+    "tankL": 60
   },
   {
     "id": "kedr",
@@ -34,6 +35,7 @@
       "accel": 0.45,
       "handling": 0.55,
       "brakes": 0.6
-    }
+    },
+    "tankL": 42
   }
 ]

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { fbm1, fbm2, clamp, smoothstep, lerp } from './noise';
+import { fbm1, fbm2, clamp, smoothstep, lerp, mulberry32 } from './noise';
 import { ROAD, RoadTextures } from './textures';
 import { BiomeMap, Weights } from './biomes';
 import { PropKit } from './props';
@@ -22,6 +22,11 @@ export function terrainHeight(x: number, z: number, seed: number): number {
   const small = (fbm2(x / 45, z / 45, 3, seed + 303) - 0.5) * 2.2;
   return big + mid + small;
 }
+
+/** Съезд на заправку: полоса открывается с s0, колонка у sStop, полоса сливается к sEnd. */
+export interface Exit { index: number; s0: number; sStop: number; sEnd: number; }
+export const EXIT_W = 3.5;
+const EXIT_TAPER = 80;
 
 export interface RoadFrame {
   pos: THREE.Vector3;
@@ -48,13 +53,55 @@ export class RoadPath {
   private slope = 0;
   private y0: number;
   private wTmp: Weights = { coast: 0, city: 0, suburb: 0, desert: 0, forest: 0 };
+  readonly exits: Exit[] = [];
+  private exitRnd: () => number;
 
   constructor(readonly seed: number) {
     this.biomes = new BiomeMap(seed);
+    this.exitRnd = mulberry32(seed * 13 + 1);
     this.y0 = terrainHeight(0, 0, seed);
     this.y[0] = this.y0;
     const c0 = this.biomes.coastNear(0, 400, 300);
     if (c0) { this.coastBase.set(c0.index, this.y0); this.sea[0] = this.y0 - 3.2; }
+  }
+
+  /** Съезды на заправки: первый на ~2,6 км, дальше через 3,5–7 км. */
+  private ensureExits(s: number) {
+    while (!this.exits.length || this.exits[this.exits.length - 1].sEnd < s + 3000) {
+      const last = this.exits[this.exits.length - 1];
+      const s0 = last ? last.sEnd + 3400 + this.exitRnd() * 3600 : 2600;
+      this.exits.push({ index: this.exits.length, s0, sStop: s0 + 300, sEnd: s0 + 420 });
+    }
+  }
+
+  /** Съезд, к которому относится точка s (с запасом до 700 м перед ним), или null. */
+  exitNear(s: number, before = 700): Exit | null {
+    this.ensureExits(s);
+    for (const e of this.exits) {
+      if (s >= e.s0 - before && s <= e.sEnd) return e;
+      if (e.s0 - before > s) break;
+    }
+    return null;
+  }
+
+  /** Следующий съезд впереди (начало полосы дальше s). */
+  nextExit(s: number): Exit {
+    this.ensureExits(s);
+    return this.exits.find((e) => e.sStop > s)!;
+  }
+
+  /** Ширина полосы съезда справа в точке s (0 — съезда нет). */
+  extraAt(s: number): number {
+    const e = this.exitNear(s, 0);
+    if (!e) return 0;
+    return EXIT_W * smoothstep(e.s0, e.s0 + EXIT_TAPER, s) * (1 - smoothstep(e.sEnd - EXIT_TAPER, e.sEnd, s));
+  }
+
+  /** 1 — площадка заправки (рельеф выравнивается до уровня дороги). */
+  stationFlat(s: number): number {
+    const e = this.exitNear(s, 0) ?? this.exitNear(s + 100, 0);
+    if (!e) return 0;
+    return 1 - smoothstep(60, 100, Math.abs(s - e.sStop));
   }
 
   /** Веса районов у индекса (общий временный объект — не хранить). */
@@ -238,6 +285,8 @@ function ribbon(i0: number, i1: number, cols: number, origin: THREE.Vector3, pos
 
 export interface RoadMaterials {
   road: THREE.MeshStandardMaterial;
+  exitLine: THREE.MeshStandardMaterial;
+  dashCover: THREE.MeshStandardMaterial;
   gravel: THREE.MeshStandardMaterial;
   ground: THREE.MeshStandardMaterial;
   rail: THREE.MeshStandardMaterial;
@@ -281,7 +330,24 @@ export function makeRoadMaterials(tex: RoadTextures, ground: { map: THREE.Textur
   groundM.customProgramCacheKey = () => 'ground-sand';
   const rail = new THREE.MeshStandardMaterial({ color: 0xb4b9bc, metalness: 0.85, roughness: 0.36, side: THREE.DoubleSide });
   const post = new THREE.MeshStandardMaterial({ color: 0x8d9295, metalness: 0.7, roughness: 0.55 });
-  return { road, gravel: gravelM, ground: groundM, rail, post };
+  // разрывы краевой линии у съезда: полоса асфальта поверх линии с альфа-маской 6 м / 6 м
+  const dashMask = (() => {
+    const c = document.createElement('canvas');
+    c.width = 4; c.height = 64;
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#000'; g.fillRect(0, 0, 4, 64);
+    g.fillStyle = '#fff'; g.fillRect(0, 0, 4, 32);
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.magFilter = THREE.NearestFilter;
+    return t;
+  })();
+  const dashCover = new THREE.MeshStandardMaterial({
+    map: tex.map, normalMap: tex.normalMap, roughnessMap: tex.roughnessMap, roughness: 1, alphaMap: dashMask, alphaTest: 0.5,
+    normalScale: new THREE.Vector2(0.6, 0.6), envMapIntensity: 0.55, polygonOffset: true, polygonOffsetFactor: -2,
+  });
+  const exitLine = new THREE.MeshStandardMaterial({ color: 0xc9c8c1, roughness: 0.62, polygonOffset: true, polygonOffsetFactor: -2 });
+  return { road, gravel: gravelM, ground: groundM, rail, post, exitLine, dashCover };
 }
 
 // поперечный профиль W-образного отбойника: (вбок от дороги, вверх), м
@@ -357,19 +423,30 @@ export class RoadWorld {
   groundRaw(i: number, so: number, out: THREE.Vector3) {
     const p = this.path, half = ROAD.half;
     const o = Math.abs(so);
+    // справа обочина сдвигается на ширину полосы съезда; у заправки рельеф ровный
+    const e = so > 0 ? p.extraAt(i * STEP) : 0;
+    const flat = so > 0 ? p.stationFlat(i * STEP) : 0;
+    const oRel = o - e;
     p.point(i, so, 0, out);
     const roadLevel = out.y - 0.15;
-    const ditch = -0.9 * Math.exp(-(((o - (half + 3.6)) / 1.6) ** 2));
+    const ditch = -0.9 * Math.exp(-(((oRel - (half + 3.6)) / 1.6) ** 2)) * (1 - flat);
     const t = biomeTerrain(p, i, out.x, out.z, so);
-    const blend = smoothstep(half + 6, 80, o);
+    const blend = smoothstep(half + 6, 80, oRel) * (1 - flat * (1 - smoothstep(half + 46, half + 95, o)));
     out.y = roadLevel + (t - roadLevel) * blend + ditch * (1 - blend);
     return out;
+  }
+
+  /** Смещения колонок ленты рельефа у индекса i (справа — со сдвигом на полосу съезда). */
+  groundOffs(i: number, side: number): number[] {
+    const e = side > 0 ? this.path.extraAt(i * STEP) : 0;
+    if (e === 0) return GROUND_OFFS;
+    return GROUND_OFFS.map((o) => o + e * (1 - smoothstep(30, 90, o)));
   }
 
   /** Высота поверхности ленты в произвольном смещении (линейно между колонками, как у меша). */
   groundAt(i: number, so: number): number {
     const o = Math.abs(so), side = Math.sign(so) || 1;
-    const offs = GROUND_OFFS;
+    const offs = this.groundOffs(i, side);
     if (o <= offs[0]) return this.path.y[i] - 0.2;
     let j = 0;
     while (j < offs.length - 2 && offs[j + 1] < o) j++;
@@ -416,11 +493,12 @@ export class RoadWorld {
     // 2) щебёночные полосы и кюветы, 3) рельеф — на каждую сторону
     for (const side of [-1, 1]) {
       const gOff = [half, half + 0.5, half + 1.3];
+      const ex = (i: number) => (side > 0 ? p.extraAt(i * STEP) : 0);
       const gravel = ribbon(i0, i1, 3, origin,
         (i, j, out) => {
           const o = gOff[side < 0 ? 2 - j : j];
           const drop = o <= half ? 0 : -0.05 - (o - half - 0.5) * 0.12;
-          return p.point(i, side * o, drop, out);
+          return p.point(i, side * (o + ex(i)), drop, out);
         },
         (i, j) => [gOff[side < 0 ? 2 - j : j] / 1.5, vOf(i, 2)]);
       const gm = new THREE.Mesh(gravel, this.mats.gravel);
@@ -430,10 +508,11 @@ export class RoadWorld {
       // лента рельефа: кювет у дороги → плавный переход к естественному рельефу
       const NC = GROUND_OFFS.length;
       const oAt = (j: number) => GROUND_OFFS[side < 0 ? NC - 1 - j : j];
-      const groundPos: PosFn = (i, j, out) => this.groundRaw(i, side * oAt(j), out);
+      const oAtI = (i: number, j: number) => this.groundOffs(i, side)[side < 0 ? NC - 1 - j : j];
+      const groundPos: PosFn = (i, j, out) => this.groundRaw(i, side * oAtI(i, j), out);
       const ground = ribbon(i0, i1, NC, origin, groundPos,
         (i, j) => [oAt(j) / 6, vOf(i, 6)],
-        (i, j, pt) => groundRGBA(p, i, pt.x, pt.z, side * oAt(j)), false, 4);
+        (i, j, pt) => groundRGBA(p, i, pt.x, pt.z, side * oAtI(i, j)), false, 4);
       const grm = new THREE.Mesh(ground, this.mats.ground);
       grm.receiveShadow = true;
       c.group.add(grm);
@@ -441,16 +520,26 @@ export class RoadWorld {
       // 4) отбойник (на обеих сторонах, непрерывный)
       const railO = half + 0.55;
       const NP = RAIL_PROFILE.length;
-      const rail = ribbon(i0, i1, NP, origin,
-        (i, j, out) => {
-          const [lat, up] = RAIL_PROFILE[j];
-          return p.point(i, side * (railO - lat), up - 0.05, out);
-        },
-        (i, j) => [j / (NP - 1), vOf(i, 4)], undefined, side < 0);
-      const rm = new THREE.Mesh(rail, this.mats.rail);
-      rm.castShadow = true;
-      rm.receiveShadow = true;
-      c.group.add(rm);
+      // у заправки справа отбойника нет — строим его отрезками
+      const railHere = (i: number) => side < 0 || p.stationFlat(i * STEP) < 0.02;
+      for (let a = i0; a < i1;) {
+        while (a < i1 && !railHere(a)) a++;
+        let b = a;
+        while (b < i1 && railHere(b + 1)) b++;
+        if (b > a) {
+          const rail = ribbon(a, b, NP, origin,
+            (i, j, out) => {
+              const [lat, up] = RAIL_PROFILE[j];
+              return p.point(i, side * (railO + ex(i) - lat), up - 0.05, out);
+            },
+            (i, j) => [j / (NP - 1), vOf(i, 4)], undefined, side < 0);
+          const rm = new THREE.Mesh(rail, this.mats.rail);
+          rm.castShadow = true;
+          rm.receiveShadow = true;
+          c.group.add(rm);
+        }
+        a = b + 1;
+      }
 
       // стойки каждые 4 м
       const count = CHUNK_STEPS / 2;
@@ -459,7 +548,8 @@ export class RoadWorld {
       const pt = new THREE.Vector3();
       for (let n = 0; n < count; n++) {
         const i = i0 + n * 2;
-        p.point(i, side * (railO + 0.12), -0.1, pt);
+        if (!railHere(i)) { m.makeScale(0, 0, 0); posts.setMatrixAt(n, m); continue; }
+        p.point(i, side * (railO + ex(i) + 0.12), -0.1, pt);
         // проставка смотрит к дороге: справа разворот на 180°
         q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), p.h[i] + (side > 0 ? Math.PI : 0));
         m.compose(pt.sub(origin), q, sc);
@@ -469,6 +559,33 @@ export class RoadWorld {
       posts.receiveShadow = true;
       posts.computeBoundingSphere();
       c.group.add(posts);
+    }
+
+    // 5) полоса съезда: асфальт, сплошная линия по её краю, разрывы основной краевой линии
+    let hasExit = false;
+    for (let i = i0; i <= i1; i += 4) if (p.extraAt(i * STEP) > 0.01) { hasExit = true; break; }
+    if (hasExit) {
+      const exW = (i: number) => p.extraAt(i * STEP);
+      const lane = ribbon(i0, i1, 4, origin,
+        (i, j, out) => p.point(i, half + (exW(i) * j) / 3, 0, out),
+        (i, j) => [0.905 + 0.09 * (j / 3), vOf(i, ROAD.period)]);
+      const lm = new THREE.Mesh(lane, this.mats.road);
+      lm.receiveShadow = true;
+      c.group.add(lm);
+      const edge = ribbon(i0, i1, 2, origin,
+        (i, j, out) => {
+          const e = exW(i);
+          return p.point(i, half + Math.max(0, e - 0.32 + j * 0.15) * Math.min(1, e / 0.5), 0.006, out);
+        },
+        (i, j) => [j, vOf(i, ROAD.period)]);
+      c.group.add(new THREE.Mesh(edge, this.mats.exitLine));
+      const edgeL = half - ROAD.shoulder;
+      const dash = ribbon(i0, i1, 2, origin,
+        (i, j, out) => p.point(i, edgeL - 0.13 + j * 0.26, 0.004 + (exW(i) > 1 ? 0 : -0.05), out),
+        (i) => [0.915, vOf(i, ROAD.period)]);
+      const dm = new THREE.Mesh(dash, this.mats.dashCover);
+      dm.receiveShadow = true;
+      c.group.add(dm);
     }
 
     this.group.add(c.group);

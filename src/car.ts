@@ -12,6 +12,8 @@ export interface CarConfig {
   brake: number;        // м/с²
   laneChangeTime: number;
   plate: string;
+  /** Объём бака, л. */
+  tankL: number;
   /** Тип кузова: купе или внедорожник. */
   body?: 'coupe' | 'suv';
   /** Множитель крена/клевка кузова (мягкая подвеска > 1). */

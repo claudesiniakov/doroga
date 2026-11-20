@@ -4,18 +4,19 @@ import cars from './cars.json';
 import { Renderer, detectQuality, QualityName } from './render';
 import { buildCar, CarConfig, CarModel } from './car';
 import { buildKedr } from './car-kedr';
+import { TrafficAssets } from './traffic-models';
 import { GarageScene } from './garage';
 import { DriveScene } from './drive';
 import { Input } from './input';
 
-type State = 'loading' | 'garage' | 'drive' | 'pause';
+type State = 'loading' | 'garage' | 'drive' | 'pause' | 'station' | 'over';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const params = new URLSearchParams(location.search);
 const SHOT = params.get('shot'); // служебный режим для автоматических снимков
 if (SHOT) document.documentElement.classList.add('shot');
 
-const screens = ['loading', 'garage', 'hud', 'pause'] as const;
+const screens = ['loading', 'garage', 'hud', 'pause', 'station', 'over'] as const;
 function show(...ids: string[]) {
   for (const s of screens) $(s).classList.toggle('show', ids.includes(s));
 }
@@ -71,6 +72,7 @@ async function main() {
     $('carEyebrow').textContent = `Гараж · машина ${sel + 1} из ${configs.length}`;
     $('carName').textContent = cfg.name;
     $('carTag').textContent = cfg.tagline;
+    $('carTank').textContent = `Бак ${cfg.tankL} л · расход ${DriveScene.LITERS_PER_KM} л/км · запас хода ${Math.round(cfg.tankL / DriveScene.LITERS_PER_KM)} км · старт ${DriveScene.START_COINS} монет`;
     $('carStats').innerHTML = statNames.map(([k, n]) =>
       `<li>${n}<span class="b"><i style="width:${cfg.stats[k] * 100}%"></i></span><em>${Math.round(cfg.stats[k] * 100)}</em></li>`).join('');
     const slots = configs.map((c, i) =>
@@ -167,6 +169,56 @@ async function main() {
   };
   input.onPause = () => (state === 'drive' ? pause() : resume());
   input.onCamera = () => drive.toggleCamera();
+
+  // ——— заправка ———
+  const updateStation = () => {
+    $('stTank').textContent = String(Math.ceil(drive.fuel - 1e-6));
+    $('stCap').textContent = String(drive.tank);
+    $('stTankBar').style.width = `${(drive.fuel / drive.tank) * 100}%`;
+    $('stCoins').textContent = String(drive.coins);
+    const need = Math.ceil(drive.tank - drive.fuel - 1e-6);
+    const can = Math.min(need, Math.floor(drive.coins / DriveScene.PRICE));
+    const full = $<HTMLButtonElement>('stFull'), ten = $<HTMLButtonElement>('stTen');
+    full.disabled = can <= 0;
+    full.textContent = can <= 0 ? (need <= 0 ? 'Бак полный' : 'Не хватает монет')
+      : can < need ? `На все монеты · ${can} л` : `Полный бак · ${need} л за ${need * DriveScene.PRICE}`;
+    ten.disabled = can <= 0;
+    ten.style.display = can > 10 ? '' : 'none';
+  };
+  drive.onStation = () => {
+    state = 'station';
+    input.enabled = false;
+    updateStation();
+    show('hud', 'station');
+  };
+  $('stFull').addEventListener('click', () => { drive.refuel(drive.tank); updateStation(); });
+  $('stTen').addEventListener('click', () => { drive.refuel(10); updateStation(); });
+  $('stLeave').addEventListener('click', () => {
+    if (state !== 'station') return;
+    drive.leaveStation();
+    if (state !== 'station') return; // уже конец заезда
+    state = 'drive';
+    input.clear();
+    input.enabled = true;
+    show('hud');
+  });
+  // ——— бак пуст ———
+  drive.onEmpty = () => {
+    finishRun();
+    state = 'over';
+    input.enabled = false;
+    $('ovKm').textContent = `${(drive.odometer / 1000).toFixed(1)} км`;
+    $('ovCoins').textContent = String(drive.coins);
+    $('ovBest').textContent = `${getRecord().toFixed(1)} км`;
+    show('hud', 'over');
+  };
+  $('ovAgain').addEventListener('click', () => { if (state === 'over') startDrive(); });
+  $('ovGarage').addEventListener('click', async () => {
+    if (state !== 'over') return;
+    await fade(true);
+    enterGarage();
+    await fade(false);
+  });
   drive.onCrash = (e) => {
     const hit = $('hit');
     hit.style.setProperty('--k', String(e.severity));
@@ -176,6 +228,11 @@ async function main() {
   };
   addEventListener('keydown', (e) => {
     if (state === 'pause' && (e.code === 'Escape' || e.code === 'KeyP')) resume();
+    if (state === 'station') {
+      if (e.code === 'Enter') $('stFull').click();
+      if (e.code === 'Escape' || e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') $('stLeave').click();
+    }
+    if (state === 'over' && e.code === 'Enter') $('ovAgain').click();
     if (state === 'garage' && (e.code === 'Enter' || e.code === 'Space')) $('go').click();
     if (state === 'garage' && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) selectCar(sel + (e.code === 'ArrowLeft' ? -1 : 1));
   });
@@ -222,6 +279,37 @@ async function main() {
   const speedEl = $('speed'), arcEl = $('speedArc'), odoEl = $('odo');
   let lastSpeed = -1;
 
+  const fuelBox = $('fuelBox'), fuelBar = $('fuelBar'), fuelL = $('fuelL'), coinsEl = $('coins'), banner = $('banner');
+  let bannerKey = '';
+  const setBanner = (html: string, warn = false) => {
+    const key = html + warn;
+    if (key === bannerKey) return;
+    bannerKey = key;
+    banner.classList.toggle('on', !!html);
+    banner.classList.toggle('warn', warn);
+    if (html) banner.innerHTML = html;
+  };
+  const updateHud = () => {
+    const f = drive.fuel / drive.tank;
+    fuelBar.style.width = `${f * 100}%`;
+    fuelL.textContent = String(Math.ceil(drive.fuel));
+    fuelBox.classList.toggle('low', f < 0.2);
+    coinsEl.textContent = String(drive.coins);
+    const ph = drive.phase;
+    const toExit = drive.nextExitStartDist, toStation = drive.nextStationDist;
+    const r50 = (m: number) => Math.max(50, Math.round(m / 50) * 50);
+    if (ph === 'pitIn' || ph === 'refuel') setBanner('⛽ Заезжаем на заправку');
+    else if (ph === 'empty') setBanner('Топливо кончилось', true);
+    else if (ph === 'drive' && drive.lane === 2) setBanner(`Съезд на заправку<small>колонка через ${r50(toStation)} м</small>`);
+    else if (ph === 'drive' && toExit < 700 && toStation > 30) {
+      setBanner(!drive.exitOpen
+        ? `⛽ Заправка через ${r50(toExit)} м<small>перестройтесь в правую полосу</small>`
+        : `⛽ Съезд на заправку открыт<small>${innerWidth < 720 ? 'свайп' : '→'} — съехать</small>`, f < 0.2);
+    } else if (f < 0.2 && ph === 'drive') {
+      setBanner(`Мало топлива: ${Math.ceil(drive.fuel)} л<small>до заправки ${(toStation / 1000).toFixed(1)} км · хватит на ${(drive.fuel / DriveScene.LITERS_PER_KM).toFixed(1)} км</small>`, true);
+    } else setBanner('');
+  };
+
   const frame = (dt: number) => {
     time += dt;
     if (state === 'garage' || state === 'loading') {
@@ -229,9 +317,15 @@ async function main() {
       renderer.render(garage.scene, garage.camera, time);
       return;
     }
+    if (state === 'station' || state === 'over') {
+      // мир живёт: трафик едет мимо, машина стоит
+      drive.update(dt, { throttle: 0, brake: 0, laneShift: 0 }, time);
+      updateHud();
+    }
     if (state === 'drive') {
       input.poll();
       drive.update(dt, { throttle: input.throttle, brake: input.brake, laneShift: input.take() }, time);
+      updateHud();
       if (drive.phase === 'drive' && !input.enabled) input.enabled = true;
       hintTimer += dt;
       if (hintTimer > 7) $('ctrlHint').classList.add('hide');
@@ -263,7 +357,42 @@ async function runShot(kind: string, ctx: {
   const p = new URLSearchParams(location.search);
   const steps = Number(p.get('steps') || 90);
   if (kind === 'sim') (ctx.drive.world.constructor as any).stats = { base: [], scatter: [], far: [] };
-  if (kind === 'segs') {
+  if (kind === 'pit') {
+    // сценарий заправки: съезд → колонка → полный бак → выезд → пустой бак
+    const d = ctx.drive;
+    const ex = d.world.path.nextExit(0);
+    await ctx.startDrive(true, ex.s0 - 200);
+    const log: string[] = [`exit s0=${Math.round(ex.s0)} stop=${Math.round(ex.sStop)}`];
+    d.fuel = 9;
+    let t = 0;
+    const step = (shift = 0) => { t += 1 / 60; d.update(1 / 60, { throttle: 0, brake: 0, laneShift: shift }, t); };
+    for (let i = 0; i < 60 * 3; i++) step();
+    log.push(`до съезда: lane=${d.lane} s=${Math.round(d.s)} extra=${d.world.path.extraAt(d.s + 12).toFixed(2)}`);
+    step(1); // попытка в полосу 2 до открытия съезда
+    log.push(`рано вправо: lane=${d.lane}`);
+    while (!d.exitOpen && t < 60) step();
+    step(1);
+    log.push(`съезд открыт: lane=${d.lane} s=${Math.round(d.s)}`);
+    while (d.phase !== 'refuel' && t < 90) step();
+    {
+      const path = d.world.path, ii = Math.round(ex.sStop / 2);
+      const st = path.point(ii, 6.75 + 1.75, 0, new THREE.Vector3());
+      const car = (d.scene.getObjectByName('car') as THREE.Object3D).position;
+      log.push(`колонка↔машина: ${st.distanceTo(car).toFixed(2)} м`);
+    }
+    log.push(`у колонки: phase=${d.phase} s=${Math.round(d.s)} (stop ${Math.round(ex.sStop)}) v=${d.v.toFixed(2)} fuel=${d.fuel.toFixed(1)} coins=${d.coins}`);
+    const got = d.refuel(d.tank);
+    log.push(`залили ${got} л: fuel=${d.fuel.toFixed(1)} coins=${d.coins}`);
+    for (let i = 0; i < 60 * 2; i++) step();
+    log.push(`стоим: v=${d.v.toFixed(2)} phase=${d.phase}`);
+    d.leaveStation();
+    for (let i = 0; i < 60 * 15; i++) step();
+    log.push(`после выезда: phase=${d.phase} lane=${d.lane} d=${d.d.toFixed(2)} v=${(d.v * 3.6).toFixed(0)} км/ч`);
+    d.fuel = 0.02;
+    while (d.phase !== 'stopped' && t < 200) step();
+    log.push(`пустой бак: phase=${d.phase} v=${d.v.toFixed(2)} state=${document.querySelector('#over')!.classList.contains('show')}`);
+    console.warn('PIT ' + log.join(' | '));
+  } else if (kind === 'segs') {
     const b = ctx.drive.world.path.biomes;
     b.segmentAt(20000);
     console.warn('SEGS', b.segments.map((s) => `${s.id}:${Math.round(s.start)}-${Math.round(s.end)}:${s.seaSide}`).join(' '));
@@ -312,7 +441,6 @@ async function runShot(kind: string, ctx: {
     ctx.enterGarage();
     const tm = p.get('tm');
     if (tm === 'sedan' || tm === 'truck') {
-      const { TrafficAssets } = await import('./traffic-models');
       const vis = new TrafficAssets().create(tm);
       const car = ctx.garage.scene.getObjectByName('car');
       if (car) car.visible = false;
@@ -349,6 +477,13 @@ async function runShot(kind: string, ctx: {
     for (let i = 0; i < steps; i++) {
       if (v) ctx.drive.v = Number(v) / 3.6;
       ctx.frame(1 / 60);
+    }
+    const topH = Number(p.get('top') || 0);
+    if (topH) {
+      const cam = ctx.drive.camera, c = (ctx.drive.scene.getObjectByName('car') as THREE.Object3D).position;
+      cam.position.set(c.x, c.y + topH, c.z - topH * 0.35);
+      cam.lookAt(c.x, c.y, c.z + 4);
+      ctx.renderer.render(ctx.drive.scene, cam, 0);
     }
   }
   (window as any).__ready = true;

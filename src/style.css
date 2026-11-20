@@ -256,3 +256,7 @@ kbd {
   .car-card h1 { font-size: 28px; margin: 6px 0 4px; }
   .tag { margin-bottom: 14px; }
 }
+
+.ins-opt small { line-height: 1.35; }
+.ins-opt small.fx { color: var(--accent-2); margin-top: 3px; }
+@media (max-height: 640px) { .ins-opt small:not(.fx) { display: none; } }

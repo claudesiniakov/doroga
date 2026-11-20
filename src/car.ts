@@ -119,6 +119,20 @@ function surfaceZ(x: number, y: number, end: 1 | -1) {
 }
 
 /** Лофт: ряды (станции по z) × кольцо точек; материалы назначаются по квадам. */
+/**
+ * Станции лофта по длине: гуще к торцам (синус) и очень густо у колёсных арок —
+ * край арки почти вертикален, при редких сечениях он рисуется «лесенкой».
+ */
+export function bodyStations(halfLen: number, N: number, axles: number[], archR: number): number[] {
+  const zs: number[] = [];
+  for (let r = 0; r < N; r++) zs.push(halfLen * Math.sin(((-1 + (2 * r) / (N - 1)) * Math.PI) / 2) * 0.9995);
+  for (const az of axles) {
+    for (let z = az - archR - 0.06; z <= az + archR + 0.06; z += 0.012) zs.push(z);
+  }
+  zs.sort((a, b) => a - b);
+  return zs.filter((z, i) => i === 0 || z - zs[i - 1] > 0.004);
+}
+
 export function loft(rows: THREE.Vector3[][], classify: (a: THREE.Vector3, r: number, c: number) => number, closed: boolean, ccw: boolean) {
   const R = rows.length, C = rows[0].length;
   const pos: number[] = [];
@@ -184,9 +198,7 @@ export function buildCar(cfg: CarConfig, envIntensity = 1): CarModel {
   // ——— кузов ———
   const N = 120, M = 30; // станции по длине, точек на половину кольца
   const rows: THREE.Vector3[][] = [];
-  for (let r = 0; r < N; r++) {
-    const u = -1 + (2 * r) / (N - 1);
-    const z = DIM.halfLen * Math.sin((u * Math.PI) / 2) * 0.9995;
+  for (const z of bodyStations(DIM.halfLen, N, [DIM.frontAxle, DIM.rearAxle], DIM.archR)) {
     const ring: THREE.Vector3[] = [];
     // правая сторона снизу вверх, затем левая сверху вниз — замкнутое кольцо
     for (let k = 0; k < M; k++) ring.push(sectionPoint(z, -1 + (2 * k) / (M - 1), 1, new THREE.Vector3()));
@@ -209,7 +221,8 @@ export function buildCar(cfg: CarConfig, envIntensity = 1): CarModel {
     if (p.z > 2.0 && p.y > 0.27 && p.y < 0.47 && ax < 0.6) return 1;
     if (p.z > 1.95 && p.y < 0.27) return 1;          // сплиттер
     if (p.z < -2.1 && p.y < 0.33) return 1;         // диффузор
-    if (p.y < bot + 0.075 && ax > 0.55 && Math.abs(p.z) < 1.75) return 1; // пороги
+    // пороги — по основной нижней линии, без колёсных арок (иначе чёрная «лесенка» по краю арки)
+    if (p.y < baseBottom(p.z) + 0.075 && p.y < bot + 0.075 && ax > 0.55 && Math.abs(p.z) < 1.75) return 1;
     return 0;
   }, true, true);
   const bodyMesh = new THREE.Mesh(bodyGeo, [paint, black]);

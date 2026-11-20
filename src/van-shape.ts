@@ -59,7 +59,7 @@ export function vanBodyClassify(sh: Shape) {
     const ax = Math.abs(p.x), bot = sh.bottom(p.z);
     if (p.z > 2.15 && p.y > 0.3 && p.y < 0.5 && ax < 0.62) return 1;   // нижняя решётка
     if (p.z < -2.25 && p.y < 0.42) return 1;                          // задний бампер снизу
-    if (p.y < bot + 0.08 && ax > 0.55) return 1;                       // пороги
+    if (p.y < sh.base(p.z) + 0.08 && p.y < bot + 0.08 && ax > 0.55) return 1; // пороги (без арок)
     return 0;
   };
 }

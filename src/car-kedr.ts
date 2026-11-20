@@ -47,7 +47,7 @@ export function buildKedr(cfg: CarConfig, envIntensity = 1): CarModel {
     const ax = Math.abs(p.x), bot = sh.bottom(p.z);
     if (p.z > 1.72 && p.y < 0.76) return 1;
     if (p.z < -1.74 && p.y < 0.7) return 1;
-    if (p.y < bot + 0.09 && ax > 0.5) return 1;
+    if (p.y < sh.base(p.z) + 0.09 && p.y < bot + 0.09 && ax > 0.5) return 1;
     if (p.y > 0.6 && p.y < 0.665 && ax > 0.72 && Math.abs(p.z) < 1.62) return 1;
     return 0;
   }, true, true);

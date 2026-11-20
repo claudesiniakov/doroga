@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { spline, loft } from './car';
+import { spline, loft, bodyStations } from './car';
 import { clamp, mulberry32 } from './noise';
 import { makePlateTexture } from './textures';
 import { VAN, vanShape, vanGreenhouse, vanBodyClassify } from './van-shape';
@@ -147,9 +147,7 @@ export class Shape {
   }
   body(N: number, M: number) {
     const rows: THREE.Vector3[][] = [];
-    for (let r = 0; r < N; r++) {
-      const u = -1 + (2 * r) / (N - 1);
-      const z = this.d.halfLen * Math.sin((u * Math.PI) / 2) * 0.9995;
+    for (const z of bodyStations(this.d.halfLen, N, this.d.axles, this.d.archR)) {
       const ring: THREE.Vector3[] = [];
       for (let k = 0; k < M; k++) ring.push(this.point(z, -1 + (2 * k) / (M - 1), 1));
       for (let k = M - 2; k > 0; k--) ring.push(this.point(z, -1 + (2 * k) / (M - 1), -1));
@@ -194,7 +192,7 @@ function buildSedan(): TrafficTemplate {
     const ax = Math.abs(p.x), bot = sh.bottom(p.z);
     if (p.z > 2.0 && p.y > 0.3 && p.y < 0.5 && ax < 0.55) return 1;
     if (p.z < -2.15 && p.y < 0.38) return 1;
-    if (p.y < bot + 0.07 && ax > 0.55) return 1;
+    if (p.y < sh.base(p.z) + 0.07 && p.y < bot + 0.07 && ax > 0.55) return 1;
     return 0;
   }, true, true);
   b.addGroups(body, ['paint', 'black']);

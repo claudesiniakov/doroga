@@ -262,6 +262,28 @@ export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity =
     for (let k = 0; k < 7; k++) add(new THREE.BoxGeometry(0.86, 0.012, 0.025), carbon, 0, y + 0.012, z0 - 0.1 - k * 0.1, false);
   }
 
+  // ——— задний спойлер: карбоновое антикрыло на двух стойках с торцевыми пластинами ———
+  {
+    const zw = -2.08, deckY = sh.top(zw), y = deckY + 0.17, span = 1.62;
+    // крыло — профиль, вытянутый по ширине (ExtrudeGeometry по оси X)
+    const prof = new THREE.Shape();
+    prof.moveTo(0.14, 0);
+    prof.bezierCurveTo(0.1, 0.045, -0.06, 0.05, -0.13, 0.012);
+    prof.lineTo(-0.13, -0.004);
+    prof.bezierCurveTo(-0.04, 0.012, 0.08, 0.004, 0.14, 0);
+    const wingGeo = new THREE.ExtrudeGeometry(prof, { depth: span, bevelEnabled: false, curveSegments: 12 });
+    wingGeo.translate(0, 0, -span / 2).rotateY(Math.PI / 2);   // ось профиля — вдоль кузова, размах — по X
+    const wing = add(wingGeo, carbon, 0, y, zw);
+    wing.rotation.x = -0.12;                                    // угол атаки
+    for (const side of [-1, 1]) {
+      // стойки от крышки багажника к крылу
+      const x = side * 0.46, base = sh.top(zw + 0.02) - 0.01;
+      add(new RoundedBoxGeometry(0.035, y - base + 0.02, 0.12, 2, 0.012), carbon, x, (y + base) / 2, zw + 0.01).rotation.x = 0.1;
+      // торцевые пластины
+      add(new RoundedBoxGeometry(0.012, 0.11, 0.32, 2, 0.005), carbon, side * (span / 2 + 0.004), y + 0.01, zw);
+    }
+  }
+
   // ——— перед: узкие стреловидные фары и светодиодные «брови» ———
   for (const side of [-1, 1]) {
     const xs = [0.38, 0.5, 0.62, 0.72, 0.79].map((x) => side * x);

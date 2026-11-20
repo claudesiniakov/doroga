@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#07080a" />
+  <title>Дорога</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%2307080a%22/%3E%3Cpath d=%22M13 4h6l5 24H8z%22 fill=%22%23ff8a3d%22/%3E%3Cpath d=%22M15.3 8h1.4v4h-1.4zM15.2 15h1.6v5h-1.6z%22 fill=%22%2307080a%22/%3E%3C/svg%3E" />
+</head>
+<body>
+  <canvas id="gl"></canvas>
+  <div id="touch"></div>
+
+  <section id="loading" class="screen show">
+    <div class="brand">ДОРОГА</div>
+    <div class="bar"><i id="loadbar"></i></div>
+    <div class="sub" id="loadtext">Прокладываем трассу…</div>
+  </section>
+
+  <section id="garage" class="screen">
+    <header class="top">
+      <div class="logo">ДОРОГА</div>
+      <div class="record" id="record"></div>
+    </header>
+    <div class="panel car-card">
+      <div class="eyebrow">Гараж · машина 1 из 3</div>
+      <h1 id="carName">—</h1>
+      <p id="carTag" class="tag"></p>
+      <ul class="stats" id="carStats"></ul>
+      <div class="slots">
+        <button class="slot active" aria-label="Выбрана"><span class="sw" id="slotColor"></span></button>
+        <button class="slot locked" disabled><span>Скоро</span></button>
+        <button class="slot locked" disabled><span>Скоро</span></button>
+      </div>
+      <button id="go" class="go">Поехать</button>
+    </div>
+    <div class="hint drag-hint">Потяните, чтобы повернуть машину</div>
+  </section>
+
+  <section id="hud" class="screen">
+    <div class="hud-top">
+      <div class="odo"><b id="odo">0.0</b><span>км</span></div>
+      <button id="pauseBtn" class="icon-btn" aria-label="Пауза"><svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button>
+    </div>
+    <div class="speedo">
+      <svg viewBox="0 0 200 120" class="arc">
+        <path d="M20 110 A80 80 0 0 1 180 110" class="track" />
+        <path d="M20 110 A80 80 0 0 1 180 110" class="fill" id="speedArc" />
+      </svg>
+      <div class="num"><b id="speed">0</b><span>км/ч</span></div>
+    </div>
+    <div class="controls-hint" id="ctrlHint">
+      <span><kbd>←</kbd><kbd>→</kbd> полоса</span><span><kbd>↑</kbd> газ</span><span><kbd>↓</kbd> тормоз</span><span><kbd>C</kbd> камера</span>
+    </div>
+    <button class="pedal brake" id="pedBrake" aria-label="Тормоз">ТОРМОЗ</button>
+    <button class="pedal gas" id="pedGas" aria-label="Газ">ГАЗ</button>
+  </section>
+
+  <section id="pause" class="screen">
+    <div class="panel menu">
+      <h2>Пауза</h2>
+      <button id="resume" class="go">Продолжить</button>
+      <button id="restart" class="ghost">Заново</button>
+      <button id="toGarage" class="ghost">В гараж</button>
+      <div class="quality">
+        <span>Графика</span>
+        <div class="seg" id="qualitySeg">
+          <button data-q="low">Низкая</button><button data-q="medium">Средняя</button><button data-q="high">Высокая</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="rotate" class="screen"><div>Поверните телефон горизонтально</div></section>
+  <div id="fade"></div>
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>

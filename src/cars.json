@@ -1,0 +1,14 @@
+[
+  {
+    "id": "kometa",
+    "name": "Комета GT",
+    "tagline": "Купе для длинных закатных трасс",
+    "color": "#9a0f17",
+    "maxSpeedKmh": 220,
+    "accel": 6.5,
+    "brake": 11,
+    "laneChangeTime": 0.42,
+    "plate": "ДРГ 001",
+    "stats": { "speed": 0.82, "accel": 0.7, "handling": 0.76, "brakes": 0.72 }
+  }
+]

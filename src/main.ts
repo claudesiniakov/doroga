@@ -788,8 +788,10 @@ async function runShot(kind: string, ctx: {
   } else if (kind === 'pit') {
     // сценарий заправки: съезд → колонка → полный бак → выезд → пустой бак
     const d = ctx.drive;
-    const ex = d.world.path.nextExit(0);
-    await ctx.startDrive(true, ex.s0 - 200);
+    // план съездов строится при старте поездки — берём заправку из него и подъезжаем к ней
+    await ctx.startDrive(true, 30);
+    const ex = d.world.path.nextExit(0, 'fuel');
+    d.s = ex.s0 - 200;
     const log: string[] = [`exit s0=${Math.round(ex.s0)} stop=${Math.round(ex.sStop)}`];
     d.fuel = 9;
     let t = 0;

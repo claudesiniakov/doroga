@@ -132,14 +132,6 @@ export class DriveScene {
     this.scene.add(this.mountains);
 
     // море: плоскость с анимированной рябью, отражает небо
-    this.waterNormal = makeWaterNormal(512);
-    this.waterNormal.repeat.set(260, 260);
-    this.sea = new THREE.Mesh(new THREE.PlaneGeometry(7000, 7000).rotateX(-Math.PI / 2),
-      new THREE.MeshStandardMaterial({ color: 0x0f3346, roughness: 0.07, metalness: 0.05, normalMap: this.waterNormal,
-        normalScale: new THREE.Vector2(0.35, 0.35), envMapIntensity: 1.25 }));
-    this.sea.receiveShadow = true;
-    this.sea.visible = false;
-    this.scene.add(this.sea);
 
     this.sun.castShadow = true;
     const sh = this.sun.shadow;
@@ -159,6 +151,18 @@ export class DriveScene {
     this.traffic = new Traffic(this.world.path, new TrafficAssets());
     this.traffic.onCrash = (e) => this.crash(e);
     this.scene.add(this.traffic.group);
+
+    // море: на сетке дальнего рельефа, видно только по маске (сторона моря у побережья)
+    this.waterNormal = makeWaterNormal(512);
+    const far = this.world.far;
+    this.waterNormal.repeat.set(far.gridSize / 27, far.gridSize / 27);
+    this.sea = new THREE.Mesh(new THREE.PlaneGeometry(far.gridSize, far.gridSize).rotateX(-Math.PI / 2),
+      new THREE.MeshStandardMaterial({ color: 0x0f3346, roughness: 0.07, metalness: 0.05, normalMap: this.waterNormal,
+        alphaMap: far.seaMask, alphaTest: 0.5,
+        normalScale: new THREE.Vector2(0.35, 0.35), envMapIntensity: 1.25 }));
+    this.sea.receiveShadow = true;
+    this.sea.visible = false;
+    this.scene.add(this.sea);
     this.frame = this.world.path.frame(0);
   }
 
@@ -425,13 +429,13 @@ export class DriveScene {
     const c = this.camera.position;
     this.sky.position.copy(c);
     this.mountains.position.set(c.x, this.car.root.position.y - 30, c.z);
-    const seaY = this.world.path.seaLevelNear(this.s, 1600);
-    this.sea.visible = seaY !== null;
-    if (seaY !== null) {
-      const px = Math.round(c.x / 20) * 20, pz = Math.round(c.z / 20) * 20;
-      this.sea.position.set(px, seaY, pz);
-      // текстура неподвижна в мире при «перескоках» плоскости + медленный дрейф ряби
-      const k = 260 / 7000;
+    const far = this.world.far;
+    this.sea.visible = !Number.isNaN(far.seaLevel);
+    if (this.sea.visible) {
+      const px = far.seaCenter.x, pz = far.seaCenter.y;
+      this.sea.position.set(px, far.seaLevel, pz);
+      // рябь неподвижна в мире при перескоках сетки + медленный дрейф
+      const k = 1 / 27;
       this.waterNormal.offset.set(((px * k) % 1) + time * 0.004, ((-pz * k) % 1) + time * 0.0025);
     }
   }

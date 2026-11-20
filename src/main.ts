@@ -539,6 +539,16 @@ async function runShot(kind: string, ctx: {
   } else if (kind === 'segs') {
     const b = ctx.drive.world.path.biomes;
     b.segmentAt(20000);
+    const pth = ctx.drive.world.path;
+    pth.ensure(60000);
+    let minGap = Infinity, worstS = 0, coastSamples = 0;
+    for (let i = 0; i < pth.y.length - 1; i++) {
+      if (pth.weightsAt(i).coast < 0.02 || Number.isNaN(pth.sea[i])) continue;
+      coastSamples++;
+      const g = pth.y[i] - pth.sea[i];
+      if (g < minGap) { minGap = g; worstS = i * 2; }
+    }
+    console.warn('SEAGAP', `точек у моря ${coastSamples}, мин. высота дороги над водой ${minGap.toFixed(2)} м (s=${worstS})`);
     console.warn('SEGS', b.segments.map((s) => `${s.id}:${Math.round(s.start)}-${Math.round(s.end)}:${s.seaSide}`).join(' '));
   } else if (kind === 'sim') {
     // логика без отрисовки: N секунд езды со случайными перестроениями

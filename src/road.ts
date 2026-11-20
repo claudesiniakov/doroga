@@ -62,7 +62,7 @@ export class RoadPath {
     this.exitRnd = mulberry32(seed * 13 + 1);
     this.y0 = terrainHeight(0, 0, seed);
     this.y[0] = this.y0;
-    const c0 = this.biomes.coastNear(0, 400, 300);
+    const c0 = this.biomes.coastNear(0, 1500, 300);
     if (c0) { this.coastBase.set(c0.index, this.y0); this.sea[0] = this.y0 - 3.2; }
   }
 
@@ -146,12 +146,14 @@ export class RoadPath {
     const t = terrainHeight(nx + Math.sin(nh) * 120, nz + Math.cos(nh) * 120, this.seed);
     let target = clamp((t - this.y[i]) / 160, -0.05, 0.05) * intro;
     // у моря дорога выравнивается к уровню, на котором вошла в район побережья
-    const cs = this.biomes.coastNear(s, 400, 300);
+    // заранее (за 1,5 км) запоминаем уровень и выравниваемся к нему — дорога у моря всегда выше воды
+    const cs = this.biomes.coastNear(s, 1500, 300);
     let seaY = NaN;
     if (cs) {
       if (!this.coastBase.has(cs.index)) this.coastBase.set(cs.index, this.y[i]);
       const base = this.coastBase.get(cs.index)!;
-      const wc = Math.max(this.biomes.weights(s, this.wTmp).coast, 0.65);
+      // пока побережье есть хоть немного — держим уровень строго; на подъезде — почти строго
+      const wc = this.biomes.weights(s, this.wTmp).coast > 0 ? 1 : 0.85;
       target = lerp(target, clamp((base - this.y[i]) / 120, -0.04, 0.04), wc);
       seaY = base - 3.2;
     }
@@ -381,7 +383,7 @@ export class RoadWorld {
   readonly group = new THREE.Group();
   private chunks = new Map<number, Chunk>();
   private postGeo: THREE.BufferGeometry;
-  private far: FarTerrain;
+  readonly far: FarTerrain;
 
   readonly kit: PropKit;
 
@@ -621,7 +623,7 @@ function mergeSimple(geos: THREE.BufferGeometry[]): THREE.BufferGeometry {
  * Дальний рельеф: сетка вокруг машины. В коридоре дороги опущена вниз (её закрывают ленты чанков),
  * дальше — тот же рельеф, что и у лент, поэтому стык не виден.
  */
-class FarTerrain {
+export class FarTerrain {
   readonly mesh: THREE.Mesh;
   private geo: THREE.PlaneGeometry;
   private center = new THREE.Vector2(Infinity, Infinity);
@@ -636,9 +638,22 @@ class FarTerrain {
     this.mesh = new THREE.Mesh(this.geo, mat);
     this.mesh.receiveShadow = false;
     this.mesh.frustumCulled = false;
+    const sn = this.segs + 1;
+    this.seaMask = new THREE.DataTexture(new Uint8Array(sn * sn * 4), sn, sn, THREE.RGBAFormat);
+    this.seaMask.magFilter = this.seaMask.minFilter = THREE.LinearFilter;
+    this.seaMask.needsUpdate = true;
   }
 
-  private job: { cx: number; cz: number; row: number; P: Float32Array; C: Float32Array; U: Float32Array } | null = null;
+  private job: { cx: number; cz: number; row: number; P: Float32Array; C: Float32Array; U: Float32Array; M: Uint8Array; level: number } | null = null;
+  /**
+   * Маска моря на ту же сетку (1 — вода): вода только со стороны моря у участков побережья,
+   * иначе плоскость моря затапливала бы низины и дорогу на подъезде к побережью.
+   */
+  readonly seaMask: THREE.DataTexture;
+  /** Уровень моря для текущей маски (NaN — моря нет). */
+  seaLevel = NaN;
+  readonly seaCenter = new THREE.Vector2();
+  readonly gridSize = 2400;
 
   /** Пересчёт сетки — порциями по рядам, чтобы не было рывка в кадре; full — сразу целиком. */
   update(car: THREE.Vector3, full = false) {
@@ -647,7 +662,10 @@ class FarTerrain {
     if (!this.job) {
       if (cx === this.center.x && cz === this.center.y) return;
       const n = (this.segs + 1) ** 2;
-      this.job = { cx, cz, row: 0, P: new Float32Array(n * 3), C: new Float32Array(n * 4), U: new Float32Array(n * 2) };
+      const pi = this.path.indexAtZ(car.z);
+      const level = this.path.seaLevelNear(pi * 2, 1300);
+      this.job = { cx, cz, row: 0, P: new Float32Array(n * 3), C: new Float32Array(n * 4), U: new Float32Array(n * 2),
+        M: new Uint8Array(n * 4), level: level ?? NaN };
     }
     const job = this.job;
     const half = this.size / 2;
@@ -673,6 +691,14 @@ class FarTerrain {
         job.U[k * 2] = wx / 6; job.U[k * 2 + 1] = wz / 6;
         const rgba = groundRGBA(p, i, wx, wz, so);
         job.C.set(rgba, k * 4);
+        // маска моря: строка текстуры снизу вверх (v = 1 - r/segs)
+        let water = 0;
+        if (!Number.isNaN(job.level) && Math.abs(p.sea[i] - job.level) < 0.6 && p.weightsAt(i).coast > 0.02) {
+          const seg = p.biomes.coastNear(i * 2);
+          if (seg && so * seg.seaSide > 10) water = 255;
+        }
+        const mk = ((this.segs - r) * (this.segs + 1) + c) * 4;
+        job.M[mk] = job.M[mk + 1] = job.M[mk + 2] = water; job.M[mk + 3] = 255;
       }
     }
     job.row = rEnd;
@@ -684,6 +710,10 @@ class FarTerrain {
     this.geo.computeVertexNormals();
     this.mesh.position.set(job.cx, 0, job.cz);
     this.center.set(job.cx, job.cz);
+    this.seaMask.image.data!.set(job.M);
+    this.seaMask.needsUpdate = true;
+    this.seaLevel = job.level;
+    this.seaCenter.set(job.cx, job.cz);
     this.job = null;
   }
 }

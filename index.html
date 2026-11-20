@@ -29,7 +29,8 @@
       <div class="tankline" id="carTank"></div>
       <div class="ins">
         <button class="ins-opt" id="insKasko"><span class="chk"></span><span class="t"><b>КАСКО · 40</b><small>Защищает ваш автомобиль (добровольно): от угона, повреждения или полной гибели.</small></span></button>
-        <button class="ins-opt" id="insOsago"><span class="chk"></span><span class="t"><b>ОСАГО · 10</b><small>Защищает вашу ответственность перед другими — компенсирует чужой ущерб, если вы виноваты в ДТП (в России оно обязательно).</small></span></button>
+        <button class="ins-opt" id="insOsago"><span class="chk"></span><span class="t"><b>ОСАГО · <span id="osagoPrice">10</span></b><small>Защищает вашу ответственность перед другими — компенсирует чужой ущерб, если вы виноваты в ДТП (в России оно обязательно).</small></span></button>
+      <button class="kbm-link" id="kbmLink">КБМ <b id="kbmNow">1,17</b> · класс <b id="kbmCls">3</b> — таблица</button>
       </div>
       <div class="startcoins">На старт: <span class="coin"></span><b id="startCoins">100</b> монет</div>
       <ul class="stats" id="carStats"></ul>
@@ -108,8 +109,26 @@
       <div class="st-row"><span>Проехали</span><b id="ovKm">0 км</b></div>
       <div class="st-row"><span>Осталось монет</span><b><span class="coin"></span><span id="ovCoins">0</span></b></div>
       <div class="st-row"><span>Рекорд</span><b id="ovBest">0 км</b></div>
+      <div class="st-row" id="ovKbmRow"><span>КБМ на следующий год</span><b id="ovKbm"></b></div>
       <button id="ovAgain" class="go">Ещё раз</button>
       <button id="ovGarage" class="ghost">В гараж</button>
+    </div>
+  </section>
+
+  <section id="kbm" class="screen">
+    <div class="panel menu kbm-panel">
+      <div class="eyebrow">ОСАГО · коэффициент бонус-малус</div>
+      <h2>Цена ОСАГО по КБМ</h2>
+      <p class="kbm-note">Каждый заезд — это год. Цена ОСАГО = 10 монет × КБМ. Год без ДТП — класс растёт на 1 (скидка больше); каждое ДТП по ОСАГО — страховой случай, класс падает по таблице. Класс меняется только в год, когда куплено ОСАГО.</p>
+      <div class="kbm-wrap"><table class="kbm-table">
+        <thead>
+          <tr><th rowspan="2">Класс</th><th rowspan="2">КБМ</th><th rowspan="2">Цена</th><th colspan="5" class="grp">Класс через год при числе ДТП</th></tr>
+          <tr><th class="n">0</th><th class="n">1</th><th class="n">2</th><th class="n">3</th><th class="n">4+</th></tr>
+        </thead>
+        <tbody id="kbmBody"></tbody>
+      </table></div>
+      <button id="kbmBuy" class="go">Купить ОСАГО</button>
+      <button id="kbmClose" class="ghost">Закрыть</button>
     </div>
   </section>
 

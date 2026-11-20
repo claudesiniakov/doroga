@@ -6,6 +6,7 @@ import { buildCar, CarConfig, CarModel } from './car';
 import { buildKedr } from './car-kedr';
 import { buildVan } from './car-van';
 import { TrafficAssets } from './traffic-models';
+import { KBM, loadKbm, saveKbm, osagoPrice, kbmNext, fmtK } from './kbm';
 import { GarageScene } from './garage';
 import { DriveScene } from './drive';
 import { Input } from './input';
@@ -17,7 +18,7 @@ const params = new URLSearchParams(location.search);
 const SHOT = params.get('shot'); // служебный режим для автоматических снимков
 if (SHOT) document.documentElement.classList.add('shot');
 
-const screens = ['loading', 'garage', 'hud', 'pause', 'station', 'over'] as const;
+const screens = ['loading', 'garage', 'hud', 'pause', 'station', 'over', 'kbm'] as const;
 function show(...ids: string[]) {
   for (const s of screens) $(s).classList.toggle('show', ids.includes(s));
 }
@@ -136,7 +137,8 @@ async function main() {
     input.enabled = false;
     await fade(true);
     drive.attachCar(car, cfg);
-    drive.insurance = { ...ins };
+    drive.insurance = { ...ins, osagoPrice: osagoPrice(kbm) };
+    runClosed = false;
     drive.reset(skipIntro, startS);
     renderer.setExposure(0.6);
     renderer.setBloom(0.18, 4.5, 0.35);
@@ -149,9 +151,23 @@ async function main() {
     await fade(false);
   };
 
+  // каждый заезд — год: с ОСАГО класс КБМ меняется по числу ДТП (страховых случаев)
+  let kbm = loadKbm();
+  let runClosed = true;
+  let lastKbmChange: { from: number; to: number } | null = null;
   const finishRun = () => {
     const km = drive.odometer / 1000;
     if (km > getRecord()) setRecord(Math.round(km * 10) / 10);
+    if (runClosed) return;
+    runClosed = true;
+    lastKbmChange = null;
+    if (drive.insurance.osago) {
+      const to = kbmNext(kbm, drive.crashes);
+      lastKbmChange = { from: kbm, to };
+      kbm = to;
+      saveKbm(kbm);
+    }
+    renderIns();
   };
 
   const pause = () => {
@@ -175,14 +191,35 @@ async function main() {
   // ——— страховки (покупаются перед заездом из стартовых монет) ———
   const ins = { kasko: false, osago: false };
   try { Object.assign(ins, JSON.parse(localStorage.getItem('doroga.ins') || '{}')); } catch { /* нет хранилища */ }
-  const renderIns = () => {
+  function renderIns() {
     $('insKasko').classList.toggle('on', ins.kasko);
     $('insOsago').classList.toggle('on', ins.osago);
-    $('startCoins').textContent = String(DriveScene.START_COINS - (ins.kasko ? DriveScene.KASKO : 0) - (ins.osago ? DriveScene.OSAGO : 0));
-    try { localStorage.setItem('doroga.ins', JSON.stringify(ins)); } catch { /* нет хранилища */ }
+    $('osagoPrice').textContent = String(osagoPrice(kbm));
+    $('kbmNow').textContent = fmtK(KBM[kbm].k);
+    $('kbmCls').textContent = KBM[kbm].cls;
+    $('startCoins').textContent = String(DriveScene.START_COINS - (ins.kasko ? DriveScene.KASKO : 0) - (ins.osago ? osagoPrice(kbm) : 0));
+    try { localStorage.setItem('doroga.ins', JSON.stringify({ kasko: ins.kasko, osago: ins.osago })); } catch { /* нет хранилища */ }
+  }
+  // всплывающее окно с таблицей КБМ: текущий класс подсвечен, рядом — куда попадёте через год
+  const renderKbmTable = () => {
+    const nxt = new Set(KBM[kbm].next);
+    $('kbmBody').innerHTML = KBM.map((r, i) =>
+      `<tr class="${i === kbm ? 'cur' : ''}"><td class="c">${r.cls}</td><td>${fmtK(r.k)}</td><td>${osagoPrice(i)}</td>` +
+      r.next.map((n) => `<td class="n${i === kbm && nxt.has(n) ? '' : ''}">${KBM[n].cls}</td>`).join('') + '</tr>').join('');
+    $('kbmBuy').textContent = ins.osago ? 'ОСАГО уже выбрано' : `Купить ОСАГО за ${osagoPrice(kbm)}`;
+    ($('kbmBuy') as HTMLButtonElement).disabled = ins.osago;
   };
+  let kbmBack: string[] = ['garage'];
+  const openKbm = () => { renderKbmTable(); kbmBack = ['garage']; show('garage', 'kbm'); };
+  const closeKbm = () => show(...kbmBack);
   $('insKasko').addEventListener('click', () => { ins.kasko = !ins.kasko; renderIns(); });
-  $('insOsago').addEventListener('click', () => { ins.osago = !ins.osago; renderIns(); });
+  $('insOsago').addEventListener('click', () => {
+    if (ins.osago) { ins.osago = false; renderIns(); return; }
+    openKbm(); // покупка — из окна с таблицей
+  });
+  $('kbmLink').addEventListener('click', openKbm);
+  $('kbmBuy').addEventListener('click', () => { ins.osago = true; renderIns(); closeKbm(); });
+  $('kbmClose').addEventListener('click', closeKbm);
   renderIns();
 
   // ——— заправка и автосервис: одна панель ———
@@ -269,6 +306,10 @@ async function main() {
     $('ovKm').textContent = `${(drive.odometer / 1000).toFixed(1)} км`;
     $('ovCoins').textContent = String(drive.coins);
     $('ovBest').textContent = `${getRecord().toFixed(1)} км`;
+    const ch = lastKbmChange;
+    $('ovKbmRow').style.display = ch ? '' : 'none';
+    if (ch) $('ovKbm').textContent = ch.from === ch.to ? `класс ${KBM[ch.to].cls} (без изменений)`
+      : `класс ${KBM[ch.from].cls} → ${KBM[ch.to].cls} · ОСАГО ${osagoPrice(ch.from)} → ${osagoPrice(ch.to)}`;
     show('hud', 'over');
   };
   $('ovAgain').addEventListener('click', () => { if (state === 'over') startDrive(); });
@@ -434,7 +475,28 @@ async function runShot(kind: string, ctx: {
   const p = new URLSearchParams(location.search);
   const steps = Number(p.get('steps') || 90);
   if (kind === 'sim') (ctx.drive.world.constructor as any).stats = { base: [], scatter: [], far: [] };
-  if (kind === 'blink') {
+  if (kind === 'kbmtest') {
+    // годы: без ДТП с ОСАГО → с 2 ДТП с ОСАГО → 3 ДТП без ОСАГО (класс не меняется)
+    localStorage.removeItem('doroga.kbm');
+    const log: string[] = [];
+    const cls = () => document.getElementById('kbmCls')!.textContent + ' (ОСАГО ' + document.getElementById('osagoPrice')!.textContent + ')';
+    log.push('старт: класс ' + cls());
+    const osago = document.getElementById('insOsago')!;
+    if (osago.classList.contains('on')) osago.click();
+    osago.click();
+    log.push(`окно КБМ: ${document.getElementById('kbm')!.classList.contains('show')}, подсвечен класс ${document.querySelector('#kbmBody tr.cur td')!.textContent}`);
+    document.getElementById('kbmBuy')!.click();
+    for (const [crashes, withOsago] of [[0, true], [2, true], [3, false]] as const) {
+      if (osago.classList.contains('on') !== withOsago) { osago.click(); if (withOsago) document.getElementById('kbmBuy')!.click(); }
+      await ctx.startDrive(true, 300);
+      log.push(`год: ОСАГО=${withOsago}, взнос ${ctx.drive.insurance.osago ? ctx.drive.insurance.osagoPrice : 0}, монет на старте ${ctx.drive.coins}`);
+      ctx.drive.crashes = crashes;
+      (document.getElementById('restart') as HTMLElement).click();
+      await new Promise((r) => setTimeout(r, 50));
+      log.push(`  ДТП ${crashes} → класс ${cls()}`);
+    }
+    console.warn('KBM ' + log.join(' | '));
+  } else if (kind === 'blink') {
     // левый поворотник должен быть слева по ходу: проверяем в мировых координатах
     const d = ctx.drive;
     await ctx.startDrive(true, 900);
@@ -466,7 +528,10 @@ async function runShot(kind: string, ctx: {
     const setIns = (k: boolean, o: boolean) => {
       for (const [id, want] of [['insKasko', k], ['insOsago', o]] as const) {
         const b = document.getElementById(id)!;
-        if (b.classList.contains('on') !== want) b.click();
+        if (b.classList.contains('on') !== want) {
+          b.click();
+          if (id === 'insOsago' && want) document.getElementById('kbmBuy')!.click(); // покупка — из окна КБМ
+        }
       }
     };
     for (const kasko of [false, true]) {
@@ -602,6 +667,7 @@ async function runShot(kind: string, ctx: {
       ctx.garage.scene.add(vis.root);
     }
     if (p.get('yaw')) ctx.garage.yaw = Number(p.get('yaw'));
+    if (p.get('click')) document.getElementById(p.get('click')!)?.click();
     if (p.get('dbg') === 'gh') {
       // отладка: «аквариум» — красный кузов / зелёное стекло / синий пластик, обе стороны; задние грани — жёлтые
       ctx.garage.scene.traverse((o) => {

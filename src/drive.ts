@@ -73,10 +73,9 @@ export class DriveScene {
   get tank() { return this.cfg.tankL; }
   // здоровье и страховки
   static readonly KASKO = 40;
-  static readonly OSAGO = 10;
   static readonly REPAIR_PRICE = 1; // монет за 10 %
   health = 100;
-  insurance = { kasko: false, osago: false };
+  insurance = { kasko: false, osago: false, osagoPrice: 10 };
   /** Причина конца заезда. */
   endReason: 'fuel' | 'wreck' | null = null;
   onStation?: (kind: ExitKind) => void;
@@ -205,7 +204,7 @@ export class DriveScene {
     this.health = 100;
     this.endReason = null;
     // страховки покупаются на старте из стартовых монет
-    this.coins = DriveScene.START_COINS - (this.insurance.kasko ? DriveScene.KASKO : 0) - (this.insurance.osago ? DriveScene.OSAGO : 0);
+    this.coins = DriveScene.START_COINS - (this.insurance.kasko ? DriveScene.KASKO : 0) - (this.insurance.osago ? this.insurance.osagoPrice : 0);
     this.pitExit = null;
     this.placeCar(0);
     this.world.prime(this.s, this.car.root.position);

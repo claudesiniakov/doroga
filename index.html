@@ -177,9 +177,11 @@
 
   <section id="kbm" class="screen">
     <div class="panel menu kbm-panel">
+      <button id="kbmClose" class="close-x" aria-label="Закрыть"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       <div class="eyebrow">ОСАГО · коэффициент бонус-малус</div>
       <h2>Цена ОСАГО по КБМ</h2>
       <p class="kbm-note">Каждый заезд — это год. Цена ОСАГО = 10 монет × КБМ. Год без ДТП — класс растёт на 1 (скидка больше); каждое ДТП по ОСАГО — страховой случай, класс падает по таблице. Класс меняется только в год, когда куплено ОСАГО.</p>
+      <button id="kbmBuy" class="go">Купить ОСАГО</button>
       <div class="kbm-wrap"><table class="kbm-table">
         <thead>
           <tr><th rowspan="2">Класс</th><th rowspan="2">КБМ</th><th rowspan="2">Цена</th><th colspan="5" class="grp">Класс через год при числе ДТП</th></tr>
@@ -187,8 +189,6 @@
         </thead>
         <tbody id="kbmBody"></tbody>
       </table></div>
-      <button id="kbmBuy" class="go">Купить ОСАГО</button>
-      <button id="kbmClose" class="ghost">Закрыть</button>
     </div>
   </section>
 

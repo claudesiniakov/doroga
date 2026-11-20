@@ -318,7 +318,14 @@ kbd {
 .kbm-link b { color: var(--ink); font-weight: 600; }
 .ins { margin-bottom: 4px; }
 #kbm { display: grid; place-items: center; background: rgba(5, 6, 8, .55); z-index: 5; }
-.kbm-panel { width: min(560px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; }
+.close-x {
+  position: absolute; top: 14px; right: 14px; width: 36px; height: 36px; border-radius: 50%;
+  border: 1px solid var(--line); background: rgba(255,255,255,.06); display: grid; place-items: center; z-index: 1;
+}
+.close-x:hover { background: rgba(255,255,255,.14); }
+.close-x svg { width: 16px; height: 16px; stroke: var(--ink); stroke-width: 2.2; stroke-linecap: round; fill: none; }
+.kbm-panel h2, .kbm-panel .eyebrow { padding-right: 44px; }
+.kbm-panel { position: relative; width: min(560px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; }
 .kbm-note { margin: 0 0 6px; color: var(--ink-2); font-size: 13px; line-height: 1.45; }
 .kbm-wrap { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 .kbm-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }

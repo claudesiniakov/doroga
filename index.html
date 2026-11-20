@@ -20,21 +20,39 @@
   <section id="garage" class="screen">
     <header class="top">
       <div class="logo">ДОРОГА</div>
-      <div class="record" id="record"></div>
+      <div class="wallet-top"><span class="coin"></span><b id="walletTop">100</b></div>
     </header>
     <div class="panel car-card">
-      <div class="eyebrow" id="carEyebrow">Гараж</div>
-      <h1 id="carName">—</h1>
-      <p id="carTag" class="tag"></p>
-      <div class="tankline" id="carTank"></div>
-      <div class="ins">
-        <button class="ins-opt" id="insKasko"><span class="chk"></span><span class="t"><b>КАСКО · 40</b><small>Защищает ваш автомобиль (добровольно): от угона, повреждения или полной гибели.</small></span></button>
-        <button class="ins-opt" id="insOsago"><span class="chk"></span><span class="t"><b>ОСАГО · <span id="osagoPrice">10</span></b><small>Защищает вашу ответственность перед другими — компенсирует чужой ущерб, если вы виноваты в ДТП (в России оно обязательно).</small></span></button>
-      <button class="kbm-link" id="kbmLink">КБМ <b id="kbmNow">1,17</b> · класс <b id="kbmCls">3</b> — таблица</button>
+      <div class="tabs" id="tabs"></div>
+      <div class="slides" id="slides">
+        <section class="slide" data-name="Машина">
+          <div class="eyebrow" id="carEyebrow">Гараж</div>
+          <h1 id="carName">—</h1>
+          <p id="carTag" class="tag"></p>
+          <div class="tankline" id="carTank"></div>
+          <ul class="stats" id="carStats"></ul>
+          <div class="slots" id="slots"></div>
+        </section>
+        <section class="slide" data-name="Страховка">
+          <div class="eyebrow">Страховка на поездку</div>
+          <div class="ins">
+            <button class="ins-opt" id="insKasko"><span class="chk"></span><span class="t"><b>КАСКО · <span id="kaskoPrice">40</span></b><small>Защищает ваш автомобиль (добровольно): от угона, повреждения или полной гибели.</small></span></button>
+            <button class="ins-opt" id="insOsago"><span class="chk"></span><span class="t"><b>ОСАГО · <span id="osagoPrice">10</span></b><small>Защищает вашу ответственность перед другими — компенсирует чужой ущерб, если вы виноваты в ДТП (в России оно обязательно).</small></span></button>
+            <button class="kbm-link" id="kbmLink">КБМ <b id="kbmNow">1,17</b> · класс <b id="kbmCls">3</b> — таблица</button>
+          </div>
+          <div class="startcoins">В кошельке <span class="coin"></span><b id="walletCard">100</b> · на поездку останется <b id="startCoins">100</b></div>
+        </section>
+        <section class="slide" data-name="Статистика">
+          <div class="eyebrow">Статистика</div>
+          <div class="gstats">
+            <div><span>Следующая поездка</span><b id="gsTrip">№1 · 4 км</b></div>
+            <div><span>Пройдено всего</span><b id="gsKm">0 км</b></div>
+            <div><span>Столкновений</span><b id="gsCrashes">0</b></div>
+            <div><span>Завершено поездок</span><b id="gsDone">0</b></div>
+            <div class="wide"><span>Последняя поездка</span><b id="gsLast">—</b></div>
+          </div>
+        </section>
       </div>
-      <div class="startcoins">На старт: <span class="coin"></span><b id="startCoins">100</b> монет</div>
-      <ul class="stats" id="carStats"></ul>
-      <div class="slots" id="slots"></div>
       <button id="go" class="go">Поехать</button>
     </div>
     <div class="hint drag-hint">Потяните, чтобы повернуть машину</div>
@@ -43,7 +61,7 @@
   <section id="hud" class="screen">
     <div class="hud-top">
       <div class="hud-left">
-        <div class="odo"><b id="odo">0.0</b><span>км</span></div>
+        <div class="odo"><b id="odo">0.0</b><span id="odoGoal">/ 4 км</span><i class="tripbar"><i id="tripBar"></i></i></div>
         <div class="fuel" id="fuelBox">
           <span class="ic">⛽</span>
           <span class="fbar"><i id="fuelBar"></i></span>
@@ -104,12 +122,13 @@
 
   <section id="over" class="screen">
     <div class="panel menu">
-      <div class="eyebrow">Заезд окончен</div>
+      <div class="eyebrow" id="ovEyebrow">Поездка</div>
       <h2 id="ovTitle">Топливо кончилось</h2>
       <div class="st-row"><span>Проехали</span><b id="ovKm">0 км</b></div>
-      <div class="st-row"><span>Осталось монет</span><b><span class="coin"></span><span id="ovCoins">0</span></b></div>
-      <div class="st-row"><span>Рекорд</span><b id="ovBest">0 км</b></div>
-      <div class="st-row" id="ovKbmRow"><span>КБМ на следующий год</span><b id="ovKbm"></b></div>
+      <div class="st-row" id="ovRewardRow"><span>Награда</span><b><span class="coin"></span>+<span id="ovReward">100</span></b></div>
+      <div class="st-row"><span>Столкновений</span><b id="ovCrashes">0</b></div>
+      <div class="st-row"><span>В кошельке</span><b><span class="coin"></span><span id="ovCoins">0</span></b></div>
+            <div class="st-row" id="ovKbmRow"><span>КБМ на следующий год</span><b id="ovKbm"></b></div>
       <button id="ovAgain" class="go">Ещё раз</button>
       <button id="ovGarage" class="ghost">В гараж</button>
     </div>

@@ -30,12 +30,6 @@ function loadBar(p: number, text?: string) {
   if (text) $('loadtext').textContent = text;
 }
 
-function getRecord(): number {
-  try { return Number(localStorage.getItem('doroga.best') || 0); } catch { return 0; }
-}
-function setRecord(km: number) {
-  try { localStorage.setItem('doroga.best', String(km)); } catch { /* нет хранилища */ }
-}
 
 async function main() {
   const canvas = $<HTMLCanvasElement>('gl');
@@ -95,11 +89,46 @@ async function main() {
     const b = (e.target as HTMLElement).closest('button[data-i]') as HTMLElement | null;
     if (b) selectCar(Number(b.dataset.i));
   });
-  const updateRecord = () => {
-    const r = getRecord();
-    $('record').textContent = r > 0 ? `Рекорд: ${r.toFixed(1)} км` : '';
+  // ——— кошелёк, поездки, статистика (сохраняются между поездками) ———
+  const lsNum = (k: string, d: number) => {
+    try { const raw = localStorage.getItem(k); const v = Number(raw); return raw !== null && Number.isFinite(v) ? v : d; } catch { return d; }
   };
-  updateRecord();
+  const lsSet = (k: string, v: unknown) => { try { localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v)); } catch { /* нет хранилища */ } };
+  let wallet = lsNum('doroga.wallet', DriveScene.START_COINS);
+  let trip = lsNum('doroga.trip', 1);
+  let kaskoPrice = lsNum('doroga.kaskoPrice', DriveScene.KASKO);
+  const TRIP_REWARD = 100;
+  /** Первая поездка — 4 км, каждая следующая на 2 км длиннее. */
+  const tripKm = (n: number) => 4 + 2 * (n - 1);
+  const gstats = { km: 0, crashes: 0, done: 0, last: '' };
+  try { Object.assign(gstats, JSON.parse(localStorage.getItem('doroga.stats') || '{}')); } catch { /* нет хранилища */ }
+  const fmtKm = (km: number) => `${km.toFixed(1).replace('.', ',')} км`;
+  const updateEconomyUI = () => {
+    $('walletTop').textContent = String(wallet);
+    $('walletCard').textContent = String(wallet);
+    $('gsTrip').textContent = `№${trip} · ${tripKm(trip)} км`;
+    $('gsKm').textContent = fmtKm(gstats.km);
+    $('gsCrashes').textContent = String(gstats.crashes);
+    $('gsDone').textContent = String(gstats.done);
+    $('gsLast').textContent = gstats.last || '—';
+    $('go').textContent = `Поехать · поездка №${trip}, ${tripKm(trip)} км`;
+  };
+
+  // ——— карусель карточки гаража (вкладки + свайп) ———
+  {
+    const slidesEl = $('slides');
+    const slides = [...slidesEl.querySelectorAll<HTMLElement>('.slide')];
+    $('tabs').innerHTML = slides.map((s, i) => `<button data-i="${i}" class="${i ? '' : 'on'}">${s.dataset.name}</button>`).join('');
+    const tabs = [...$('tabs').querySelectorAll('button')];
+    $('tabs').addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest('button');
+      if (b) slidesEl.scrollTo({ left: Number(b.dataset.i) * slidesEl.clientWidth, behavior: 'smooth' });
+    });
+    slidesEl.addEventListener('scroll', () => {
+      const i = Math.round(slidesEl.scrollLeft / Math.max(1, slidesEl.clientWidth));
+      tabs.forEach((t, k) => t.classList.toggle('on', k === i));
+    }, { passive: true });
+  }
 
   const input = new Input($('touch'), $('pedGas'), $('pedBrake'));
   let state: State = 'loading';
@@ -129,7 +158,7 @@ async function main() {
     renderer.setVignette(0.45);
     input.enabled = false;
     state = 'garage';
-    updateRecord();
+    updateEconomyUI();
     show('garage');
   };
 
@@ -137,7 +166,13 @@ async function main() {
     input.enabled = false;
     await fade(true);
     drive.attachCar(car, cfg);
+    // страховки оплачиваются из кошелька, остальное — на поездку
+    const cost = insCost();
+    wallet = Math.max(0, wallet - cost);
+    lsSet('doroga.wallet', wallet);
     drive.insurance = { ...ins, osagoPrice: osagoPrice(kbm) };
+    drive.tripKm = tripKm(trip);
+    drive.startCoins = wallet;
     runClosed = false;
     drive.reset(skipIntro, startS);
     renderer.setExposure(0.6);
@@ -155,11 +190,24 @@ async function main() {
   let kbm = loadKbm();
   let runClosed = true;
   let lastKbmChange: { from: number; to: number } | null = null;
+  let lastTrip = { finished: false, km: 0, crashes: 0, reward: 0, num: 1 };
   const finishRun = () => {
-    const km = drive.odometer / 1000;
-    if (km > getRecord()) setRecord(Math.round(km * 10) / 10);
     if (runClosed) return;
     runClosed = true;
+    // итог поездки: награда за финиш, кошелёк, статистика
+    const finished = drive.endReason === 'finish';
+    const reward = finished ? TRIP_REWARD : 0;
+    const km = drive.tripDone / 1000;
+    lastTrip = { finished, km, crashes: drive.crashes, reward, num: trip };
+    wallet = Math.max(0, drive.coins) + reward;
+    gstats.km += km;
+    gstats.crashes += drive.crashes;
+    if (finished) { gstats.done++; trip++; }
+    gstats.last = `№${lastTrip.num}: ${fmtKm(km)}, столкновений ${drive.crashes}${finished ? ', завершена' : ''}`;
+    if (drive.insurance.kasko) {
+      kaskoPrice = Math.round(Math.min(200, Math.max(10, kaskoPrice * (drive.kaskoRepairUsed ? 1.1 + Math.random() * 0.2 : 0.95 - Math.random() * 0.15))));
+    }
+    lsSet('doroga.wallet', wallet); lsSet('doroga.trip', trip); lsSet('doroga.kaskoPrice', kaskoPrice); lsSet('doroga.stats', gstats);
     lastKbmChange = null;
     if (drive.insurance.osago) {
       const to = kbmNext(kbm, drive.crashes);
@@ -191,13 +239,20 @@ async function main() {
   // ——— страховки (покупаются перед заездом из стартовых монет) ———
   const ins = { kasko: false, osago: false };
   try { Object.assign(ins, JSON.parse(localStorage.getItem('doroga.ins') || '{}')); } catch { /* нет хранилища */ }
+  function insCost() { return (ins.kasko ? kaskoPrice : 0) + (ins.osago ? osagoPrice(kbm) : 0); }
   function renderIns() {
+    // не дороже кошелька: лишнее снимается
+    if (insCost() > wallet && ins.kasko) ins.kasko = false;
+    if (insCost() > wallet && ins.osago) ins.osago = false;
+    ($('insKasko') as HTMLButtonElement).disabled = !ins.kasko && insCost() + kaskoPrice > wallet;
+    $('kaskoPrice').textContent = String(kaskoPrice);
     $('insKasko').classList.toggle('on', ins.kasko);
     $('insOsago').classList.toggle('on', ins.osago);
     $('osagoPrice').textContent = String(osagoPrice(kbm));
     $('kbmNow').textContent = fmtK(KBM[kbm].k);
     $('kbmCls').textContent = KBM[kbm].cls;
-    $('startCoins').textContent = String(DriveScene.START_COINS - (ins.kasko ? DriveScene.KASKO : 0) - (ins.osago ? osagoPrice(kbm) : 0));
+    $('startCoins').textContent = String(wallet - insCost());
+    updateEconomyUI();
     try { localStorage.setItem('doroga.ins', JSON.stringify({ kasko: ins.kasko, osago: ins.osago })); } catch { /* нет хранилища */ }
   }
   // всплывающее окно с таблицей КБМ: текущий класс подсвечен, рядом — куда попадёте через год
@@ -206,8 +261,9 @@ async function main() {
     $('kbmBody').innerHTML = KBM.map((r, i) =>
       `<tr class="${i === kbm ? 'cur' : ''}"><td class="c">${r.cls}</td><td>${fmtK(r.k)}</td><td>${osagoPrice(i)}</td>` +
       r.next.map((n) => `<td class="n${i === kbm && nxt.has(n) ? '' : ''}">${KBM[n].cls}</td>`).join('') + '</tr>').join('');
-    $('kbmBuy').textContent = ins.osago ? 'ОСАГО уже выбрано' : `Купить ОСАГО за ${osagoPrice(kbm)}`;
-    ($('kbmBuy') as HTMLButtonElement).disabled = ins.osago;
+    const afford = insCost() + osagoPrice(kbm) <= wallet;
+    $('kbmBuy').textContent = ins.osago ? 'ОСАГО уже выбрано' : afford ? `Купить ОСАГО за ${osagoPrice(kbm)}` : 'Не хватает монет';
+    ($('kbmBuy') as HTMLButtonElement).disabled = ins.osago || !afford;
   };
   let kbmBack: string[] = ['garage'];
   const openKbm = () => { renderKbmTable(); kbmBack = ['garage']; show('garage', 'kbm'); };
@@ -323,10 +379,15 @@ async function main() {
     finishRun();
     state = 'over';
     input.enabled = false;
-    $('ovTitle').textContent = drive.endReason === 'wreck' ? 'Машина разбита' : 'Топливо кончилось';
-    $('ovKm').textContent = `${(drive.odometer / 1000).toFixed(1)} км`;
-    $('ovCoins').textContent = String(drive.coins);
-    $('ovBest').textContent = `${getRecord().toFixed(1)} км`;
+    const t = lastTrip;
+    $('ovEyebrow').textContent = `Поездка №${t.num} · ${tripKm(t.num)} км`;
+    $('ovTitle').textContent = t.finished ? 'Поездка завершена' : drive.endReason === 'wreck' ? 'Машина разбита' : 'Топливо кончилось';
+    $('ovKm').textContent = fmtKm(t.km);
+    $('ovRewardRow').style.display = t.finished ? '' : 'none';
+    $('ovReward').textContent = String(t.reward);
+    $('ovCrashes').textContent = String(t.crashes);
+    $('ovCoins').textContent = String(wallet);
+    $('ovAgain').textContent = t.finished ? `Следующая поездка · ${tripKm(trip)} км` : `Повторить поездку · ${tripKm(trip)} км`;
     const ch = lastKbmChange;
     $('ovKbmRow').style.display = ch ? '' : 'none';
     if (ch) $('ovKbm').textContent = ch.from === ch.to ? `класс ${KBM[ch.to].cls} (без изменений)`
@@ -435,7 +496,10 @@ async function main() {
     const place = kind === 'repair' ? '🔧 Автосервис' : '⛽ Заправка';
     const toPlace = kind === 'repair' ? drive.nextRepairDist : toStation;
     const toPolice = drive.policeS !== null && drive.policeFine === 0 ? drive.policeS - drive.s : Infinity;
-    if (ph === 'policeIn' || ph === 'protocol') setBanner('🚓 Остановка ДПС<small>проверка документов</small>', true);
+    const toFinish = drive.finishS - drive.s;
+    if (ph === 'finish') setBanner('🏁 Финиш!');
+    else if (ph === 'drive' && toFinish > 0 && toFinish < 500) setBanner(`🏁 Финиш через ${r50(toFinish)} м`);
+    else if (ph === 'policeIn' || ph === 'protocol') setBanner('🚓 Остановка ДПС<small>проверка документов</small>', true);
     else if (ph === 'drive' && toPolice > 0 && toPolice < 450) setBanner(`🚓 Впереди пост ДПС<small>через ${r50(toPolice)} м · полиса ОСАГО нет</small>`, true);
     else if (ph === 'pitIn' || ph === 'refuel') setBanner(drive.stationKind === 'repair' ? '🔧 Заезжаем в автосервис' : '⛽ Заезжаем на заправку');
     else if (ph === 'empty') setBanner('Топливо кончилось', true);
@@ -478,7 +542,9 @@ async function main() {
         speedEl.textContent = String(kmh);
         arcEl.style.strokeDashoffset = String(SPEEDO_LEN * (1 - Math.min(1, kmh / cfg.maxSpeedKmh)));
       }
-      odoEl.textContent = (drive.odometer / 1000).toFixed(1);
+      odoEl.textContent = (drive.tripDone / 1000).toFixed(1);
+      $('odoGoal').textContent = `/ ${drive.tripKm} км`;
+      $('tripBar').style.width = `${Math.min(100, (drive.tripDone / (drive.tripKm * 1000)) * 100)}%`;
     }
     renderer.render(drive.scene, drive.camera, time);
   };
@@ -500,7 +566,45 @@ async function runShot(kind: string, ctx: {
   const p = new URLSearchParams(location.search);
   const steps = Number(p.get('steps') || 90);
   if (kind === 'sim') (ctx.drive.world.constructor as any).stats = { base: [], scatter: [], far: [] };
-  if (kind === 'police') {
+  if (kind === 'trip') {
+    for (const k of ['doroga.wallet', 'doroga.trip', 'doroga.kaskoPrice', 'doroga.stats', 'doroga.ins']) localStorage.removeItem(k);
+    location.search.includes('reloaded') || null;
+    const d = ctx.drive, log: string[] = [];
+    const txt = (id: string) => document.getElementById(id)!.textContent;
+    const kasko = document.getElementById('insKasko')!;
+    let t = 0;
+    const runTo = (cond: () => boolean, max = 120) => { const t0 = t; while (!cond() && t - t0 < max) { t += 1 / 60; d.update(1 / 60, { throttle: 1, brake: 0, laneShift: 0 }, t); } };
+    log.push(`старт: кошелёк ${txt('walletTop')}, кнопка «${txt('go')}», КАСКО ${txt('kaskoPrice')}`);
+    // 1) поездка с КАСКО без ремонта → финиш
+    if (!kasko.classList.contains('on')) kasko.click();
+    await ctx.startDrive(true, 30);
+    log.push(`поездка 1: цель ${d.tripKm} км, на поездку ${d.coins} монет, патруль ${d.policeS === null ? 'нет' : `на ${((d.policeS - d.startS) / 1000).toFixed(1)} км`}`);
+    d.s = d.finishS - 250; d.fuel = 50;
+    runTo(() => d.phase === 'stopped');
+    log.push(`  финиш: причина=${d.endReason}, экран «${txt('ovTitle')}», награда +${txt('ovReward')}, кошелёк ${txt('ovCoins')}, кнопка «${txt('ovAgain')}»`);
+    log.push(`  КАСКО без ремонта → ${txt('kaskoPrice')}`);
+    // 2) поездка с КАСКО и бесплатным ремонтом → финиш
+    if (!kasko.classList.contains('on')) kasko.click();
+    await ctx.startDrive(true, 30);
+    d.health = 50; d.repair(100);
+    log.push(`поездка 2: цель ${d.tripKm} км, ремонт по КАСКО списал ${d.startCoins - d.coins}`);
+    d.s = d.finishS - 250; d.fuel = 50;
+    runTo(() => d.phase === 'stopped');
+    log.push(`  КАСКО после ремонта → ${txt('kaskoPrice')}, кошелёк ${txt('ovCoins')}`);
+    // 3) неудача: бак пуст → та же дистанция
+    await ctx.startDrive(true, 30);
+    d.fuel = 0.01;
+    runTo(() => d.phase === 'stopped');
+    log.push(`поездка 3: «${txt('ovTitle')}», кнопка «${txt('ovAgain')}»`);
+    log.push(`статистика: следующая ${txt('gsTrip')}, всего ${txt('gsKm')}, столкновений ${txt('gsCrashes')}, завершено ${txt('gsDone')}, последняя «${txt('gsLast')}»`);
+    // ДПС — внутри поездки
+    const kasko2 = document.getElementById('insOsago')!;
+    if (kasko2.classList.contains('on')) kasko2.click();
+    let inside = 0, any = 0;
+    for (let k = 0; k < 20; k++) { await ctx.startDrive(true, 30); if (d.policeS !== null) { any++; if (d.policeS > d.startS + 999 && d.policeS < d.finishS - 799) inside++; } }
+    log.push(`ДПС без ОСАГО: в ${any} из 20 поездок, внутри поездки ${inside}`);
+    console.warn('TRIP ' + log.join(' | '));
+  } else if (kind === 'police') {
     const d = ctx.drive, log: string[] = [];
     const osago = document.getElementById('insOsago')!;
     // с ОСАГО — патруля нет ни в одном заезде
@@ -724,6 +828,7 @@ async function runShot(kind: string, ctx: {
     }
     if (p.get('yaw')) ctx.garage.yaw = Number(p.get('yaw'));
     if (p.get('click')) document.getElementById(p.get('click')!)?.click();
+    if (p.get('slide')) { const el = document.getElementById('slides')!; el.style.scrollBehavior = 'auto'; el.scrollLeft = Number(p.get('slide')) * el.clientWidth; el.dispatchEvent(new Event('scroll')); }
     if (p.get('dbg') === 'gh') {
       // отладка: «аквариум» — красный кузов / зелёное стекло / синий пластик, обе стороны; задние грани — жёлтые
       ctx.garage.scene.traverse((o) => {

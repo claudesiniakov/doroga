@@ -112,7 +112,9 @@ export class GarageScene {
     this.turntable.rotation.y = this.yaw;
     // камера: чуть сверху, три четверти
     const t = performance.now() / 1000;
-    const r = innerWidth < innerHeight ? 11.5 : 8.6;
+    // в портретной ориентации узкий горизонтальный обзор — камера дальше, чтобы машина влезала по ширине
+    const aspect = innerWidth / innerHeight;
+    const r = aspect < 1 ? Math.max(8.6, 7.4 / aspect) : 8.6;
     this.camera.position.set(Math.sin(0.35) * r, 1.55 + Math.sin(t * 0.2) * 0.05, Math.cos(0.35) * r);
     this.camera.lookAt(0, 0.62, 0);
   }
@@ -123,7 +125,7 @@ export class GarageScene {
     const w = innerWidth, h = innerHeight;
     if (w > 900 && w > h) this.camera.setViewOffset(w, h, -w * 0.14, 0, w, h);
     else if (w > 900) this.camera.clearViewOffset();
-    else this.camera.setViewOffset(w, h, 0, h * 0.16, w, h);
+    else this.camera.setViewOffset(w, h, 0, h * (h > w ? 0.2 : 0.16), w, h);
     this.camera.updateProjectionMatrix();
   }
 

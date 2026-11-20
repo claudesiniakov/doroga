@@ -300,3 +300,44 @@ kbd {
 .p-scrawl { font: italic 22px "Brush Script MT", "Segoe Script", cursive; color: #22408a; border-bottom: 1px solid #1d2228; }
 .p-line { border-bottom: 1px solid #1d2228; height: 22px; }
 .paper .go { height: 50px; font-family: inherit; }
+
+/* ——— гараж: слайды (на большом экране — столбиком, иначе — карусель) ——— */
+.wallet-top { display: flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 12px; background: var(--glass); border: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.wallet-top .coin { margin-right: 0; }
+.tabs { display: none; }
+.slides { display: grid; gap: 14px; }
+.slide { min-width: 0; }
+.slide + .slide { border-top: 1px solid var(--line); padding-top: 14px; }
+.gstats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin-top: 10px; }
+.gstats div { display: grid; gap: 2px; }
+.gstats .wide { grid-column: 1 / -1; }
+.gstats span { color: var(--ink-3); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.gstats b { font-size: 15px; font-variant-numeric: tabular-nums; }
+.car-card .go { margin-top: 14px; }
+.odo { position: relative; padding-bottom: 12px !important; }
+.tripbar { position: absolute; left: 14px; right: 14px; bottom: 7px; height: 3px; border-radius: 3px; background: rgba(255,255,255,.14); overflow: hidden; }
+.tripbar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+#odoGoal { color: var(--ink-2); font-size: 12px; }
+@media (max-height: 820px), (max-width: 720px) {
+  .tabs { display: flex; gap: 4px; padding: 3px; margin: -4px 0 12px; border-radius: 11px; background: rgba(255,255,255,.05); }
+  .tabs button { flex: 1; height: 30px; border: 0; border-radius: 8px; background: none; color: var(--ink-2); font-size: 12.5px; font-weight: 600; }
+  .tabs button.on { background: rgba(255,255,255,.12); color: var(--ink); }
+  .slides { display: flex; gap: 0; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain; touch-action: pan-x; }
+  .slides::-webkit-scrollbar { display: none; }
+  .slide { flex: 0 0 100%; scroll-snap-align: start; scroll-snap-stop: always; padding: 0 2px; }
+  .slide + .slide { border-top: 0; padding-top: 0; }
+  .car-card { overflow: hidden; }
+  .stats { display: grid; }
+}
+@media (max-height: 520px) {
+  .slide .tag, .slide .stats { display: none; }
+  .car-card { width: min(380px, 52vw); left: calc(12px + var(--safe-l)); bottom: calc(10px + var(--safe-b)); padding: 12px 14px; }
+  .car-card h1 { font-size: 22px; margin: 4px 0 2px; }
+  .tankline { margin: 0 0 8px; font-size: 12px; }
+  .ins-opt { padding: 6px 10px; }
+  .gstats { gap: 6px 10px; margin-top: 6px; }
+  .gstats b { font-size: 13px; }
+  .car-card .go { margin-top: 10px; height: 44px; }
+  .tabs { margin-bottom: 8px; }
+}
+@media (max-width: 720px) { .hint.drag-hint { display: none; } }

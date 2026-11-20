@@ -433,7 +433,28 @@ async function runShot(kind: string, ctx: {
   const p = new URLSearchParams(location.search);
   const steps = Number(p.get('steps') || 90);
   if (kind === 'sim') (ctx.drive.world.constructor as any).stats = { base: [], scatter: [], far: [] };
-  if (kind === 'repair') {
+  if (kind === 'blink') {
+    // левый поворотник должен быть слева по ходу: проверяем в мировых координатах
+    const d = ctx.drive;
+    await ctx.startDrive(true, 900);
+    const tr = d.traffic;
+    tr.clear();
+    const out: string[] = [];
+    for (const k of ['sedan', 'truck', 'moto'] as const) {
+      tr.debugPlace(k, d.s + 30, 0, 90);
+      const vis = (tr.group.children[tr.group.children.length - 1]) as THREE.Group;
+      vis.updateMatrixWorld(true);
+      const f = d.world.path.frame(d.s + 30);
+      const centerOf = (name: 'blinkL' | 'blinkR') => {
+        const m = (vis.children[0].children as THREE.Mesh[]).find((c) => c.geometry === (tr as any).assets[k][name]);
+        const bb = new THREE.Box3().setFromObject(m!);
+        return bb.getCenter(new THREE.Vector3()).sub(f.pos).dot(f.right);
+      };
+      const l = centerOf('blinkL'), r = centerOf('blinkR');
+      out.push(`${k}: левый ${l < 0 ? 'слева ✓' : 'СПРАВА ✗'} (${l.toFixed(2)}), правый ${r > 0 ? 'справа ✓' : 'СЛЕВА ✗'} (${r.toFixed(2)})`);
+    }
+    console.warn('BLINK ' + out.join(' | '));
+  } else if (kind === 'repair') {
     const d = ctx.drive;
     const log: string[] = [];
     const ex = d.world.path.nextExit(0, 'repair');

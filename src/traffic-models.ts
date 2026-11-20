@@ -5,6 +5,7 @@ import { spline, loft } from './car';
 import { clamp, mulberry32 } from './noise';
 import { makePlateTexture } from './textures';
 
+// Оси моделей трафика: +Z — вперёд, +Y — вверх, +X — ЛЕВЫЙ борт (базис «вверх × вперёд»).
 /** Ключи материалов: детали модели склеиваются по ним — несколько draw call на машину. */
 type MatKey = 'paint' | 'paint2' | 'glass' | 'black' | 'chrome' | 'grey' | 'head' | 'plate' | 'logo' | 'chevron' | 'rubber' | 'rim';
 const TEXTURED: MatKey[] = ['plate', 'logo', 'chevron'];
@@ -245,7 +246,7 @@ function buildSedan(): TrafficTemplate {
     const y = 0.86, x = 0.6, z = sh.surfaceZ(x, y, -1);
     b.box(0.42, 0.14, 0.08, 'glass', { x: side * x, y, z: z + 0.02 }, 0.02);
     tail.box(0.3, 0.07, 0.04, 'head', { x: side * (x - 0.03), y: y + 0.01, z: z - 0.012 }, 0.01);
-    (side < 0 ? bl : br).box(0.09, 0.05, 0.04, 'head', { x: side * (x + 0.15), y: y - 0.02, z: z - 0.01 }, 0.01);
+    (side > 0 ? bl : br).box(0.09, 0.05, 0.04, 'head', { x: side * (x + 0.15), y: y - 0.02, z: z - 0.01 }, 0.01);
   }
   // номер и бампер
   const pz = sh.surfaceZ(0.27, 0.55, -1);
@@ -329,8 +330,8 @@ function buildMoto(): TrafficTemplate {
   };
   const tail = new Builder(), bl = new Builder(), br = new Builder();
   tail.box(0.12, 0.05, 0.03, 'head', { x: 0, y: 0.92, z: -0.93 }, 0.012);
-  bl.box(0.05, 0.035, 0.035, 'head', { x: -0.12, y: 0.82, z: -0.86 }, 0.01);
-  br.box(0.05, 0.035, 0.035, 'head', { x: 0.12, y: 0.82, z: -0.86 }, 0.01);
+  bl.box(0.05, 0.035, 0.035, 'head', { x: 0.12, y: 0.82, z: -0.86 }, 0.01);
+  br.box(0.05, 0.035, 0.035, 'head', { x: -0.12, y: 0.82, z: -0.86 }, 0.01);
   return {
     kind: 'moto', length: 2.15, width: 0.85, parts: b.build(), wheelR: R, axles: [wheel(zF), wheel(zR)],
     tail: tail.build().get('head')!, blinkL: bl.build().get('head')!, blinkR: br.build().get('head')!,
@@ -410,7 +411,7 @@ function buildTruck(): TrafficTemplate {
   const tail = new Builder(), bl = new Builder(), br = new Builder();
   for (const side of [-1, 1]) {
     tail.box(0.18, 0.1, 0.03, 'head', { x: side * 0.86, y: 0.86, z: boxZ0 - 0.05 }, 0.01);
-    (side < 0 ? bl : br).box(0.12, 0.1, 0.03, 'head', { x: side * 1.1, y: 0.86, z: boxZ0 - 0.05 }, 0.01);
+    (side > 0 ? bl : br).box(0.12, 0.1, 0.03, 'head', { x: side * 1.1, y: 0.86, z: boxZ0 - 0.05 }, 0.01);
     // габаритные огни по верхним углам фургона
     tail.box(0.1, 0.06, 0.03, 'head', { x: side * 1.12, y: boxY0 + boxH - 0.12, z: rz - 0.03 }, 0.01);
   }

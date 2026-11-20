@@ -99,7 +99,18 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 
 .hud-top { align-items: flex-start; }
-.hud-right { display: grid; gap: 8px; justify-items: end; }
+.hud-top { gap: 10px; }
+.hud-right { display: grid; gap: 8px; justify-items: end; flex: none; }
+.hud-row { display: flex; align-items: center; gap: 8px; }
+.hud-row .chips { flex-direction: column; align-items: flex-end; gap: 4px; margin: 0; }
+.hud-row .chips:empty { display: none; }
+/* узкий экран (телефон вертикально): компактные плашки топлива/состояния */
+@media (max-width: 480px) {
+  .hud-top { left: calc(14px + var(--safe-l)); right: calc(14px + var(--safe-r)); }
+  .fuel, .coins { padding: 6px 10px; gap: 6px; }
+  .fbar { width: 64px; }
+  .fuel b, .coins b { font-size: 15px; }
+}
 /* одометр под спидометром: барабаны с цифрами, десятые — инверсные */
 .odo { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); width: max-content; display: grid; gap: 5px; }
 .odo-row { display: flex; align-items: center; gap: 6px; }
@@ -275,7 +286,7 @@ kbd {
 .fuel.hp .fbar i { background: linear-gradient(90deg, #4aa8ff, #7ad0ff); }
 .fuel.hp.low .fbar i { background: linear-gradient(90deg, #ff4a3d, #ff8a3d); }
 .chips { display: inline-flex; gap: 4px; margin-left: 4px; }
-.chips i { font-style: normal; font-size: 10px; font-weight: 700; letter-spacing: .06em; padding: 2px 6px; border-radius: 6px; background: rgba(90, 170, 255, .2); color: #bfe0ff; }
+.chips i { font-style: normal; font-size: 10px; font-weight: 700; letter-spacing: .06em; padding: 3px 7px; border-radius: 6px; background: rgba(18, 52, 100, .78); color: #d6ebff; border: 1px solid rgba(120, 190, 255, .35); }
 .ins { display: grid; gap: 8px; margin: 0 0 12px; }
 .ins-opt {
   display: flex; align-items: center; gap: 12px; text-align: left; padding: 10px 12px; border-radius: 12px;

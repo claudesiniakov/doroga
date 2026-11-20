@@ -22,6 +22,8 @@ class Vehicle {
   braking = false;
   spin = 0;
   roll = 0;
+  latAcc = 0;
+  lean = 0;
   constructor(readonly kind: TrafficKind, readonly vis: TrafficVisual) {}
   get length() { return this.vis.template.length; }
   get width() { return this.vis.template.width; }
@@ -36,7 +38,7 @@ export interface CrashEvent { severity: number; side: boolean; }
 export class Traffic {
   readonly group = new THREE.Group();
   private list: Vehicle[] = [];
-  private pool: Record<TrafficKind, TrafficVisual[]> = { sedan: [], truck: [] };
+  private pool: Record<TrafficKind, TrafficVisual[]> = { sedan: [], truck: [], moto: [] };
   private rnd = mulberry32(4242);
   private frame: RoadFrame;
   private spawnTimer = 0;
@@ -117,10 +119,13 @@ export class Traffic {
   }
 
   private trySpawn(p: PlayerState, s: number) {
-    const truck = this.rnd() < 0.28;
-    const kind: TrafficKind = truck ? 'truck' : 'sedan';
-    // грузовики — только в правой и средней полосе, чаще в правой
-    const lanes = truck ? [1, 1, 0] : [-1, 0, 0, 1, 1];
+    const r = this.rnd();
+    const kind: TrafficKind = r < 0.25 ? 'truck' : r < 0.37 ? 'moto' : 'sedan';
+    const truck = kind === 'truck', moto = kind === 'moto';
+    // мото быстрее потока: если игрок едет медленнее, чаще появляются сзади и обгоняют
+    if (moto && p.v < 28 && s > p.s && this.rnd() < 0.6) s = p.s - 110 - this.rnd() * 40;
+    // грузовики — только в правой и средней полосе, чаще в правой; мото — чаще левее
+    const lanes = truck ? [1, 1, 0] : moto ? [-1, -1, 0, 0, 1] : [-1, 0, 0, 1, 1];
     const lane = lanes[Math.floor(this.rnd() * lanes.length)];
     if (!this.laneFree(lane, s, 45, 45, p)) return false;
     if (this.wouldBlockAll(lane, s, 40)) return false;
@@ -129,7 +134,7 @@ export class Traffic {
     v.lane = v.targetLane = lane;
     v.d = lane * LANE;
     // желаемая скорость: левее — быстрее; грузовики медленнее
-    const base = truck ? 72 + this.rnd() * 14 : [102, 88, 76][lane + 1] + (this.rnd() - 0.5) * 18;
+    const base = truck ? 72 + this.rnd() * 14 : moto ? 100 + this.rnd() * 32 : [102, 88, 76][lane + 1] + (this.rnd() - 0.5) * 18;
     v.v0 = base / 3.6;
     v.v = v.v0;
     v.cooldown = 3 + this.rnd() * 5;
@@ -176,9 +181,9 @@ export class Traffic {
 
   /** Модель следования IDM + решения о перестроении. */
   private drive(v: Vehicle, dt: number, p: PlayerState) {
-    const truck = v.kind === 'truck';
-    const aMax = truck ? 0.9 : 1.6, bComf = truck ? 1.8 : 2.6;
-    const s0 = truck ? 9 : 6, T = truck ? 1.8 : 1.3;
+    const truck = v.kind === 'truck', moto = v.kind === 'moto';
+    const aMax = truck ? 0.9 : moto ? 2.6 : 1.6, bComf = truck ? 1.8 : moto ? 3.2 : 2.6;
+    const s0 = truck ? 9 : moto ? 4 : 6, T = truck ? 1.8 : moto ? 0.9 : 1.3;
     const idm = (gap: number, lv: number) => {
       const dvl = v.v - lv;
       const sStar = s0 + Math.max(0, v.v * T + (v.v * dvl) / (2 * Math.sqrt(aMax * bComf)));
@@ -236,12 +241,13 @@ export class Traffic {
       }
     }
     // плавное смещение к полосе (перестроение ~3 c у легковых, ~4.5 c у грузовиков)
-    const w = truck ? 1.0 : 1.4;
+    const w = truck ? 1.0 : moto ? 2.1 : 1.4;
     const target = v.targetLane * LANE;
     const acc = w * w * (target - v.d) - 2 * w * v.dv;
     v.dv += acc * dt;
     v.d += v.dv * dt;
     v.roll = clamp(-acc * (truck ? 0.012 : 0.008), -0.05, 0.05);
+    v.latAcc = acc;
   }
 
   private _m = new THREE.Matrix4();
@@ -258,7 +264,13 @@ export class Traffic {
     this._x.crossVectors(f.up, this._f).normalize();
     this._m.makeBasis(this._x, f.up, this._f);
     root.quaternion.setFromRotationMatrix(this._m);
-    v.vis.body.rotation.z = v.roll;
+    if (v.kind === 'moto') {
+      // мотоцикл наклоняется внутрь поворота/перестроения: tg(наклона) = боковое ускорение / g
+      const lat = v.latAcc - v.v * v.v * f.curvature;
+      const target = clamp(Math.atan2(lat, 9.81), -0.55, 0.55);
+      v.lean += (target - v.lean) * Math.min(1, dt * 6);
+      v.vis.body.rotation.z = v.lean;
+    } else v.vis.body.rotation.z = v.roll;
     v.vis.body.rotation.x = v.braking ? 0.008 : 0;
     v.spin += (v.v * dt) / v.vis.template.wheelR;
     for (const a of v.vis.axles) a.rotation.x = v.spin;

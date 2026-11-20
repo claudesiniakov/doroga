@@ -165,7 +165,7 @@ export class Shape {
   }
 }
 
-export type TrafficKind = 'sedan' | 'truck';
+export type TrafficKind = 'sedan' | 'truck' | 'moto';
 
 export interface TrafficTemplate {
   kind: TrafficKind;
@@ -253,6 +253,86 @@ function buildSedan(): TrafficTemplate {
   const axles = [1.4, -1.38].map((z) => ({ z, y: 0.31, ...axleGeometry(0.31, 0.2, 0.22, 0.76, false) }));
   return {
     kind: 'sedan', length: 4.6, width: 1.8, parts: b.build(), wheelR: 0.31, axles,
+    tail: tail.build().get('head')!, blinkL: bl.build().get('head')!, blinkR: br.build().get('head')!,
+  };
+}
+
+/** Спортбайк с мотоциклистом. Колёса — отдельные «оси» по центру (наклоняются вместе с кузовом). */
+function buildMoto(): TrafficTemplate {
+  const b = new Builder();
+  const R = 0.31, zF = 0.72, zR = -0.7;
+  const between = (a: THREE.Vector3, c: THREE.Vector3, r: number, key: MatKey) => {
+    const len = a.distanceTo(c);
+    const g = new THREE.CapsuleGeometry(r, Math.max(0.01, len - r * 2 + r * 0.6), 4, 10);
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), c.clone().sub(a).normalize());
+    g.applyQuaternion(q);
+    const m = a.clone().add(c).multiplyScalar(0.5);
+    return b.add(g, key, m);
+  };
+  const blob = (r: number, s: [number, number, number], pos: THREE.Vector3Like, key: MatKey, rx = 0) =>
+    b.add(new THREE.SphereGeometry(r, 18, 12), key, pos, new THREE.Euler(rx, 0, 0), { x: s[0], y: s[1], z: s[2] });
+  // мотоцикл
+  b.box(0.3, 0.36, 0.5, 'grey', { x: 0, y: 0.47, z: -0.02 }, 0.05);                 // двигатель
+  for (let k = 0; k < 4; k++) b.box(0.34, 0.015, 0.2, 'grey', { x: 0, y: 0.58 + k * 0.035, z: 0.12 }, 0);
+  b.box(0.26, 0.16, 0.56, 'black', { x: 0, y: 0.34, z: 0.06 }, 0.06);                // брюхо
+  blob(1, [0.2, 0.15, 0.32], { x: 0, y: 0.88, z: 0.1 }, 'paint');                    // бак
+  blob(1, [0.19, 0.2, 0.3], { x: 0, y: 0.84, z: 0.47 }, 'paint', 0.35);             // обтекатель
+  b.add(new THREE.PlaneGeometry(0.3, 0.26), 'glass', { x: 0, y: 1.1, z: 0.6 }, new THREE.Euler(-0.75, 0, 0));
+  b.box(0.25, 0.08, 0.5, 'black', { x: 0, y: 0.87, z: -0.28 }, 0.035);               // седло
+  blob(1, [0.13, 0.09, 0.34], { x: 0, y: 0.9, z: -0.6 }, 'paint', -0.18);           // хвост
+  for (const side of [-1, 1]) {
+    b.box(0.04, 0.06, 0.62, 'grey', { x: side * 0.1, y: 0.36, z: -0.38 }, 0, new THREE.Euler(0.08, 0, 0)); // маятник
+    between(new THREE.Vector3(side * 0.085, R, zF), new THREE.Vector3(side * 0.085, 1.0, 0.5), 0.024, 'chrome'); // вилка
+    b.box(0.06, 0.03, 0.06, 'black', { x: side * 0.29, y: 1.04, z: 0.4 }, 0.01);     // ручки
+    b.box(0.03, 0.12, 0.03, 'black', { x: side * 0.22, y: 1.12, z: 0.47 });          // кронштейн зеркала
+    b.box(0.1, 0.05, 0.02, 'chrome', { x: side * 0.25, y: 1.18, z: 0.47 }, 0.01);
+  }
+  const bar = new THREE.CylinderGeometry(0.015, 0.015, 0.58, 8).rotateZ(Math.PI / 2);
+  b.add(bar, 'black', { x: 0, y: 1.03, z: 0.42 });
+  const pipe = new THREE.CylinderGeometry(0.05, 0.06, 0.5, 14).rotateX(Math.PI / 2 - 0.25);
+  b.add(pipe, 'chrome', { x: 0.15, y: 0.5, z: -0.55 });
+  b.box(0.16, 0.05, 0.3, 'black', { x: 0, y: R + 0.27, z: zF + 0.02 }, 0.02, new THREE.Euler(0.15, 0, 0)); // крыло
+  b.box(0.16, 0.07, 0.04, 'head', { x: 0, y: 0.84, z: 0.79 }, 0.02);                  // фара
+  b.box(0.17, 0.12, 0.01, 'plate', { x: 0, y: 0.68, z: -0.86 }, 0, new THREE.Euler(0.3, Math.PI, 0));
+  // мотоциклист: наклонён к рулю
+  const hip = new THREE.Vector3(0, 0.98, -0.24), sh = new THREE.Vector3(0, 1.32, 0.08);
+  between(hip, sh, 0.15, 'black');                                                    // куртка
+  b.add(new THREE.SphereGeometry(0.125, 18, 12), 'paint2', { x: 0, y: 1.46, z: 0.19 }, undefined, { x: 1, y: 1, z: 1.12 });  // шлем
+  b.add(new THREE.SphereGeometry(0.128, 16, 10, -Math.PI * 0.35, Math.PI * 0.7, Math.PI * 0.35, Math.PI * 0.25), 'glass', { x: 0, y: 1.46, z: 0.205 }, undefined, { x: 1, y: 1, z: 1.12 });
+  for (const side of [-1, 1]) {
+    const s = new THREE.Vector3(side * 0.17, 1.3, 0.06), el = new THREE.Vector3(side * 0.24, 1.12, 0.24), gr = new THREE.Vector3(side * 0.29, 1.04, 0.4);
+    between(s, el, 0.055, 'black');
+    between(el, gr, 0.048, 'black');
+    const hp = new THREE.Vector3(side * 0.12, 0.95, -0.22), kn = new THREE.Vector3(side * 0.21, 0.83, 0.13), ft = new THREE.Vector3(side * 0.19, 0.5, -0.04);
+    between(hp, kn, 0.075, 'grey');
+    between(kn, ft, 0.06, 'grey');
+    b.box(0.09, 0.08, 0.2, 'black', { x: side * 0.19, y: 0.47, z: 0.0 }, 0.02);         // ботинок
+  }
+  // колёса: шина + диск + тормозной диск, по центру
+  const wheel = (z: number) => {
+    const rub = new Builder(), rim = new Builder();
+    const W = 0.13, rimR = 0.22;
+    const prof: THREE.Vector2[] = [];
+    for (let i = 0; i <= 10; i++) {
+      const a = -Math.PI / 2 + (i / 10) * Math.PI;
+      prof.push(new THREE.Vector2(rimR + (R - rimR) * (0.55 + 0.45 * Math.cos(a)), (W / 2) * Math.sin(a)));
+    }
+    const tire = new THREE.LatheGeometry(prof, 32).rotateZ(Math.PI / 2);
+    rub.add(tire, 'rubber');
+    rim.add(new THREE.CylinderGeometry(rimR, rimR, 0.05, 24).rotateZ(Math.PI / 2), 'rim');
+    for (let k = 0; k < 5; k++) {
+      const a = (k / 5) * Math.PI * 2;
+      rub.add(new THREE.BoxGeometry(0.06, rimR * 0.5, rimR * 0.18), 'rubber', { x: 0, y: Math.cos(a) * rimR * 0.55, z: Math.sin(a) * rimR * 0.55 }, new THREE.Euler(a, 0, 0));
+    }
+    rim.add(new THREE.CylinderGeometry(0.15, 0.15, 0.012, 24).rotateZ(Math.PI / 2), 'rim', { x: 0.045, y: 0, z: 0 });
+    return { z, y: R, rubber: rub.build().get('rubber')!, rim: rim.build().get('rim')! };
+  };
+  const tail = new Builder(), bl = new Builder(), br = new Builder();
+  tail.box(0.12, 0.05, 0.03, 'head', { x: 0, y: 0.92, z: -0.93 }, 0.012);
+  bl.box(0.05, 0.035, 0.035, 'head', { x: -0.12, y: 0.82, z: -0.86 }, 0.01);
+  br.box(0.05, 0.035, 0.035, 'head', { x: 0.12, y: 0.82, z: -0.86 }, 0.01);
+  return {
+    kind: 'moto', length: 2.15, width: 0.85, parts: b.build(), wheelR: R, axles: [wheel(zF), wheel(zR)],
     tail: tail.build().get('head')!, blinkL: bl.build().get('head')!, blinkR: br.build().get('head')!,
   };
 }
@@ -383,12 +463,14 @@ function chevronTexture() {
 const SEDAN_COLORS: [string, number][] = [
   ['#e9e9e6', 4], ['#b8bcc2', 4], ['#1a1b1e', 3], ['#5a5f66', 3], ['#1d2c4a', 2], ['#7d1218', 1.5], ['#c9b89a', 1], ['#2f4a3a', 1], ['#d0d4d8', 2],
 ];
+const MOTO_COLORS: [string, number][] = [['#c4101a', 3], ['#1f4f9c', 2], ['#111214', 3], ['#f2f2f0', 2], ['#f5c518', 1], ['#2e8b3e', 1], ['#e06a12', 1]];
 const CAB_COLORS: [string, number][] = [['#f0f0ee', 3], ['#b3171c', 2], ['#1f4f9c', 2], ['#e07a12', 1], ['#2b2e33', 1]];
 const BRANDS: [string, string][] = [['ТРАНЗИТ-7', '#1f4f9c'], ['ВЕКТОР', '#c4101a'], ['СЕВЕРНЫЙ ПУТЬ', '#16723a'], ['', '#888']];
 
 export class TrafficAssets {
   readonly sedan = buildSedan();
   readonly truck = buildTruck();
+  readonly moto = buildMoto();
   private paints = new Map<string, THREE.MeshPhysicalMaterial>();
   readonly mats: Record<Exclude<MatKey, 'paint' | 'paint2' | 'logo' | 'plate'>, THREE.Material>;
   readonly tailOff = new THREE.MeshStandardMaterial({ color: 0x3a0000, emissive: 0xff1a12, emissiveIntensity: 1.6, roughness: 0.3 });
@@ -436,11 +518,11 @@ export class TrafficAssets {
 
   /** Новый экземпляр машины трафика. */
   create(kind: TrafficKind): TrafficVisual {
-    const t = kind === 'sedan' ? this.sedan : this.truck;
+    const t = kind === 'sedan' ? this.sedan : kind === 'moto' ? this.moto : this.truck;
     const root = new THREE.Group();
     const body = new THREE.Group();
     root.add(body);
-    const paint = this.paint(this.pick(kind === 'sedan' ? SEDAN_COLORS : CAB_COLORS));
+    const paint = this.paint(this.pick(kind === 'sedan' ? SEDAN_COLORS : kind === 'moto' ? MOTO_COLORS : CAB_COLORS));
     const paint2 = this.paint(this.rnd() < 0.75 ? '#eef0f0' : this.pick([['#b8bcc2', 1], ['#2b4f8a', 1], ['#c9b89a', 1]]));
     const logo = this.logos[Math.floor(this.rnd() * this.logos.length)];
     const plate = this.plates[Math.floor(this.rnd() * this.plates.length)];
@@ -461,7 +543,7 @@ export class TrafficAssets {
       const r = new THREE.Mesh(a.rubber, this.mats.rubber);
       r.castShadow = true;
       g.add(r, new THREE.Mesh(a.rim, this.mats.rim));
-      root.add(g);
+      (kind === 'moto' ? body : root).add(g);   // у мотоцикла колёса наклоняются вместе с ним
       return g;
     });
     return { root, body, tail, blinkL: bl, blinkR: br, axles, template: t };

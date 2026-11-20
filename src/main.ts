@@ -527,7 +527,7 @@ async function runShot(kind: string, ctx: {
     const secs = Number(p.get('secs') || 120);
     let overlaps = 0, walls = 0, maxCount = 0, minV = 1e9, laneShift = 0, nextShift = 2;
     let tSim = 0;
-    const stats = { sedan: 0, truck: 0 };
+    const stats = { sedan: 0, truck: 0, moto: 0 };
     for (let i = 0; i < secs * 60; i++) {
       tSim += 1 / 60;
       if (tSim > nextShift) { laneShift = Math.random() < 0.5 ? -1 : 1; nextShift = tSim + 1 + Math.random() * 3; }
@@ -563,7 +563,7 @@ async function runShot(kind: string, ctx: {
   } else if (kind === 'garage') {
     ctx.enterGarage();
     const tm = p.get('tm');
-    if (tm === 'sedan' || tm === 'truck') {
+    if (tm === 'sedan' || tm === 'truck' || tm === 'moto') {
       const vis = new TrafficAssets().create(tm);
       const car = ctx.garage.scene.getObjectByName('car');
       if (car) car.visible = false;
@@ -594,7 +594,7 @@ async function runShot(kind: string, ctx: {
       const s0 = ctx.drive.s;
       const nearS = Number(p.get('near'));
       ctx.drive.traffic.debugPlace('truck', s0 + 40, lane + (lane < 1 ? 1 : -1) * 1, 90);
-      ctx.drive.traffic.debugPlace('sedan', s0 + nearS, lane + (lane < 1 ? 1 : -1) * 1, 88);
+      ctx.drive.traffic.debugPlace(p.get('mk') === 'moto' ? 'moto' : 'sedan', s0 + nearS, lane + (lane < 1 ? 1 : -1) * 1, 88);
       ctx.drive.traffic.debugPlace('sedan', s0 + 60, lane === -1 ? 1 : -1, 90);
     }
     for (let i = 0; i < steps; i++) {

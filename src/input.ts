@@ -66,17 +66,19 @@ export class Input {
       gas.setAttribute('aria-valuenow', String(pct));
       gas.classList.toggle('on', v > 0);
     };
-    const fromY = (y: number) => {
-      const r = gas.getBoundingClientRect();
-      const pad = 10;   // у краёв — гарантированные 0 и 100 %
-      return Math.min(1, Math.max(0, (r.bottom - pad - y) / (r.height - pad * 2)));
-    };
-    let active = -1;
+    // свёрнут в кнопку, пока не трогают (больше места для свайпов); при касании раскрывается вверх.
+    // Тянуть — относительно точки касания, чтобы значение не прыгало при раскрытии.
+    const range = () => Math.min(230, innerHeight * 0.46) - 20;
+    let active = -1, y0 = 0, v0 = 0;
     gas.addEventListener('pointerdown', (e) => {
-      e.preventDefault(); try { gas.setPointerCapture(e.pointerId); } catch { /* нет захвата */ } active = e.pointerId; setGas(fromY(e.clientY));
+      e.preventDefault(); try { gas.setPointerCapture(e.pointerId); } catch { /* нет захвата */ }
+      active = e.pointerId; y0 = e.clientY; v0 = this.gasLevel;
+      gas.classList.remove('collapsed');
     });
-    gas.addEventListener('pointermove', (e) => { if (e.pointerId === active) setGas(fromY(e.clientY)); });
-    const release = (e: PointerEvent) => { if (e.pointerId === active) active = -1; };
+    gas.addEventListener('pointermove', (e) => {
+      if (e.pointerId === active) setGas(Math.min(1, Math.max(0, v0 + (y0 - e.clientY) / range())));
+    });
+    const release = (e: PointerEvent) => { if (e.pointerId === active) { active = -1; gas.classList.add('collapsed'); } };
     this.resetGas = () => { if (this.gasLevel > 0) setGas(0); };
     gas.addEventListener('pointerup', release);
     gas.addEventListener('pointercancel', release);

@@ -11,7 +11,7 @@ import absolutLogo from './brand/absolut-logo.svg?raw';
  */
 function brandTextures() {
   const mk = (w: number, h: number) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
-  const markC = mk(1024, 1024), wordC = mk(2048, 720);
+  const markC = mk(1024, 1024), wordC = mk(2048, 460);
   const mark = new THREE.CanvasTexture(markC), word = new THREE.CanvasTexture(wordC);
   for (const t of [mark, word]) { t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; }
   const img = new Image();
@@ -24,10 +24,10 @@ function brandTextures() {
     const mw = 80 * k, mh = 61 * k, s = 600 / Math.max(mw, mh);
     g.drawImage(img, 0, 0, mw, mh, 512 - (mw * s) / 2, 512 - (mh * s) / 2, mw * s, mh * s);
     mark.needsUpdate = true;
-    // корма: «Абсолют / Страхование» в цветах логотипа
+    // корма: логотип целиком — знак «a.» + «Абсолют / Страхование», в его цветах
     const w = wordC.getContext('2d')!;
-    const sx = 92 * k, sw = (279 - 92) * k, sh = 61 * k, s2 = Math.min(1960 / sw, 680 / sh);
-    w.drawImage(img, sx, 0, sw, sh, 1024 - (sw * s2) / 2, 360 - (sh * s2) / 2, sw * s2, sh * s2);
+    const sw = 279 * k, sh = 61 * k, s2 = Math.min(1980 / sw, 440 / sh);
+    w.drawImage(img, 0, 0, sw, sh, 1024 - (sw * s2) / 2, 230 - (sh * s2) / 2, sw * s2, sh * s2);
     word.needsUpdate = true;
   };
   img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(absolutLogo);
@@ -409,13 +409,26 @@ export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity =
       .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), side * Math.PI / 2));
     logos.add(p);
   }
-  // на корме — полное название между фонарями и номером
+  // на корме — логотип целиком, по центру между фонарями и номером; наклейка повторяет изгиб кормы
   {
-    const y = 0.81, z = sh.surfaceZ(0.45, y, -1) - 0.008;
-    const p = new THREE.Mesh(new THREE.PlaneGeometry(0.74, 0.26), new THREE.MeshStandardMaterial({ map: brand.word, transparent: true, roughness: 0.35, polygonOffset: true, polygonOffsetFactor: -3 }));
-    p.position.set(0, y, z);
-    p.rotation.y = Math.PI;
-    logos.add(p);
+    const W = 0.84, H = W * (460 / 2048), yc = 0.8, nx = 24, ny = 6;
+    const pos: number[] = [], uv: number[] = [], ix: number[] = [];
+    for (let i = 0; i <= nx; i++) for (let j = 0; j <= ny; j++) {
+      const u = i / nx, v = j / ny;
+      const x = W / 2 - u * W, y = yc - H / 2 + v * H;   // сзади правая сторона картинки — это −X
+      pos.push(x, y, sh.surfaceZ(Math.abs(x), y, -1) - 0.006);
+      uv.push(u, v);
+    }
+    for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) {
+      const a = i * (ny + 1) + j, b = a + 1, d = a + ny + 1, e = d + 1;
+      ix.push(a, b, d, b, e, d);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setIndex(ix);
+    g.computeVertexNormals();
+    logos.add(new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map: brand.word, transparent: true, roughness: 0.35, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3 })));
   }
 
   // контактная тень

@@ -5,9 +5,10 @@ export class Input {
   private shift = 0;
   private keys = new Set<string>();
   private pedals = { gas: false, brake: false };
-  /** Ползунок газа на сенсорном экране: 0…1, пока палец на нём. */
+  /** Ползунок газа на сенсорном экране: 0…1, остаётся где поставили; тормоз сбрасывает в 0. */
   private gasLevel = 0;
   onPause?: () => void;
+  private resetGas = () => {};
   onCamera?: () => void;
   enabled = false;
 
@@ -23,7 +24,7 @@ export class Input {
       if (this.isDriveKey(e.code)) e.preventDefault();
     });
     addEventListener('keyup', (e) => this.keys.delete(e.code));
-    addEventListener('blur', () => { this.keys.clear(); this.pedals.gas = this.pedals.brake = false; this.gasLevel = 0; });
+    addEventListener('blur', () => { this.keys.clear(); this.pedals.gas = this.pedals.brake = false; });
 
     // касание левой/правой половины экрана — смена полосы; свайп тоже
     let sx = 0, sy = 0, st = 0, swiped = false;
@@ -46,7 +47,7 @@ export class Input {
     });
 
     const hold = (el: HTMLElement, key: 'gas' | 'brake') => {
-      el.addEventListener('pointerdown', (e) => { e.preventDefault(); el.setPointerCapture(e.pointerId); this.pedals[key] = true; el.classList.add('on'); });
+      el.addEventListener('pointerdown', (e) => { e.preventDefault(); el.setPointerCapture(e.pointerId); this.pedals[key] = true; el.classList.add('on'); if (key === 'brake') this.resetGas(); });
       const off = () => { this.pedals[key] = false; el.classList.remove('on'); };
       el.addEventListener('pointerup', off);
       el.addEventListener('pointercancel', off);
@@ -54,7 +55,7 @@ export class Input {
     };
     hold(brake, 'brake');
 
-    // газ — вертикальный ползунок: где палец, столько и газа (низ 0 %, верх 100 %); отпустил — 0
+    // газ — вертикальный ползунок: где палец, столько и газа (низ 0 %, верх 100 %); значение остаётся, тормоз сбрасывает
     const fill = gas.querySelector<HTMLElement>('.gas-fill');
     const val = gas.querySelector<HTMLElement>('.gas-val b');
     const setGas = (v: number) => {
@@ -75,7 +76,8 @@ export class Input {
       e.preventDefault(); try { gas.setPointerCapture(e.pointerId); } catch { /* нет захвата */ } active = e.pointerId; setGas(fromY(e.clientY));
     });
     gas.addEventListener('pointermove', (e) => { if (e.pointerId === active) setGas(fromY(e.clientY)); });
-    const release = (e: PointerEvent) => { if (e.pointerId === active) { active = -1; setGas(0); } };
+    const release = (e: PointerEvent) => { if (e.pointerId === active) active = -1; };
+    this.resetGas = () => { if (this.gasLevel > 0) setGas(0); };
     gas.addEventListener('pointerup', release);
     gas.addEventListener('pointercancel', release);
     gas.addEventListener('lostpointercapture', release);
@@ -89,6 +91,7 @@ export class Input {
     const k = this.keys;
     this.throttle = !this.enabled ? 0 : k.has('ArrowUp') || k.has('KeyW') ? 1 : this.gasLevel;
     this.brake = this.enabled && (k.has('ArrowDown') || k.has('KeyS') || k.has('Space') || this.pedals.brake) ? 1 : 0;
+    if (this.brake) this.resetGas();
   }
 
   take(): number {
@@ -97,5 +100,6 @@ export class Input {
     return s;
   }
 
-  clear() { this.shift = 0; this.keys.clear(); }
+  /** Новый заезд/выход в гараж — газ в ноль. */
+  clear() { this.shift = 0; this.keys.clear(); this.resetGas(); }
 }

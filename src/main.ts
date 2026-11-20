@@ -310,6 +310,14 @@ async function runShot(kind: string, ctx: {
     document.body.appendChild(c);
   } else if (kind === 'garage') {
     ctx.enterGarage();
+    const tm = p.get('tm');
+    if (tm === 'sedan' || tm === 'truck') {
+      const { TrafficAssets } = await import('./traffic-models');
+      const vis = new TrafficAssets().create(tm);
+      const car = ctx.garage.scene.getObjectByName('car');
+      if (car) car.visible = false;
+      ctx.garage.scene.add(vis.root);
+    }
     if (p.get('yaw')) ctx.garage.yaw = Number(p.get('yaw'));
     for (let i = 0; i < steps; i++) ctx.frame(1 / 60);
     const cv = p.get('cam');

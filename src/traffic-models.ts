@@ -223,7 +223,7 @@ function buildSedan(): TrafficTemplate {
     if (z > -0.8) { if (s > 0.78) return 0; if (Math.abs(z + 0.15) < 0.04) return 2; return 1; }
     if (s > 0.4 && s < 0.86) return 0;
     return 1;
-  }, false, true);
+  }, false, false);
   b.addGroups(gh, ['paint', 'glass', 'black']);
   b.box(1.16, 0.44, 3.5, 'black', { x: 0, y: 0.47, z: 0 });
 

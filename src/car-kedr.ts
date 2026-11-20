@@ -86,12 +86,8 @@ export function buildKedr(cfg: CarConfig, envIntensity = 1): CarModel {
     if (Math.abs(z + 1.18) < 0.08) return 0;                          // C-стойка
     if (z < -1.7) return 0;                                          // D-стойка
     return 1;
-  }, false, true);
-  // у вертикальной пятой двери нормали лофта смотрят внутрь — «аквариум» рисуем с обеих сторон
-  const paint2 = paint.clone(); paint2.side = THREE.DoubleSide;
-  const glass2 = glass.clone(); glass2.side = THREE.DoubleSide;
-  const plastic2 = plastic.clone(); plastic2.side = THREE.DoubleSide;
-  const ghm = new THREE.Mesh(gh, [paint2, glass2, plastic2]);
+  }, false, false);
+  const ghm = new THREE.Mesh(gh, [paint, glass, plastic]);
   ghm.castShadow = true;
   body.add(ghm);
 

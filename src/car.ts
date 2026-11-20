@@ -251,7 +251,7 @@ export function buildCar(cfg: CarConfig, envIntensity = 1): CarModel {
     }
     if (s > 0.45 && s < 0.84) return 0;                               // C-стойка
     return 1;
-  }, false, true);
+  }, false, false);
   const gh = new THREE.Mesh(ghGeo, [paint, glass, black]);
   gh.castShadow = true;
   body.add(gh);

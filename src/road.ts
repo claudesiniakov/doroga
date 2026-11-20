@@ -280,7 +280,9 @@ function ribbon(i0: number, i1: number, cols: number, origin: THREE.Vector3, pos
       _t1.subVectors(_b, _c);
       gp(r, Math.min(cols - 1, j + 1), _b); gp(r, Math.max(0, j - 1), _d);
       _t2.subVectors(_b, _d);
-      _n.crossVectors(_t2, _t1).normalize();
+      _n.crossVectors(_t2, _t1);
+      // вырожденная (нулевой ширины) полоса — нормаль «вверх», иначе в шейдере normalize(0) = NaN → чёрные вспышки
+      if (_n.lengthSq() < 1e-12) _n.set(0, 1, 0); else _n.normalize();
       if (flip) _n.negate();
       N[k * 3] = _n.x; N[k * 3 + 1] = _n.y; N[k * 3 + 2] = _n.z;
       const [u, v] = uv(i, j);

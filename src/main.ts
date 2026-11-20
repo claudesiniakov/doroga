@@ -585,7 +585,69 @@ async function runShot(kind: string, ctx: {
   const p = new URLSearchParams(location.search);
   const steps = Number(p.get('steps') || 90);
   if (kind === 'sim') (ctx.drive.world.constructor as any).stats = { base: [], scatter: [], far: [] };
-  if (kind === 'gate') {
+  if (kind === 'nanall') {
+    const d = ctx.drive, out: string[] = [];
+    let t = 0;
+    for (const at of [500, 1500, 4000, 6800, 8500, 11000]) {
+      await ctx.startDrive(true, at);
+      for (let i = 0; i < 260; i++) { t += 1 / 60; d.update(1 / 60, { throttle: 0, brake: 0, laneShift: 0 }, t); }
+      let zero = 0, nan = 0;
+      d.scene.traverse((o) => {
+        const m = o as THREE.Mesh;
+        const n = m.isMesh ? m.geometry?.getAttribute('normal') : null;
+        if (n) for (let k = 0; k < n.count; k++) { const q = n.getX(k) ** 2 + n.getY(k) ** 2 + n.getZ(k) ** 2; if (!Number.isFinite(q)) nan++; else if (q < 1e-10) zero++; }
+      });
+      out.push(`${at}м ${d.world.path.biomes.segmentAt(at).id}: нулевых ${zero}, NaN ${nan}`);
+    }
+    console.warn('NANALL ' + out.join(' | '));
+  } else if (kind === 'nan') {
+    const d = ctx.drive;
+    await ctx.startDrive(true, 30);
+    const ex = d.world.path.nextExit(0, 'repair');
+    d.s = ex.s0 - 150;
+    let t = 0;
+    for (let i = 0; i < 200; i++) { t += 1 / 60; d.update(1 / 60, { throttle: 0, brake: 0, laneShift: 0 }, t); }
+    let nanN = 0, zeroN = 0, nanP = 0, meshes = 0;
+    d.scene.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh || !m.geometry) return;
+      meshes++;
+      const n = m.geometry.getAttribute('normal'), p2 = m.geometry.getAttribute('position');
+      let zHere = 0;
+      if (n) for (let k = 0; k < n.count; k++) {
+        const x = n.getX(k), y = n.getY(k), z = n.getZ(k);
+        if (!Number.isFinite(x + y + z)) nanN++; else if (x * x + y * y + z * z < 1e-10) { zeroN++; zHere++; }
+      }
+      if (zHere) {
+        const mat = m.material as any;
+        m.geometry.computeBoundingBox();
+        const bb = m.geometry.boundingBox!;
+        let ex = '';
+        for (let k = 0; k < n.count && !ex; k++) if (n.getX(k) ** 2 + n.getY(k) ** 2 + n.getZ(k) ** 2 < 1e-10) ex = `${p2.getX(k).toFixed(2)},${p2.getY(k).toFixed(2)},${p2.getZ(k).toFixed(2)}`;
+        console.warn('ZERO', zHere, n.count, 'map', !!mat.map, 'vc', !!mat.vertexColors, 'rough', mat.roughness, 'metal', mat.metalness, 'size', bb.max.clone().sub(bb.min).toArray().map((v: number) => v.toFixed(1)).join('x'), 'pos', ex, 'attrs', Object.keys(m.geometry.attributes).join(','));
+      }
+      if (p2) for (let k = 0; k < p2.count; k++) if (!Number.isFinite(p2.getX(k) + p2.getY(k) + p2.getZ(k))) nanP++;
+    });
+    // удар на 220 км/ч: наибольший наклон кузова
+    d.s = ex.sEnd + 400; d.v = 61; d.lastV = 61;
+    let maxPitch = 0, maxRoll = 0;
+    (d as any).crash({ severity: 1, side: false });
+    d.v = 27;
+    for (let i = 0; i < 120; i++) { t += 1 / 60; d.update(1 / 60, { throttle: 0, brake: 0, laneShift: 0 }, t); maxPitch = Math.max(maxPitch, Math.abs((d as any).pitch)); maxRoll = Math.max(maxRoll, Math.abs((d as any).roll)); }
+    {
+      const A = d.traffic.assets as any;
+      const zc = (g: THREE.BufferGeometry) => { const n = g.getAttribute('normal'); let z = 0; for (let k = 0; k < n.count; k++) if (n.getX(k) ** 2 + n.getY(k) ** 2 + n.getZ(k) ** 2 < 1e-10) z++; return z; };
+      const out: string[] = [];
+      for (const k of ['sedan', 'truck', 'moto', 'van']) {
+        const t = A[k];
+        for (const [key, g] of t.parts) { const z = zc(g); if (z) out.push(`${k}.${key}:${z}/${g.getAttribute('normal').count}`); }
+        for (const key of ['tail', 'blinkL', 'blinkR']) { const z = zc(t[key]); if (z) out.push(`${k}.${key}:${z}`); }
+        t.axles.forEach((a: any, i: number) => { const z = zc(a.rubber) + zc(a.rim); if (z) out.push(`${k}.axle${i}:${z}`); });
+      }
+      console.warn('ZEROPARTS', out.join(' '));
+    }
+    console.warn('NAN', JSON.stringify({ meshes, nanN, zeroN, nanP, maxPitchDeg: (maxPitch * 57.3).toFixed(1), maxRollDeg: (maxRoll * 57.3).toFixed(1) }));
+  } else if (kind === 'gate') {
     const d = ctx.drive;
     await ctx.startDrive(true, 30);
     d.s = d.finishS - 120;

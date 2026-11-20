@@ -49,7 +49,7 @@ export class DriveScene {
   private dv = 0;
   private roll = 0; private rollV = 0;
   private pitch = 0; private pitchV = 0;
-  private lastV = 0;
+  lastV = 0;
   private yawOff = 0;
   private spin = 0;
 
@@ -354,8 +354,9 @@ export class DriveScene {
 
     // динамика кузова: крен от бокового ускорения, тангаж от продольного
     this.placeCar(dt);
-    const latA = acc + this.v * this.v * this.frame.curvature;
-    const longA = (this.v - this.lastV) / Math.max(dt, 1e-3);
+    // ускорения для крена/клевка ограничены: мгновенная потеря скорости при ударе не должна «подбрасывать» кузов
+    const latA = clamp(acc + this.v * this.v * this.frame.curvature, -14, 14);
+    const longA = clamp((this.v - this.lastV) / Math.max(dt, 1e-3), -14, 10);
     this.lastV = this.v;
     const kSp = 60, kDm = 9;
     const soft = this.cfg.roll ?? 1;
@@ -639,8 +640,8 @@ export class DriveScene {
     if (r.v !== null) this.v = r.v;
     if (r.lane !== null) { this.lane = r.lane; this.dv *= -0.4; }
     this.shakeAmp = 0.35 + e.severity * 0.65;
-    this.pitchV += (e.side ? 0 : 1.5) * e.severity;
-    this.rollV += (e.side ? 2.5 : 0.6) * (Math.random() - 0.5) * 2;
+    this.pitchV += (e.side ? 0 : 0.5) * e.severity;
+    this.rollV += (e.side ? 0.9 : 0.25) * (Math.random() - 0.5) * 2;
     // повреждения: 15–35 % по силе удара; без ОСАГО — платим за чужую машину
     const damage = Math.round(e.side ? 12 + 10 * e.severity : 12 + 23 * e.severity);
     this.health = Math.max(0, this.health - damage);

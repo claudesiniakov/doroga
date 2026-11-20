@@ -19,6 +19,10 @@ function prep(g: THREE.BufferGeometry, paint: Paint) {
     col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
   }
   out.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  // нулевая нормаль (вырожденный треугольник) → «вверх»: normalize(0) в шейдере даёт NaN
+  for (let i = 0; i < nor.count; i++) {
+    if (nor.getX(i) ** 2 + nor.getY(i) ** 2 + nor.getZ(i) ** 2 < 1e-10) nor.setXYZ(i, 0, 1, 0);
+  }
   return out;
 }
 
@@ -152,7 +156,8 @@ function palm(lo: boolean) {
     for (let i = 0; i < pos.count; i++) {
       const y = pos.getY(i) + len / 2;           // 0..len вдоль листа
       const t = y / len;
-      const w = Math.sin(Math.PI * Math.min(1, t * 1.15)) * (1 - t * 0.5);
+      // кончик листа не схлопывается в ноль — иначе нормаль там не определена (NaN в шейдере)
+      const w = Math.max(0.04, Math.sin(Math.PI * Math.min(1, t * 1.15)) * (1 - t * 0.5));
       pos.setXYZ(i, pos.getX(i) * w, y, -t * t * 2.4 + Math.abs(pos.getX(i)) * 0.6); // изгиб вниз и «желобок»
     }
     leaf.rotateX(-Math.PI / 2 + 0.35);

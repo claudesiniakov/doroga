@@ -69,7 +69,7 @@ export class RoadPath {
   /** Съезды на заправки: первый на ~2,6 км, дальше через 3,5–7 км. */
   /**
    * План съездов под поездку: автосервис — посередине (колонка у середины дистанции),
-   * заправки — с 2,6 км и дальше через 3,5–7 км, не ближе 1,2 км к сервису.
+   * заправки — с 2,6 км и дальше через 3,5–7 км; попавшая ближе 1,2 км к сервису сдвигается за него.
    */
   planTrip(startS: number, finishS: number) {
     this.exits.length = 0;
@@ -79,7 +79,9 @@ export class RoadPath {
     let s0 = startS + 2600;
     const rnd = mulberry32(this.seed * 7 + Math.round(finishS));
     while (s0 < finishS + 15000) {
-      if (Math.abs(s0 - repair.s0) > 1200) list.push({ s0, kind: 'fuel' });
+      // заправки есть всегда, как на реальной трассе: рядом с сервисом — сдвигаем за него, а не убираем
+      if (Math.abs(s0 - repair.s0) < 1200) s0 = repair.s0 + 1200;
+      list.push({ s0, kind: 'fuel' });
       s0 += 3400 + rnd() * 3600;
     }
     list.sort((a, b) => a.s0 - b.s0);

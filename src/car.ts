@@ -395,10 +395,10 @@ export function buildCar(cfg: CarConfig, envIntensity = 1): CarModel {
   // ——— подкрылки и окантовка арок ———
   for (const az of [DIM.frontAxle, DIM.rearAxle]) {
     for (const side of [-1, 1]) {
-      const liner = new THREE.Mesh(new THREE.CylinderGeometry(DIM.archR, DIM.archR, 0.34, 28, 1, true, 0, Math.PI), under);
+      const liner = new THREE.Mesh(new THREE.CylinderGeometry(DIM.archR, DIM.archR, 0.26, 28, 1, true, 0, Math.PI), under);
       liner.material.side = THREE.DoubleSide;
       liner.rotation.z = Math.PI / 2;
-      liner.position.set(side * (DIM.track - 0.02), DIM.wheelR, az);
+      liner.position.set(side * (DIM.track - 0.08), DIM.wheelR, az);
       body.add(liner);
     }
   }

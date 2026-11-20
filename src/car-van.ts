@@ -135,8 +135,8 @@ export function buildVan(cfg: CarConfig, envIntensity = 1): CarModel {
   // ——— подкрылки ———
   for (const az of [axF, axR]) {
     for (const side of [-1, 1]) {
-      const liner = new THREE.CylinderGeometry(0.39, 0.39, 0.34, 28, 1, true, 0, Math.PI).rotateZ(Math.PI / 2);
-      const lm = add(liner, under, side * (track - 0.02), R, az, false);
+      const liner = new THREE.CylinderGeometry(0.39, 0.39, 0.26, 28, 1, true, 0, Math.PI).rotateZ(Math.PI / 2);
+      const lm = add(liner, under, side * (track - 0.08), R, az, false);
       (lm.material as THREE.Material).side = THREE.DoubleSide;
     }
   }

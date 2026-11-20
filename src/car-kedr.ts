@@ -153,9 +153,9 @@ export function buildKedr(cfg: CarConfig, envIntensity = 1): CarModel {
       flare.scale(1, 1, 0.55);
       flare.rotateY(Math.PI / 2);
       add(flare, plastic, x, R, az);
-      const liner = new THREE.CylinderGeometry(0.42, 0.42, 0.34, 28, 1, true, 0, Math.PI);
+      const liner = new THREE.CylinderGeometry(0.42, 0.42, 0.26, 28, 1, true, 0, Math.PI);
       liner.rotateZ(Math.PI / 2);
-      const lm = add(liner, under, side * (track - 0.02), R, az, false);
+      const lm = add(liner, under, side * (track - 0.08), R, az, false);
       (lm.material as THREE.Material).side = THREE.DoubleSide;
       add(new THREE.BoxGeometry(0.22, 0.24, 0.02), plastic, side * track, 0.33, az - 0.47, false);
     }

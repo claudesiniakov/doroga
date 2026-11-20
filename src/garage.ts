@@ -5,6 +5,8 @@ import { damp } from './noise';
 
 /** Студия-гараж: подиум, световые панели, отражения. Камера медленно облетает машину, можно вращать. */
 export class GarageScene {
+  /** Толщина подиума: машина ставится на его верхнюю плоскость. */
+  static readonly PLATE_H = 0.09;
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.PerspectiveCamera(34, 1, 0.1, 200);
   private turntable = new THREE.Group();
@@ -30,9 +32,9 @@ export class GarageScene {
     this.scene.add(floor);
 
     // подиум с подсвеченной кромкой
-    const plate = new THREE.Mesh(new THREE.CylinderGeometry(3.4, 3.45, 0.09, 128),
+    const plate = new THREE.Mesh(new THREE.CylinderGeometry(3.4, 3.45, GarageScene.PLATE_H, 128),
       new THREE.MeshPhysicalMaterial({ color: 0x101113, roughness: 0.38, metalness: 0.4, clearcoat: 1, clearcoatRoughness: 0.1 }));
-    plate.position.y = 0.045;
+    plate.position.y = GarageScene.PLATE_H / 2;
     plate.receiveShadow = true;
     this.turntable.add(plate);
     const ring = new THREE.Mesh(new THREE.TorusGeometry(3.43, 0.012, 8, 160),
@@ -40,7 +42,7 @@ export class GarageScene {
     ring.rotation.x = Math.PI / 2;
     ring.position.y = 0.075;
     this.scene.add(ring);
-    this.turntable.position.y = 0.09;
+    this.turntable.position.y = 0; // подиум стоит на полу
     this.scene.add(this.turntable);
 
     // световые панели над машиной и по бокам — видны в отражениях лака
@@ -91,7 +93,7 @@ export class GarageScene {
   attachCar(car: CarModel) {
     if (this.car && this.car !== car) this.car.root.removeFromParent();
     this.car = car;
-    car.root.position.set(0, 0, 0);
+    car.root.position.set(0, GarageScene.PLATE_H, 0); // на верх подиума, а не в его толщу
     car.root.quaternion.identity();
     car.body.rotation.set(0, 0, 0);
     car.body.position.set(0, 0, 0);

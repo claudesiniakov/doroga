@@ -9,6 +9,31 @@
     "brake": 11,
     "laneChangeTime": 0.42,
     "plate": "ДРГ 001",
-    "stats": { "speed": 0.82, "accel": 0.7, "handling": 0.76, "brakes": 0.72 }
+    "stats": {
+      "speed": 0.82,
+      "accel": 0.7,
+      "handling": 0.76,
+      "brakes": 0.72
+    },
+    "body": "coupe"
+  },
+  {
+    "id": "kedr",
+    "name": "Кедр 4×4",
+    "tagline": "Короткий рамный внедорожник: высокий клиренс, мягкая подвеска, неубиваемый характер",
+    "color": "#3f5a3c",
+    "maxSpeedKmh": 150,
+    "accel": 4.3,
+    "brake": 9,
+    "laneChangeTime": 0.55,
+    "plate": "КДР 044",
+    "body": "suv",
+    "roll": 1.7,
+    "stats": {
+      "speed": 0.52,
+      "accel": 0.45,
+      "handling": 0.55,
+      "brakes": 0.6
+    }
   }
 ]

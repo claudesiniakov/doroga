@@ -3,6 +3,7 @@ import './style.css';
 import cars from './cars.json';
 import { Renderer, detectQuality, QualityName } from './render';
 import { buildCar, CarConfig, CarModel } from './car';
+import { buildKedr } from './car-kedr';
 import { GarageScene } from './garage';
 import { DriveScene } from './drive';
 import { Input } from './input';
@@ -41,8 +42,18 @@ async function main() {
   loadBar(0.1, 'Собираем машину…');
   await nextFrame();
 
-  const cfg = (cars as CarConfig[])[0];
-  const car: CarModel = buildCar(cfg);
+  const configs = cars as CarConfig[];
+  const models: CarModel[] = configs.map((c) => (c.body === 'suv' ? buildKedr(c) : buildCar(c)));
+  let sel = 0;
+  try {
+    const saved = localStorage.getItem('doroga.car');
+    const i = configs.findIndex((c) => c.id === saved);
+    if (i >= 0) sel = i;
+  } catch { /* нет хранилища */ }
+  const qCar = params.get('car');
+  if (qCar) sel = Math.max(0, configs.findIndex((c) => c.id === qCar));
+  let cfg = configs[sel];
+  let car: CarModel = models[sel];
   const garage = new GarageScene(pmrem, document.body);
   garage.attachCar(car);
   loadBar(0.35, 'Прокладываем трассу…');
@@ -54,12 +65,32 @@ async function main() {
   await nextFrame();
 
   // UI гаража
-  $('carName').textContent = cfg.name;
-  $('carTag').textContent = cfg.tagline;
-  $('slotColor').style.background = cfg.color;
   const statNames: [keyof CarConfig['stats'], string][] = [['speed', 'Скорость'], ['accel', 'Разгон'], ['handling', 'Управление'], ['brakes', 'Тормоза']];
-  $('carStats').innerHTML = statNames.map(([k, n]) =>
-    `<li>${n}<span class="b"><i style="width:${cfg.stats[k] * 100}%"></i></span><em>${Math.round(cfg.stats[k] * 100)}</em></li>`).join('');
+  const SLOTS = 3;
+  const renderCard = () => {
+    $('carEyebrow').textContent = `Гараж · машина ${sel + 1} из ${configs.length}`;
+    $('carName').textContent = cfg.name;
+    $('carTag').textContent = cfg.tagline;
+    $('carStats').innerHTML = statNames.map(([k, n]) =>
+      `<li>${n}<span class="b"><i style="width:${cfg.stats[k] * 100}%"></i></span><em>${Math.round(cfg.stats[k] * 100)}</em></li>`).join('');
+    const slots = configs.map((c, i) =>
+      `<button class="slot${i === sel ? ' active' : ''}" data-i="${i}" aria-label="${c.name}"><span class="sw" style="background:${c.color}"></span><span class="nm">${c.name}</span></button>`);
+    for (let i = configs.length; i < SLOTS; i++) slots.push('<button class="slot locked" disabled><span>Скоро</span></button>');
+    $('slots').innerHTML = slots.join('');
+  };
+  const selectCar = (i: number) => {
+    i = (i + configs.length) % configs.length;
+    if (i === sel && car === models[i]) return;
+    sel = i; cfg = configs[i]; car = models[i];
+    try { localStorage.setItem('doroga.car', cfg.id); } catch { /* нет хранилища */ }
+    garage.attachCar(car);
+    renderCard();
+  };
+  renderCard();
+  $('slots').addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest('button[data-i]') as HTMLElement | null;
+    if (b) selectCar(Number(b.dataset.i));
+  });
   const updateRecord = () => {
     const r = getRecord();
     $('record').textContent = r > 0 ? `Рекорд: ${r.toFixed(1)} км` : '';
@@ -146,6 +177,7 @@ async function main() {
   addEventListener('keydown', (e) => {
     if (state === 'pause' && (e.code === 'Escape' || e.code === 'KeyP')) resume();
     if (state === 'garage' && (e.code === 'Enter' || e.code === 'Space')) $('go').click();
+    if (state === 'garage' && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) selectCar(sel + (e.code === 'ArrowLeft' ? -1 : 1));
   });
   document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
 
@@ -174,6 +206,10 @@ async function main() {
   });
 
   // прогрев: компиляция шейдеров обеих сцен до показа
+  for (let i = 0; i < models.length; i++) {
+    drive.attachCar(models[i], configs[i]);
+    renderer.gl.compile(drive.scene, drive.camera);
+  }
   drive.attachCar(car, cfg);
   drive.reset(true);
   renderer.gl.compile(drive.scene, drive.camera);

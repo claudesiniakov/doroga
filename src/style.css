@@ -69,8 +69,13 @@ button { font: inherit; color: inherit; cursor: pointer; }
   display: grid; place-items: center; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3);
 }
 .slot.active { border-color: rgba(255, 170, 100, .7); background: rgba(255, 140, 60, .08); }
+.slot { gap: 5px; align-content: center; text-transform: none; letter-spacing: .02em; }
+.slot:not(.locked) { cursor: pointer; }
+.slot:not(.active):not(.locked):hover { border-color: rgba(255,255,255,.3); }
+.slot .nm { font-size: 11px; color: var(--ink-2); }
+.slot.active .nm { color: var(--ink); }
 .slot .sw { width: 30px; height: 12px; border-radius: 6px; box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 0 18px rgba(255,80,60,.4); }
-.slot.locked { cursor: not-allowed; }
+.slot.locked { cursor: not-allowed; text-transform: uppercase; letter-spacing: .14em; }
 .go {
   width: 100%; height: 56px; border: 0; border-radius: 14px;
   background: linear-gradient(100deg, #ff7a2f, #ffb35c);

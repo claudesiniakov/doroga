@@ -12,6 +12,10 @@ export interface CarConfig {
   brake: number;        // м/с²
   laneChangeTime: number;
   plate: string;
+  /** Тип кузова: купе или внедорожник. */
+  body?: 'coupe' | 'suv';
+  /** Множитель крена/клевка кузова (мягкая подвеска > 1). */
+  roll?: number;
   stats: { speed: number; accel: number; handling: number; brakes: number };
 }
 
@@ -152,6 +156,9 @@ export interface CarModel {
   headMat: THREE.MeshStandardMaterial;
   setBrake(on: number): void;
   setHeadlights(on: number): void;
+  length: number;
+  width: number;
+  wheelR: number;
 }
 
 export function buildCar(cfg: CarConfig, envIntensity = 1): CarModel {
@@ -493,7 +500,7 @@ export function buildCar(cfg: CarConfig, envIntensity = 1): CarModel {
   }
 
   return {
-    root, body, wheels, paint, tailMat, headMat,
+    root, body, wheels, paint, tailMat, headMat, length: 4.5, width: 1.9, wheelR: DIM.wheelR,
     setBrake(on: number) { tailMat.emissiveIntensity = 2.2 + on * 5; },
     setHeadlights(on: number) { headMat.emissiveIntensity = 3.2 + on * 3; },
   };

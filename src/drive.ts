@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
 import { RoadWorld, RoadFrame, makeRoadMaterials } from './road';
 import { ROAD, makeRoadTextures, makeGroundTextures, makeGravelTextures, makeSandTextures } from './textures';
-import { CarModel, CarConfig, DIM } from './car';
+import { CarModel, CarConfig } from './car';
 import { Traffic, PlayerState, CrashEvent } from './traffic';
 import { TrafficAssets } from './traffic-models';
 import { mountainRing } from './props';
@@ -146,7 +146,10 @@ export class DriveScene {
   }
 
   attachCar(car: CarModel, cfg: CarConfig) {
+    if (this.car && this.car !== car) this.car.root.removeFromParent();
     this.car = car;
+    this.player.length = car.length;
+    this.player.width = car.width;
     this.cfg = cfg;
     car.root.position.set(0, 0, 0);
     car.root.rotation.set(0, 0, 0);
@@ -223,15 +226,16 @@ export class DriveScene {
     const longA = (this.v - this.lastV) / Math.max(dt, 1e-3);
     this.lastV = this.v;
     const kSp = 60, kDm = 9;
-    this.rollV += (kSp * (-latA * 0.0065 - this.roll) - kDm * this.rollV) * dt;
+    const soft = this.cfg.roll ?? 1;
+    this.rollV += (kSp * (-latA * 0.0065 * soft - this.roll) - kDm * this.rollV) * dt;
     this.roll += this.rollV * dt;
-    this.pitchV += (kSp * (-longA * 0.0042 - this.pitch) - kDm * this.pitchV) * dt;
+    this.pitchV += (kSp * (-longA * 0.0042 * soft - this.pitch) - kDm * this.pitchV) * dt;
     this.pitch += this.pitchV * dt;
     this.car.body.rotation.set(this.pitch, 0, this.roll);
     // лёгкая вибрация дороги на скорости
     this.car.body.position.y = Math.sin(time * 37) * 0.0015 * (this.v / 50) + Math.sin(time * 13.3) * 0.002 * (this.v / 50);
 
-    this.spin += ds / DIM.wheelR;
+    this.spin += ds / this.car.wheelR;
     const steer = clamp(this.yawOff * 2.4 + this.frame.curvature * 2.7, -0.4, 0.4);
     for (const wh of this.car.wheels) {
       wh.spin.rotation.x = this.spin;

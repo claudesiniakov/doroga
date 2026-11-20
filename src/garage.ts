@@ -89,6 +89,7 @@ export class GarageScene {
   }
 
   attachCar(car: CarModel) {
+    if (this.car && this.car !== car) this.car.root.removeFromParent();
     this.car = car;
     car.root.position.set(0, 0, 0);
     car.root.quaternion.identity();

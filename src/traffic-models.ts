@@ -85,16 +85,18 @@ function axleGeometry(R: number, rimR: number, W: number, halfTrack: number, dua
 }
 
 // ——— параметрический кузов по сечениям (как у машины игрока) ———
-interface ShapeDef {
+export interface ShapeDef {
   halfLen: number;
   top: [number, number][];
   bottom: [number, number][];
   width: [number, number][];
   planFront: number; planRear: number;
   axles: number[]; wheelR: number; archR: number;
+  /** Показатели суперэллипса сечения (низ/верх) и завал боковин к крыше. */
+  seLow?: number; seHigh?: number; tumble?: number;
 }
 
-class Shape {
+export class Shape {
   top: (z: number) => number;
   base: (z: number) => number;
   wraw: (z: number) => number;
@@ -116,14 +118,14 @@ class Shape {
     const p = u > 0 ? this.d.planFront : this.d.planRear;
     return this.wraw(z) * Math.pow(Math.max(0, 1 - Math.pow(Math.abs(u), p)), 1 / p);
   }
-  private se(s: number) { return s < 0 ? 7 : 3.2; }
+  private se(s: number) { return s < 0 ? (this.d.seLow ?? 7) : (this.d.seHigh ?? 3.2); }
   point(z: number, s: number, side: number) {
     const top = this.top(z), bot = Math.min(this.bottom(z), top - 0.05);
     const cy = (top + bot) / 2, hy = (top - bot) / 2;
     const e = this.se(s);
     const c = Math.sqrt(Math.max(0, 1 - s * s));
     let x = this.halfW(z) * Math.pow(c, 2 / e);
-    x *= 1 - 0.1 * Math.pow(Math.max(s, 0), 2);
+    x *= 1 - (this.d.tumble ?? 0.1) * Math.pow(Math.max(s, 0), 2);
     return new THREE.Vector3(side * x, cy + hy * Math.sign(s) * Math.pow(Math.abs(s), 2 / e), z);
   }
   xAt(z: number, y: number) {
@@ -133,7 +135,7 @@ class Shape {
     const e = this.se(q);
     const s = Math.sign(q) * Math.pow(Math.abs(q), e / 2);
     const c = Math.sqrt(Math.max(0, 1 - s * s));
-    return this.halfW(z) * Math.pow(c, 2 / e) * (1 - 0.1 * Math.pow(Math.max(s, 0), 2));
+    return this.halfW(z) * Math.pow(c, 2 / e) * (1 - (this.d.tumble ?? 0.1) * Math.pow(Math.max(s, 0), 2));
   }
   surfaceZ(x: number, y: number, end: 1 | -1) {
     for (let m = this.d.halfLen; m > this.d.halfLen * 0.6; m -= 0.002) {

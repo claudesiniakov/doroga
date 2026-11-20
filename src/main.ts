@@ -226,10 +226,16 @@ async function runShot(kind: string, ctx: {
 }) {
   const p = new URLSearchParams(location.search);
   const steps = Number(p.get('steps') || 90);
-  if (kind === 'sim') {
+  if (kind === 'sim') (ctx.drive.world.constructor as any).stats = { base: [], scatter: [], far: [] };
+  if (kind === 'segs') {
+    const b = ctx.drive.world.path.biomes;
+    b.segmentAt(20000);
+    console.warn('SEGS', b.segments.map((s) => `${s.id}:${Math.round(s.start)}-${Math.round(s.end)}:${s.seaSide}`).join(' '));
+  } else if (kind === 'sim') {
     // логика без отрисовки: N секунд езды со случайными перестроениями
-    await ctx.startDrive(true, 200);
+    await ctx.startDrive(true, Number(p.get('s') || 200));
     const d = ctx.drive;
+    let tMax = 0, tSum = 0;
     const secs = Number(p.get('secs') || 120);
     let overlaps = 0, walls = 0, maxCount = 0, minV = 1e9, laneShift = 0, nextShift = 2;
     let tSim = 0;
@@ -237,7 +243,9 @@ async function runShot(kind: string, ctx: {
     for (let i = 0; i < secs * 60; i++) {
       tSim += 1 / 60;
       if (tSim > nextShift) { laneShift = Math.random() < 0.5 ? -1 : 1; nextShift = tSim + 1 + Math.random() * 3; }
+      const t0 = performance.now();
       d.update(1 / 60, { throttle: Math.random() < 0.3 ? 1 : 0, brake: 0, laneShift }, tSim);
+      const dtu = performance.now() - t0; tSum += dtu; tMax = Math.max(tMax, dtu);
       laneShift = 0;
       const vs = d.traffic.vehicles;
       maxCount = Math.max(maxCount, vs.length);
@@ -252,7 +260,10 @@ async function runShot(kind: string, ctx: {
       }
       if (i % 600 === 0) for (const a of vs) stats[a.kind]++;
     }
-    console.warn('SIM', JSON.stringify({ km: (d.odometer / 1000).toFixed(2), crashes: d.crashes, overlaps, walls, maxCount, minKmh: (minV * 3.6).toFixed(0), now: d.traffic.count, stats }));
+    const RW = (d.world.constructor as any).stats as Record<string, number[]>;
+    const st = (a: number[]) => { const b = a.slice(-400).sort((x, y) => x - y); return b.length ? `n${b.length} med ${b[b.length >> 1].toFixed(1)} max ${b[b.length - 1].toFixed(1)}` : '-'; };
+    console.warn('STAGES', 'base', st(RW.base), '| scatter', st(RW.scatter), '| far', st(RW.far));
+    console.warn('SIM', JSON.stringify({ km: (d.odometer / 1000).toFixed(2), crashes: d.crashes, overlaps, walls, maxCount, minKmh: (minV * 3.6).toFixed(0), avgMs: (tSum / (secs * 60)).toFixed(2), maxMs: tMax.toFixed(1), now: d.traffic.count, stats }));
   } else if (kind === 'tex') {
     const map = (ctx.drive.world as any).mats.road.map as THREE.DataTexture;
     const { data, width, height } = map.image as { data: Uint8Array; width: number; height: number };

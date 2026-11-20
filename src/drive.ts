@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
 import { RoadWorld, RoadFrame, makeRoadMaterials } from './road';
-import { ROAD, makeRoadTextures, makeGroundTextures, makeGravelTextures } from './textures';
+import { ROAD, makeRoadTextures, makeGroundTextures, makeGravelTextures, makeSandTextures } from './textures';
 import { CarModel, CarConfig, DIM } from './car';
 import { Traffic, PlayerState, CrashEvent } from './traffic';
 import { TrafficAssets } from './traffic-models';
+import { mountainRing } from './props';
+import { makeWaterNormal } from './textures';
 import { clamp, damp, lerp, smoothstep } from './noise';
 
 export interface DriveInput {
@@ -21,12 +23,15 @@ const MIN_SPEED = 11;
 
 export class DriveScene {
   readonly scene = new THREE.Scene();
-  readonly camera = new THREE.PerspectiveCamera(55, 1, 0.1, 4000);
+  readonly camera = new THREE.PerspectiveCamera(55, 1, 0.1, 9000);
   readonly world: RoadWorld;
   readonly traffic: Traffic;
   crashes = 0;
   onCrash?: (e: CrashEvent) => void;
   private shakeAmp = 0;
+  private mountains = new THREE.Group();
+  private sea: THREE.Mesh;
+  private waterNormal: THREE.Texture;
   private player: PlayerState = { s: 0, v: 0, d: 0, lane: 0, length: 4.5, width: 1.9 };
   private sky: Sky;
   private sun = new THREE.DirectionalLight(0xffd2a0, 5.2);
@@ -60,7 +65,7 @@ export class DriveScene {
     this.scene.name = 'drive';
     // небо и солнце
     this.sky = new Sky();
-    this.sky.scale.setScalar(3500);
+    this.sky.scale.setScalar(12000);
     const u = this.sky.material.uniforms;
     u.turbidity.value = 3.2;
     u.rayleigh.value = 2.2;
@@ -90,7 +95,26 @@ export class DriveScene {
     this.scene.environment = envGen.fromScene(envScene, 0.02).texture;
     this.scene.environmentIntensity = 0.75;
 
-    this.scene.fog = new THREE.FogExp2(0xbfae9c, 0.0017);
+    const fogColor = new THREE.Color(0xbfae9c);
+    this.scene.fog = new THREE.FogExp2(fogColor, 0.0017);
+
+    // дальний пояс: два кольца гор, подножие тонет в дымке цвета тумана
+    this.mountains.add(
+      mountainRing(2600, 40, 260, seed + 1, new THREE.Color(0x7d7890), fogColor.clone()),
+      mountainRing(3600, 120, 520, seed + 2, new THREE.Color(0x9a93a8), fogColor.clone().lerp(new THREE.Color(0xc9b7a6), 0.4)),
+    );
+    this.mountains.children[1].renderOrder = -1;
+    this.scene.add(this.mountains);
+
+    // море: плоскость с анимированной рябью, отражает небо
+    this.waterNormal = makeWaterNormal(512);
+    this.waterNormal.repeat.set(260, 260);
+    this.sea = new THREE.Mesh(new THREE.PlaneGeometry(7000, 7000).rotateX(-Math.PI / 2),
+      new THREE.MeshStandardMaterial({ color: 0x0f3346, roughness: 0.07, metalness: 0.05, normalMap: this.waterNormal,
+        normalScale: new THREE.Vector2(0.35, 0.35), envMapIntensity: 1.25 }));
+    this.sea.receiveShadow = true;
+    this.sea.visible = false;
+    this.scene.add(this.sea);
 
     this.sun.castShadow = true;
     const sh = this.sun.shadow;
@@ -104,7 +128,7 @@ export class DriveScene {
     this.scene.add(new THREE.HemisphereLight(0x9fb4d0, 0x3a3326, 0.5));
 
     const mats = makeRoadMaterials(makeRoadTextures(textureSize), makeGroundTextures(textureSize >= 1024 ? 512 : 256),
-      makeGravelTextures(256), anisotropy);
+      makeGravelTextures(256), anisotropy, makeSandTextures(textureSize >= 1024 ? 512 : 256));
     this.world = new RoadWorld(seed, mats);
     this.scene.add(this.world.group);
     this.traffic = new Traffic(this.world.path, new TrafficAssets());
@@ -149,7 +173,7 @@ export class DriveScene {
     this.placeCar(0);
     this.updateSun();
     this.snapCamera();
-    this.sky.position.copy(this.camera.position);
+    this.updateFar(0);
   }
 
   toggleCamera() { this.camFar = !this.camFar; }
@@ -221,7 +245,7 @@ export class DriveScene {
     this.shakeAmp = Math.max(0, this.shakeAmp - dt * 1.6);
     this.sky.material.uniforms.time.value = time;
     this.updateCamera(dt, time);
-    this.sky.position.copy(this.camera.position);
+    this.updateFar(time);
   }
 
   private _q = new THREE.Quaternion();
@@ -309,6 +333,22 @@ export class DriveScene {
     if (Math.abs(this.camera.fov - fov) > 0.01) {
       this.camera.fov = damp(this.camera.fov, fov, 3, dt);
       this.camera.updateProjectionMatrix();
+    }
+  }
+
+  /** Небо, горы и море следуют за камерой. */
+  private updateFar(time: number) {
+    const c = this.camera.position;
+    this.sky.position.copy(c);
+    this.mountains.position.set(c.x, this.car.root.position.y - 30, c.z);
+    const seaY = this.world.path.seaLevelNear(this.s, 1600);
+    this.sea.visible = seaY !== null;
+    if (seaY !== null) {
+      const px = Math.round(c.x / 20) * 20, pz = Math.round(c.z / 20) * 20;
+      this.sea.position.set(px, seaY, pz);
+      // текстура неподвижна в мире при «перескоках» плоскости + медленный дрейф ряби
+      const k = 260 / 7000;
+      this.waterNormal.offset.set(((px * k) % 1) + time * 0.004, ((-pz * k) % 1) + time * 0.0025);
     }
   }
 

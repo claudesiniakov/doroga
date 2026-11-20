@@ -1,6 +1,9 @@
 import * as THREE from 'three';
-import { fbm1, fbm2, clamp, smoothstep } from './noise';
+import { fbm1, fbm2, clamp, smoothstep, lerp } from './noise';
 import { ROAD, RoadTextures } from './textures';
+import { BiomeMap, Weights } from './biomes';
+import { PropKit } from './props';
+import { scatterChunk } from './scatter';
 
 export const STEP = 2;            // шаг выборки центральной линии, м
 export const CHUNK_STEPS = 48;    // 96 м на чанк (кратно периоду разметки 12 м)
@@ -8,6 +11,9 @@ export const CHUNK_LEN = STEP * CHUNK_STEPS;
 const AHEAD = 1000;               // сколько дороги держать впереди, м
 const BEHIND = 160;               // и позади
 const GROUND_FAR = 260;           // ширина ленты рельефа от оси, м
+/** Колонки ленты рельефа (смещение от оси, м). */
+const GROUND_OFFS = [ROAD.half + 1.3, ROAD.half + 2.4, ROAD.half + 3.6, ROAD.half + 5, ROAD.half + 7, ROAD.half + 10,
+  ROAD.half + 15, 30, 45, 65, 90, 125, 170, 215, GROUND_FAR];
 
 /** Рельеф местности в мировых координатах. */
 export function terrainHeight(x: number, z: number, seed: number): number {
@@ -35,12 +41,32 @@ export class RoadPath {
   readonly h: number[] = [0];
   readonly k: number[] = [0];
   readonly bank: number[] = [0];
+  /** Уровень моря у точки (NaN — моря рядом нет). */
+  readonly sea: number[] = [NaN];
+  readonly biomes: BiomeMap;
+  private coastBase = new Map<number, number>();
   private slope = 0;
   private y0: number;
+  private wTmp: Weights = { coast: 0, city: 0, suburb: 0, desert: 0, forest: 0 };
 
   constructor(readonly seed: number) {
+    this.biomes = new BiomeMap(seed);
     this.y0 = terrainHeight(0, 0, seed);
     this.y[0] = this.y0;
+    const c0 = this.biomes.coastNear(0, 400, 300);
+    if (c0) { this.coastBase.set(c0.index, this.y0); this.sea[0] = this.y0 - 3.2; }
+  }
+
+  /** Веса районов у индекса (общий временный объект — не хранить). */
+  weightsAt(i: number): Weights { return this.biomes.weights(i * STEP, this.wTmp); }
+
+  /** Уровень моря рядом с s (впереди до ahead м) или null. */
+  seaLevelNear(s: number, ahead = 1500): number | null {
+    const seg = this.biomes.coastNear(s, ahead, 400);
+    if (!seg) return null;
+    if (!this.coastBase.has(seg.index)) this.ensure(Math.max(s, seg.start - 400) + STEP * 4);
+    const b = this.coastBase.get(seg.index);
+    return b === undefined ? null : b - 3.2;
   }
 
   get length() { return (this.x.length - 1) * STEP; }
@@ -68,10 +94,21 @@ export class RoadPath {
     const nz = this.z[i] + Math.cos(mh) * STEP;
     // высота: дорога плавно следует сглаженному рельефу (уклон до 5 %)
     const t = terrainHeight(nx + Math.sin(nh) * 120, nz + Math.cos(nh) * 120, this.seed);
-    const target = clamp((t - this.y[i]) / 160, -0.05, 0.05) * intro;
+    let target = clamp((t - this.y[i]) / 160, -0.05, 0.05) * intro;
+    // у моря дорога выравнивается к уровню, на котором вошла в район побережья
+    const cs = this.biomes.coastNear(s, 400, 300);
+    let seaY = NaN;
+    if (cs) {
+      if (!this.coastBase.has(cs.index)) this.coastBase.set(cs.index, this.y[i]);
+      const base = this.coastBase.get(cs.index)!;
+      const wc = Math.max(this.biomes.weights(s, this.wTmp).coast, 0.65);
+      target = lerp(target, clamp((base - this.y[i]) / 120, -0.04, 0.04), wc);
+      seaY = base - 3.2;
+    }
     this.slope += (target - this.slope) * 0.035;
     const ny = this.y[i] + this.slope * STEP;
     this.x.push(nx); this.y.push(ny); this.z.push(nz); this.h.push(nh); this.k.push(k);
+    this.sea.push(seaY);
     // вираж: внешний край выше, до ~3,5°
     this.bank.push(clamp(k * 900, -0.06, 0.06));
   }
@@ -133,27 +170,42 @@ export class RoadPath {
 
 type PosFn = (i: number, j: number, out: THREE.Vector3) => THREE.Vector3;
 type UvFn = (i: number, j: number) => [number, number];
-type ColFn = (i: number, j: number, p: THREE.Vector3) => [number, number, number];
+type ColFn = (i: number, j: number, p: THREE.Vector3) => number[];
 
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3();
 const _n = new THREE.Vector3(), _t1 = new THREE.Vector3(), _t2 = new THREE.Vector3();
 
-function ribbon(i0: number, i1: number, cols: number, origin: THREE.Vector3, pos: PosFn, uv: UvFn, col?: ColFn, flip = false) {
+function ribbon(i0: number, i1: number, cols: number, origin: THREE.Vector3, pos: PosFn, uv: UvFn, col?: ColFn, flip = false, colSize = 3) {
   const rows = i1 - i0 + 1;
   const P = new Float32Array(rows * cols * 3);
   const N = new Float32Array(rows * cols * 3);
   const U = new Float32Array(rows * cols * 2);
-  const C = col ? new Float32Array(rows * cols * 3) : null;
+  const C = col ? new Float32Array(rows * cols * colSize) : null;
+  // кеш точек: ряды i0-1 … i1+1 (соседние ряды за пределами чанка → нормали без швов)
+  const ext = rows + 2;
+  const G = new Float64Array(ext * cols * 3);
+  for (let r = 0; r < ext; r++) {
+    const i = Math.max(0, i0 - 1 + r);
+    for (let j = 0; j < cols; j++) {
+      pos(i, j, _a);
+      const q = (r * cols + j) * 3;
+      G[q] = _a.x; G[q + 1] = _a.y; G[q + 2] = _a.z;
+    }
+  }
+  const gp = (r: number, j: number, out: THREE.Vector3) => {
+    const q = ((r + 1) * cols + j) * 3;
+    return out.set(G[q], G[q + 1], G[q + 2]);
+  };
   for (let r = 0; r < rows; r++) {
     const i = i0 + r;
     for (let j = 0; j < cols; j++) {
       const k = r * cols + j;
-      pos(i, j, _a);
+      gp(r, j, _a);
       P[k * 3] = _a.x - origin.x; P[k * 3 + 1] = _a.y - origin.y; P[k * 3 + 2] = _a.z - origin.z;
-      // центральные разности: соседние ряды берутся и за пределами чанка → швов нет
-      pos(i + 1, j, _b); pos(Math.max(0, i - 1), j, _c);
+      // центральные разности по кешу
+      gp(r + 1, j, _b); gp(r - 1, j, _c);
       _t1.subVectors(_b, _c);
-      pos(i, Math.min(cols - 1, j + 1), _b); pos(i, Math.max(0, j - 1), _d);
+      gp(r, Math.min(cols - 1, j + 1), _b); gp(r, Math.max(0, j - 1), _d);
       _t2.subVectors(_b, _d);
       _n.crossVectors(_t2, _t1).normalize();
       if (flip) _n.negate();
@@ -161,8 +213,8 @@ function ribbon(i0: number, i1: number, cols: number, origin: THREE.Vector3, pos
       const [u, v] = uv(i, j);
       U[k * 2] = u; U[k * 2 + 1] = v;
       if (C && col) {
-        const [cr, cg, cb] = col(i, j, _a);
-        C[k * 3] = cr; C[k * 3 + 1] = cg; C[k * 3 + 2] = cb;
+        const cv = col(i, j, _a);
+        for (let q = 0; q < colSize; q++) C[k * colSize + q] = cv[q];
       }
     }
   }
@@ -178,7 +230,7 @@ function ribbon(i0: number, i1: number, cols: number, origin: THREE.Vector3, pos
   g.setAttribute('position', new THREE.BufferAttribute(P, 3));
   g.setAttribute('normal', new THREE.BufferAttribute(N, 3));
   g.setAttribute('uv', new THREE.BufferAttribute(U, 2));
-  if (C) g.setAttribute('color', new THREE.BufferAttribute(C, 3));
+  if (C) g.setAttribute('color', new THREE.BufferAttribute(C, colSize));
   g.setIndex(idx);
   g.computeBoundingSphere();
   return g;
@@ -193,8 +245,9 @@ export interface RoadMaterials {
 }
 
 export function makeRoadMaterials(tex: RoadTextures, ground: { map: THREE.Texture; normalMap: THREE.Texture },
-  gravel: { map: THREE.Texture; normalMap: THREE.Texture }, anisotropy: number): RoadMaterials {
-  for (const t of [tex.map, tex.normalMap, tex.roughnessMap, ground.map, ground.normalMap, gravel.map, gravel.normalMap]) {
+  gravel: { map: THREE.Texture; normalMap: THREE.Texture }, anisotropy: number,
+  sand: { map: THREE.Texture; normalMap: THREE.Texture }): RoadMaterials {
+  for (const t of [tex.map, tex.normalMap, tex.roughnessMap, ground.map, ground.normalMap, gravel.map, gravel.normalMap, sand.map]) {
     t.anisotropy = anisotropy;
   }
   const road = new THREE.MeshStandardMaterial({
@@ -216,6 +269,16 @@ export function makeRoadMaterials(tex: RoadTextures, ground: { map: THREE.Textur
     map: ground.map, normalMap: ground.normalMap, roughness: 0.97, vertexColors: true,
     normalScale: new THREE.Vector2(0.8, 0.8),
   });
+  // трава ↔ песок по альфе цвета вершин
+  groundM.onBeforeCompile = (sh) => {
+    sh.uniforms.sandMap = { value: sand.map };
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform sampler2D sandMap;')
+      .replace('#include <map_fragment>',
+        'vec4 gC = texture2D( map, vMapUv ); vec4 sC = texture2D( sandMap, vMapUv * 0.6 );\n diffuseColor *= mix( gC, sC * 1.15, clamp( vColor.a, 0.0, 1.0 ) );')
+      .replace('#include <color_fragment>', 'diffuseColor.rgb *= vColor.rgb;');
+  };
+  groundM.customProgramCacheKey = () => 'ground-sand';
   const rail = new THREE.MeshStandardMaterial({ color: 0xb4b9bc, metalness: 0.85, roughness: 0.36, side: THREE.DoubleSide });
   const post = new THREE.MeshStandardMaterial({ color: 0x8d9295, metalness: 0.7, roughness: 0.55 });
   return { road, gravel: gravelM, ground: groundM, rail, post };
@@ -229,14 +292,20 @@ const RAIL_PROFILE: [number, number][] = [
 
 class Chunk {
   readonly group = new THREE.Group();
+  scattered = false;
   constructor(readonly index: number) {}
   dispose() {
     this.group.traverse((o) => {
-      if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).geometry.dispose();
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      if ((m as THREE.InstancedMesh).isInstancedMesh) (m as THREE.InstancedMesh).dispose();
+      if (!m.userData.sharedGeo) m.geometry.dispose();
     });
     this.group.removeFromParent();
   }
 }
+
+const _gA = new THREE.Vector3(), _gB = new THREE.Vector3();
 
 export class RoadWorld {
   readonly path: RoadPath;
@@ -245,8 +314,11 @@ export class RoadWorld {
   private postGeo: THREE.BufferGeometry;
   private far: FarTerrain;
 
+  readonly kit: PropKit;
+
   constructor(seed: number, readonly mats: RoadMaterials) {
     this.path = new RoadPath(seed);
+    this.kit = new PropKit();
     this.group.name = 'road-world';
     // стойка отбойника: швеллер + проставка
     const post = new THREE.BoxGeometry(0.1, 0.95, 0.08);
@@ -266,17 +338,58 @@ export class RoadWorld {
     for (const [k, c] of this.chunks) {
       if (k < first || k > last) { c.dispose(); this.chunks.delete(k); }
     }
-    // не больше двух новых чанков за кадр — без рывков
-    let built = 0;
-    for (let k = first; k <= last && built < 2; k++) {
-      if (!this.chunks.has(k)) { this.chunks.set(k, this.buildChunk(k)); built++; }
+    // за кадр — один шаг постройки (земля/дорога или обочина), без рывков
+    for (let k = first; k <= last; k++) {
+      const c = this.chunks.get(k);
+      const t0 = performance.now();
+      if (!c) { this.chunks.set(k, this.buildChunk(k)); RoadWorld.stats?.base.push(performance.now() - t0); break; }
+      if (!c.scattered) { this.scatter(c); RoadWorld.stats?.scatter.push(performance.now() - t0); break; }
     }
-    this.far.update(carPos);
+    const tf = performance.now();
+    this.far.update(carPos, this.priming);
+    RoadWorld.stats?.far.push(performance.now() - tf);
+  }
+  private priming = false;
+  /** Замеры стадий постройки (включаются только в режиме проверки). */
+  static stats: { base: number[]; scatter: number[]; far: number[] } | null = null;
+
+  /** Точка земли ленты рельефа (как её строит меш): so — смещение со знаком стороны. */
+  groundRaw(i: number, so: number, out: THREE.Vector3) {
+    const p = this.path, half = ROAD.half;
+    const o = Math.abs(so);
+    p.point(i, so, 0, out);
+    const roadLevel = out.y - 0.15;
+    const ditch = -0.9 * Math.exp(-(((o - (half + 3.6)) / 1.6) ** 2));
+    const t = biomeTerrain(p, i, out.x, out.z, so);
+    const blend = smoothstep(half + 6, 80, o);
+    out.y = roadLevel + (t - roadLevel) * blend + ditch * (1 - blend);
+    return out;
+  }
+
+  /** Высота поверхности ленты в произвольном смещении (линейно между колонками, как у меша). */
+  groundAt(i: number, so: number): number {
+    const o = Math.abs(so), side = Math.sign(so) || 1;
+    const offs = GROUND_OFFS;
+    if (o <= offs[0]) return this.path.y[i] - 0.2;
+    let j = 0;
+    while (j < offs.length - 2 && offs[j + 1] < o) j++;
+    const t = clamp((o - offs[j]) / (offs[j + 1] - offs[j]), 0, 1);
+    const a = this.groundRaw(i, side * offs[j], _gA).y, b = this.groundRaw(i, side * offs[j + 1], _gB).y;
+    return a + (b - a) * t;
+  }
+
+  /** Второй шаг постройки чанка: обочина (объекты районов, здания, знаки). */
+  private scatter(c: Chunk) {
+    const i0 = c.index * CHUNK_STEPS;
+    scatterChunk(this, c.index, i0, i0 + CHUNK_STEPS, c.group.position.clone(), c.group);
+    c.scattered = true;
   }
 
   /** Сразу построить всё (для старта). */
   prime(s: number, carPos: THREE.Vector3) {
-    for (let n = 0; n < 40; n++) this.update(s, carPos);
+    this.priming = true;
+    for (let n = 0; n < 80; n++) this.update(s, carPos);
+    this.priming = false;
   }
 
   private buildChunk(k: number): Chunk {
@@ -288,7 +401,6 @@ export class RoadWorld {
     c.group.position.copy(origin);
     const half = ROAD.half;
     const vOf = (i: number, period: number) => ((i - i0) * STEP) / period;
-    const seed = p.seed;
 
     // 1) асфальт: 12 колонок, поперечный уклон от оси (двускатный профиль)
     const RC = 12;
@@ -316,22 +428,12 @@ export class RoadWorld {
       c.group.add(gm);
 
       // лента рельефа: кювет у дороги → плавный переход к естественному рельефу
-      const offs = [half + 1.3, half + 2.4, half + 3.6, half + 5, half + 7, half + 10, half + 15, 30, 45, 65, 90, 125, 170, 215, GROUND_FAR];
-      const NC = offs.length;
-      const oAt = (j: number) => offs[side < 0 ? NC - 1 - j : j];
-      const tmp = new THREE.Vector3();
-      const groundPos: PosFn = (i, j, out) => {
-        const o = oAt(j);
-        p.point(i, side * o, 0, tmp);
-        const roadLevel = tmp.y - 0.15;
-        const ditch = -0.9 * Math.exp(-(((o - (half + 3.6)) / 1.6) ** 2));
-        const t = terrainHeight(tmp.x, tmp.z, seed);
-        const blend = smoothstep(half + 6, 80, o);
-        return out.set(tmp.x, roadLevel + (t - roadLevel) * blend + ditch * (1 - blend), tmp.z);
-      };
+      const NC = GROUND_OFFS.length;
+      const oAt = (j: number) => GROUND_OFFS[side < 0 ? NC - 1 - j : j];
+      const groundPos: PosFn = (i, j, out) => this.groundRaw(i, side * oAt(j), out);
       const ground = ribbon(i0, i1, NC, origin, groundPos,
         (i, j) => [oAt(j) / 6, vOf(i, 6)],
-        (_i, j, pt) => groundColor(pt.x, pt.z, oAt(j), seed));
+        (i, j, pt) => groundRGBA(p, i, pt.x, pt.z, side * oAt(j)), false, 4);
       const grm = new THREE.Mesh(ground, this.mats.ground);
       grm.receiveShadow = true;
       c.group.add(grm);
@@ -374,18 +476,6 @@ export class RoadWorld {
   }
 }
 
-function groundColor(x: number, z: number, o: number, seed: number): [number, number, number] {
-  const dry = fbm2(x / 70, z / 70, 3, seed + 7);
-  const lush = fbm2(x / 23, z / 23, 3, seed + 8);
-  // у дороги пыльно и выгоревше
-  const dust = 1 - smoothstep(ROAD.half + 1, ROAD.half + 9, o);
-  let r = 0.95 + dry * 0.25 + dust * 0.15;
-  let g = 0.95 + lush * 0.1 - dry * 0.05;
-  let b = 0.9 + dust * 0.1;
-  const v = 0.85 + lush * 0.25;
-  r *= v; g *= v; b *= v;
-  return [r, g, b];
-}
 
 function mergeSimple(geos: THREE.BufferGeometry[]): THREE.BufferGeometry {
   const pos: number[] = [], nor: number[] = [], idx: number[] = [];
@@ -422,43 +512,106 @@ class FarTerrain {
     this.geo = new THREE.PlaneGeometry(this.size, this.size, this.segs, this.segs);
     this.geo.rotateX(-Math.PI / 2);
     const n = this.geo.getAttribute('position').count;
-    this.geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+    this.geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 4), 4));
     this.mesh = new THREE.Mesh(this.geo, mat);
     this.mesh.receiveShadow = false;
     this.mesh.frustumCulled = false;
   }
 
-  update(car: THREE.Vector3) {
+  private job: { cx: number; cz: number; row: number; P: Float32Array; C: Float32Array; U: Float32Array } | null = null;
+
+  /** Пересчёт сетки — порциями по рядам, чтобы не было рывка в кадре; full — сразу целиком. */
+  update(car: THREE.Vector3, full = false) {
     const snap = 120;
     const cx = Math.round(car.x / snap) * snap, cz = Math.round(car.z / snap) * snap;
-    if (cx === this.center.x && cz === this.center.y) return;
-    this.center.set(cx, cz);
-    const pos = this.geo.getAttribute('position') as THREE.BufferAttribute;
-    const col = this.geo.getAttribute('color') as THREE.BufferAttribute;
-    const uv = this.geo.getAttribute('uv') as THREE.BufferAttribute;
+    if (!this.job) {
+      if (cx === this.center.x && cz === this.center.y) return;
+      const n = (this.segs + 1) ** 2;
+      this.job = { cx, cz, row: 0, P: new Float32Array(n * 3), C: new Float32Array(n * 4), U: new Float32Array(n * 2) };
+    }
+    const job = this.job;
     const half = this.size / 2;
     const step = this.size / this.segs;
     const p = this.path;
-    for (let r = 0; r <= this.segs; r++) {
+    const rowsPerFrame = full ? this.segs + 1 : 12;
+    const rEnd = Math.min(this.segs + 1, job.row + rowsPerFrame);
+    for (let r = job.row; r < rEnd; r++) {
       for (let c = 0; c <= this.segs; c++) {
         const k = r * (this.segs + 1) + c;
         const lx = -half + c * step, lz = -half + r * step;
-        const wx = cx + lx, wz = cz + lz;
-        let y = terrainHeight(wx, wz, p.seed);
+        const wx = job.cx + lx, wz = job.cz + lz;
         const i = p.indexAtZ(wz);
-        const d = Math.abs(wx - p.x[i]) * Math.cos(p.h[i]);
+        // смещение от оси со знаком (вправо +)
+        const so = ((wx - p.x[i]) * -Math.cos(p.h[i]) + (wz - p.z[i]) * Math.sin(p.h[i]));
+        let y = biomeTerrain(p, i, wx, wz, so);
+        const d = Math.abs(so);
         if (wz >= p.z[0] - 50 && wz <= p.z[p.z.length - 1]) {
           if (d < GROUND_FAR - 30) y = Math.min(y, p.y[i]) - 25;
           else y -= 1.2 * (1 - smoothstep(GROUND_FAR, GROUND_FAR + 120, d));
         }
-        pos.setXYZ(k, lx, y, lz);
-        uv.setXY(k, wx / 6, wz / 6);
-        const [cr, cg, cb] = groundColor(wx, wz, 1000, p.seed);
-        col.setXYZ(k, cr, cg, cb);
+        job.P[k * 3] = lx; job.P[k * 3 + 1] = y; job.P[k * 3 + 2] = lz;
+        job.U[k * 2] = wx / 6; job.U[k * 2 + 1] = wz / 6;
+        const rgba = groundRGBA(p, i, wx, wz, so);
+        job.C.set(rgba, k * 4);
       }
     }
-    pos.needsUpdate = true; col.needsUpdate = true; uv.needsUpdate = true;
+    job.row = rEnd;
+    if (job.row <= this.segs) return;
+    // готово — подменяем данные сетки разом
+    (this.geo.getAttribute('position') as THREE.BufferAttribute).copyArray(job.P).needsUpdate = true;
+    (this.geo.getAttribute('color') as THREE.BufferAttribute).copyArray(job.C).needsUpdate = true;
+    (this.geo.getAttribute('uv') as THREE.BufferAttribute).copyArray(job.U).needsUpdate = true;
     this.geo.computeVertexNormals();
-    this.mesh.position.set(cx, 0, cz);
+    this.mesh.position.set(job.cx, 0, job.cz);
+    this.center.set(job.cx, job.cz);
+    this.job = null;
   }
+}
+
+/** Рельеф с учётом района: лес холмистее, в пустыне дюны, город и пригород выровнены, у моря — пляж и спуск под воду. */
+export function biomeTerrain(p: RoadPath, i: number, x: number, z: number, so: number): number {
+  const w = p.weightsAt(i);
+  const seed = p.seed;
+  let h = terrainHeight(x, z, seed);
+  if (w.forest > 0) h += w.forest * (fbm2(x / 260, z / 260, 3, seed + 404) - 0.35) * 26;
+  if (w.desert > 0) {
+    const n = fbm2(x / 150, z / 95, 3, seed + 505);
+    h += w.desert * (Math.pow(1 - Math.abs(2 * n - 1), 2) * 10 - 3);
+  }
+  const ao = Math.abs(so);
+  const flat = (w.city * 0.92 + w.suburb * 0.55) * (1 - smoothstep(140, 420, ao));
+  if (flat > 0) h = lerp(h, p.y[i] - 0.4 + (fbm2(x / 80, z / 80, 2, seed + 6) - 0.5) * 2.4, flat);
+  const sea = p.sea[i];
+  if (w.coast > 0 && !Number.isNaN(sea)) {
+    const seg = p.biomes.coastNear(i * STEP);
+    if (seg && Math.sign(so) === seg.seaSide) {
+      const beach = Math.max(sea - 16, sea + 1.3 - (ao - 20) * 0.075);
+      h = lerp(h, beach, w.coast * smoothstep(12, 36, ao));
+    }
+  }
+  return h;
+}
+
+/** Цвет земли (RGB — оттенок травы, A — доля песка). */
+export function groundRGBA(p: RoadPath, i: number, x: number, z: number, so: number): [number, number, number, number] {
+  const seed = p.seed;
+  const ao = Math.abs(so);
+  const w = p.weightsAt(i);
+  const dry = fbm2(x / 70, z / 70, 3, seed + 7);
+  const lush = fbm2(x / 23, z / 23, 3, seed + 8);
+  const dust = 1 - smoothstep(ROAD.half + 1, ROAD.half + 9, ao);
+  let r = 0.95 + dry * 0.25 + dust * 0.15, g = 0.95 + lush * 0.1 - dry * 0.05, b = 0.9 + dust * 0.1;
+  const v = 0.85 + lush * 0.25;
+  r *= v; g *= v; b *= v;
+  // оттенки районов
+  const tr = w.forest * 0.82 + w.city * 0.95 + w.suburb * 1.0 + w.desert * 1.05 + w.coast * 1.08;
+  const tg = w.forest * 1.0 + w.city * 0.95 + w.suburb * 1.0 + w.desert * 0.95 + w.coast * 1.0;
+  const tb = w.forest * 0.8 + w.city * 0.92 + w.suburb * 0.95 + w.desert * 0.85 + w.coast * 0.82;
+  let sand = w.desert * clamp(0.75 + (dry - 0.5) * 0.8, 0, 1);
+  if (w.coast > 0) {
+    const seg = p.biomes.coastNear(i * STEP);
+    if (seg && Math.sign(so) === seg.seaSide) sand = Math.max(sand, w.coast * smoothstep(9, 22, ao));
+    else sand = Math.max(sand, w.coast * 0.25 * smoothstep(0.55, 0.8, dry));
+  }
+  return [r * tr, g * tg, b * tb, sand];
 }

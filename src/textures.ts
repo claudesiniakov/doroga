@@ -307,3 +307,38 @@ export function makePlateTexture(text: string): THREE.Texture {
   t.anisotropy = 4;
   return t;
 }
+
+/** Песок: мелкая рябь от ветра + зерно (бесшовно). */
+export function makeSandTextures(size = 512) {
+  const W = size, H = size;
+  const albedo = new Uint8Array(W * H * 4);
+  const height = new Float32Array(W * H);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const warp = tfbm2(x / 64, y / 64, W / 64, H / 64, 3, 71) * 6;
+      const ripple = Math.sin(((y / H) * 24 + warp) * Math.PI * 2) * 0.5 + 0.5;
+      const grain = tnoise2(x / 2, y / 2, W / 2, H / 2, 72);
+      const tone = tfbm2(x / 32, y / 32, W / 32, H / 32, 3, 73);
+      const v = 0.62 + ripple * 0.06 + (grain - 0.5) * 0.12 + (tone - 0.5) * 0.1;
+      const k = (y * W + x) * 4;
+      albedo[k] = clamp(v * 1.0, 0, 1) * 255;
+      albedo[k + 1] = clamp(v * 0.86, 0, 1) * 255;
+      albedo[k + 2] = clamp(v * 0.66, 0, 1) * 255;
+      albedo[k + 3] = 255;
+      height[y * W + x] = ripple * 0.8 + grain * 0.5;
+    }
+  }
+  return { map: dataTex(albedo, W, H, true), normalMap: dataTex(heightToNormal(height, W, H, 1.2), W, H, false) };
+}
+
+/** Нормали ряби на воде (бесшовно). */
+export function makeWaterNormal(size = 512) {
+  const W = size, H = size;
+  const height = new Float32Array(W * H);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      height[y * W + x] = tfbm2(x / 32, y / 16, W / 32, H / 16, 5, 81) * 1.0 + tnoise2(x / 8, y / 4, W / 8, H / 4, 82) * 0.25;
+    }
+  }
+  return dataTex(heightToNormal(height, W, H, 6), W, H, false);
+}

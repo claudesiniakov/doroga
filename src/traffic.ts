@@ -189,6 +189,15 @@ export class Traffic {
     const cur = this.leader(v, v.lane, p);
     let a = idm(cur.gap, cur.v);
     if (v.targetLane !== v.lane) a = Math.min(a, idm(this.leader(v, v.targetLane, p).gap, this.leader(v, v.targetLane, p).v));
+    // не перекрывать последнюю свободную полосу: если обе соседние заняты рядом впереди — пропустить их
+    {
+      let busy = 0;
+      for (const l of [-1, 0, 1]) {
+        if (l === v.lane) continue;
+        if (this.list.some((o) => o !== v && o.occupies(l) && o.s > v.s - 3 && o.s < v.s + o.length / 2 + v.length / 2 + 6)) busy++;
+      }
+      if (busy >= 2) a = Math.min(a, -1.8);
+    }
     a = clamp(a, -8, aMax);
     v.braking = a < -0.9;
     v.v = Math.max(0, v.v + a * dt);

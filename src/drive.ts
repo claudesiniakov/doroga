@@ -278,10 +278,12 @@ export class DriveScene {
     } else if (this.phase === 'pitIn') {
       // плавная остановка ровно у колонки
       const left = Math.max(0, this.pitExit!.sStop - this.s);
-      const vTarget = Math.sqrt(2 * 2.6 * left);
-      a = clamp((vTarget - this.v) * 3, -7, 1);
-      brake = 1;
-      if (left < 0.4 && this.v < 0.6) {
+      const vTarget = Math.sqrt(2 * 3.2 * left);
+      a = clamp((vTarget - this.v) * 3, -10, 0.5);
+      brake = a < -0.3 ? 1 : 0;
+      // не проезжаем колонку: упор точно у неё
+      if (this.s >= this.pitExit!.sStop - 0.2) { this.s = this.pitExit!.sStop; this.v = 0; }
+      if ((left < 0.4 && this.v < 0.6) || this.v === 0) {
         this.v = 0; a = 0;
         this.phase = 'refuel';
         this.onStation?.(this.pitExit!.kind);
@@ -316,9 +318,8 @@ export class DriveScene {
       }
       // в полосе съезда перед колонкой — заезд на заправку
       const ex = path.exitNear(this.s, 0);
-      // заезд к колонке — только если успеваем мягко остановиться (≈2.6 м/с²)
-      const need = (this.v * this.v) / (2 * 4.5) + 4;
-      if (this.phase === 'drive' && this.lane === 2 && ex && this.s > ex.sStop - 140 && ex.sStop - this.s > need) {
+      // в полосе съезда до колонки — сразу заезд (машина сама тормозит и встаёт у колонки)
+      if (this.phase === 'drive' && this.lane === 2 && ex && this.s > ex.s0 && this.s < ex.sStop - 6) {
         this.pitExit = ex;
         this.phase = 'pitIn';
       }

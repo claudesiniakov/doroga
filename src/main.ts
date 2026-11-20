@@ -585,7 +585,40 @@ async function runShot(kind: string, ctx: {
   const p = new URLSearchParams(location.search);
   const steps = Number(p.get('steps') || 90);
   if (kind === 'sim') (ctx.drive.world.constructor as any).stats = { base: [], scatter: [], far: [] };
-  if (kind === 'stops') {
+  if (kind === 'gate') {
+    const d = ctx.drive;
+    await ctx.startDrive(true, 30);
+    d.s = d.finishS - 120;
+    let t = 0;
+    for (let i = 0; i < 5; i++) { t += 1 / 60; d.update(1 / 60, { throttle: 0, brake: 0, laneShift: 0 }, t); }
+    const g = (d as any).finishGate as THREE.Group;
+    const car = (d.scene.getObjectByName('car') as THREE.Object3D).position;
+    console.warn('GATE', JSON.stringify({ exists: !!g, visible: g?.visible, inScene: !!g?.parent, dist: g ? g.position.distanceTo(car).toFixed(1) : null, finishS: d.finishS, s: d.s.toFixed(0), children: g?.children.length, y: g?.position.y.toFixed(1), carY: car.y.toFixed(1) }));
+  } else if (kind === 'exitsim') {
+    const d = ctx.drive, log: string[] = [];
+    let t = 0;
+    for (const kind2 of ['repair', 'fuel'] as const) {
+      for (const kmh of [90, 130, 170, 200]) {
+        await ctx.startDrive(true, 30);
+        d.policeS = null; d.fuel = 60;
+        const ex = d.world.path.nextExit(0, kind2);
+        d.s = ex.s0 - 300; d.v = kmh / 3.6;
+        let shifted = false, result = 'проехал мимо';
+        const t0 = t;
+        while (t - t0 < 60) {
+          t += 1 / 60;
+          let sh = 0;
+          if (!shifted && d.exitOpen && d.phase === 'drive') { sh = 1; shifted = true; }
+          if (d.phase === 'drive' && !shifted) d.v = kmh / 3.6;
+          d.update(1 / 60, { throttle: d.phase === 'drive' ? 1 : 0, brake: 0, laneShift: sh }, t);
+          if (d.phase === 'refuel') { result = `встал у колонки (${(ex.sStop - d.s).toFixed(1)} м)`; break; }
+          if (d.s > ex.sEnd + 20) break;
+        }
+        log.push(`${kind2} ${kmh} км/ч: ${result}`);
+      }
+    }
+    console.warn('EXITSIM ' + log.join(' | '));
+  } else if (kind === 'stops') {
     const d = ctx.drive, log: string[] = [];
     let t = 0;
     const run = (cond: () => boolean, kmh?: number, max = 90) => {
@@ -920,6 +953,7 @@ async function runShot(kind: string, ctx: {
     if (!intro) ctx.drive.d = lane * 3.5;
     const v = p.get('v');
     if (p.get('police')) ctx.drive.policeS = ctx.drive.s + Number(p.get('police'));
+    if (p.get('at')) { ctx.drive.s = Number(p.get('at')); ctx.drive.policeS = null; }
     if (p.get('near')) {
       ctx.drive.traffic.clear();
       const s0 = ctx.drive.s;

@@ -17,11 +17,11 @@ function brandTextures() {
   const img = new Image();
   img.onload = () => {
     const k = img.naturalWidth / 279;             // пикселей на единицу viewBox
-    // дверь: белая скруглённая подложка + знак «a.»
+    // дверь: знак «a.» в белом круге с тёмно-синим ободком (цвет логотипа)
     const g = markC.getContext('2d')!;
-    g.fillStyle = '#ffffff';
-    g.beginPath(); g.roundRect(24, 24, 976, 976, 150); g.fill();
-    const mw = 80 * k, mh = 61 * k, s = 760 / Math.max(mw, mh);
+    g.beginPath(); g.arc(512, 512, 496, 0, Math.PI * 2); g.fillStyle = '#1D4382'; g.fill();
+    g.beginPath(); g.arc(512, 512, 470, 0, Math.PI * 2); g.fillStyle = '#ffffff'; g.fill();
+    const mw = 80 * k, mh = 61 * k, s = 600 / Math.max(mw, mh);
     g.drawImage(img, 0, 0, mw, mh, 512 - (mw * s) / 2, 512 - (mh * s) / 2, mw * s, mh * s);
     mark.needsUpdate = true;
     // корма: «Абсолют / Страхование» в цветах логотипа

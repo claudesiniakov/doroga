@@ -301,7 +301,8 @@ export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity =
   prof.push(new THREE.Vector2(R - 0.05, W / 2), new THREE.Vector2(rimR, W / 2 - 0.01));
   const tire = new THREE.LatheGeometry(prof, 64).rotateZ(Math.PI / 2);
   const tireMat = new THREE.MeshStandardMaterial({ color: 0x131313, roughness: 0.86 });
-  const rimMat = new THREE.MeshStandardMaterial({ color: 0x3a3d42, metalness: 0.85, roughness: 0.3, envMapIntensity: envIntensity });
+  // белые лакированные диски
+  const rimMat = new THREE.MeshPhysicalMaterial({ color: 0xf3f3f0, metalness: 0.15, roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: envIntensity });
   const lipMat = new THREE.MeshStandardMaterial({ color: 0xb9bdc3, metalness: 1, roughness: 0.2, envMapIntensity: envIntensity });
   const caliperMat = new THREE.MeshPhysicalMaterial({ color: 0xf2c200, roughness: 0.35, clearcoat: 0.8 });
   const discMat = new THREE.MeshStandardMaterial({ color: 0x77797c, metalness: 0.9, roughness: 0.42 });

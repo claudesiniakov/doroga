@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
-import { RoadWorld, RoadFrame, makeRoadMaterials, EXIT_W, Exit } from './road';
+import { RoadWorld, RoadFrame, makeRoadMaterials, EXIT_W, Exit, ExitKind } from './road';
 import { ROAD, makeRoadTextures, makeGroundTextures, makeGravelTextures, makeSandTextures } from './textures';
 import { CarModel, CarConfig } from './car';
 import { Traffic, PlayerState, CrashEvent } from './traffic';
@@ -62,7 +62,7 @@ export class DriveScene {
    * intro — заставка; drive — езда; pitIn — заезд к колонке; refuel — стоим у колонки;
    * pitOut — выезд со съезда; empty — бак пуст, машина катится; stopped — заезд окончен.
    */
-  phase: 'intro' | 'drive' | 'pitIn' | 'refuel' | 'pitOut' | 'empty' | 'stopped' = 'intro';
+  phase: 'intro' | 'drive' | 'pitIn' | 'refuel' | 'pitOut' | 'empty' | 'wrecked' | 'stopped' = 'intro';
   // топливо и деньги
   static readonly START_COINS = 100;
   static readonly LITERS_PER_KM = 2;
@@ -70,8 +70,19 @@ export class DriveScene {
   fuel = 0;
   coins = DriveScene.START_COINS;
   get tank() { return this.cfg.tankL; }
-  onStation?: () => void;
+  // здоровье и страховки
+  static readonly KASKO = 40;
+  static readonly OSAGO = 10;
+  static readonly REPAIR_PRICE = 1; // монет за 10 %
+  health = 100;
+  insurance = { kasko: false, osago: false };
+  /** Причина конца заезда. */
+  endReason: 'fuel' | 'wreck' | null = null;
+  onStation?: (kind: ExitKind) => void;
   onEmpty?: () => void;
+  /** Удар: потеря здоровья и (без ОСАГО) списанные монеты. */
+  onDamage?: (info: { damage: number; fine: number; covered: boolean }) => void;
+  get stationKind(): ExitKind | null { return this.pitExit?.kind ?? null; }
   private pitExit: Exit | null = null;
   odometer = 0;
 
@@ -183,7 +194,10 @@ export class DriveScene {
     this.phase = skipIntro ? 'drive' : 'intro';
     this.odometer = 0;
     this.fuel = this.cfg.tankL;
-    this.coins = DriveScene.START_COINS;
+    this.health = 100;
+    this.endReason = null;
+    // страховки покупаются на старте из стартовых монет
+    this.coins = DriveScene.START_COINS - (this.insurance.kasko ? DriveScene.KASKO : 0) - (this.insurance.osago ? DriveScene.OSAGO : 0);
     this.pitExit = null;
     this.placeCar(0);
     this.world.prime(this.s, this.car.root.position);
@@ -224,15 +238,17 @@ export class DriveScene {
       if (left < 0.4 && this.v < 0.6) {
         this.v = 0; a = 0;
         this.phase = 'refuel';
-        this.onStation?.();
+        this.onStation?.(this.pitExit!.kind);
       }
     } else if (this.phase === 'refuel' || this.phase === 'stopped') {
       this.v = 0; a = 0; brake = 1;
-    } else if (this.phase === 'empty') {
-      // бак пуст: накат до остановки
-      a = -1.6 - this.v * 0.02;
+    } else if (this.phase === 'empty' || this.phase === 'wrecked') {
+      // бак пуст — накат; машина разбита — тормозим до остановки
+      a = this.phase === 'empty' ? -1.6 - this.v * 0.02 : -6;
+      brake = this.phase === 'wrecked' ? 1 : 0;
       if (this.v + a * dt <= 0.05) {
         this.v = 0; a = 0;
+        this.endReason = this.phase === 'empty' ? 'fuel' : 'wreck';
         this.phase = 'stopped';
         this.onEmpty?.();
       }
@@ -268,6 +284,7 @@ export class DriveScene {
     if (this.phase !== 'intro') {
       this.fuel = Math.max(0, this.fuel - (ds / 1000) * DriveScene.LITERS_PER_KM);
       if (this.fuel <= 0 && (this.phase === 'drive' || this.phase === 'pitOut')) this.phase = 'empty';
+      if (this.health <= 0 && (this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'empty')) this.phase = 'wrecked';
     }
 
     // смена полосы: пружина с критическим демпфированием
@@ -429,11 +446,29 @@ export class DriveScene {
     return l;
   }
 
-  /** Уехать от колонки. */
+  /** Цена ремонта на pct процентов (с КАСКО — бесплатно). */
+  repairCost(pct: number) {
+    return this.insurance.kasko ? 0 : Math.ceil(pct / 10 - 1e-6) * DriveScene.REPAIR_PRICE;
+  }
+
+  /** Отремонтировать до pct процентов (шагами по 10 %, сколько хватит монет). Возвращает восстановленные %. */
+  repair(pct: number): number {
+    let want = Math.min(pct, 100 - this.health);
+    if (want <= 0) return 0;
+    if (!this.insurance.kasko) want = Math.min(want, Math.floor(this.coins / DriveScene.REPAIR_PRICE) * 10);
+    if (want <= 0) return 0;
+    this.coins -= this.repairCost(want);
+    this.health = Math.min(100, this.health + want);
+    return want;
+  }
+
+  /** Уехать от колонки/сервиса. */
   leaveStation() {
     if (this.phase !== 'refuel') return;
-    this.phase = this.fuel > 0 ? 'pitOut' : 'empty';
-    if (this.phase === 'empty') { this.phase = 'stopped'; this.onEmpty?.(); }
+    if (this.fuel > 0) { this.phase = 'pitOut'; return; }
+    this.endReason = 'fuel';
+    this.phase = 'stopped';
+    this.onEmpty?.();
   }
 
   /** Можно ли сейчас перестроиться на съезд (полоса открыта впереди). */
@@ -443,8 +478,10 @@ export class DriveScene {
   }
 
   /** Расстояние до ближайшей колонки впереди, м. */
-  get nextStationDist() { return this.world.path.nextExit(this.s).sStop - this.s; }
+  get nextStationDist() { return this.world.path.nextExit(this.s, 'fuel').sStop - this.s; }
+  get nextRepairDist() { return this.world.path.nextExit(this.s, 'repair').sStop - this.s; }
   get nextExitStartDist() { return this.world.path.nextExit(this.s).s0 - this.s; }
+  get nextExitKind(): ExitKind { return this.world.path.nextExit(this.s).kind; }
 
   private playerState(): PlayerState {
     const p = this.player;
@@ -463,6 +500,15 @@ export class DriveScene {
     this.shakeAmp = 0.35 + e.severity * 0.65;
     this.pitchV += (e.side ? 0 : 1.5) * e.severity;
     this.rollV += (e.side ? 2.5 : 0.6) * (Math.random() - 0.5) * 2;
+    // повреждения: 15–35 % по силе удара; без ОСАГО — платим за чужую машину
+    const damage = Math.round(e.side ? 12 + 10 * e.severity : 12 + 23 * e.severity);
+    this.health = Math.max(0, this.health - damage);
+    let fine = 0;
+    if (!this.insurance.osago) {
+      fine = Math.min(this.coins, Math.round(e.side ? 4 + 10 * e.severity : 5 + 25 * e.severity));
+      this.coins -= fine;
+    }
+    this.onDamage?.({ damage, fine, covered: this.insurance.osago });
     this.onCrash?.(e);
   }
 

@@ -27,6 +27,11 @@
       <h1 id="carName">—</h1>
       <p id="carTag" class="tag"></p>
       <div class="tankline" id="carTank"></div>
+      <div class="ins">
+        <button class="ins-opt" id="insKasko"><span class="chk"></span><span class="t"><b>КАСКО · 40</b><small>ремонт своей машины бесплатно</small></span></button>
+        <button class="ins-opt" id="insOsago"><span class="chk"></span><span class="t"><b>ОСАГО · 10</b><small>не платите за чужие машины при ДТП</small></span></button>
+      </div>
+      <div class="startcoins">На старт: <span class="coin"></span><b id="startCoins">100</b> монет</div>
       <ul class="stats" id="carStats"></ul>
       <div class="slots" id="slots"></div>
       <button id="go" class="go">Поехать</button>
@@ -43,11 +48,17 @@
           <span class="fbar"><i id="fuelBar"></i></span>
           <b id="fuelL">60</b><span class="u">л</span>
         </div>
-        <div class="coins"><span class="coin"></span><b id="coins">100</b></div>
+        <div class="fuel hp" id="hpBox">
+          <span class="ic">🔧</span>
+          <span class="fbar"><i id="hpBar"></i></span>
+          <b id="hpVal">100</b><span class="u">%</span>
+        </div>
+        <div class="coins"><span class="coin"></span><b id="coins">100</b><span class="chips" id="insChips"></span></div>
       </div>
       <button id="pauseBtn" class="icon-btn" aria-label="Пауза"><svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button>
     </div>
     <div class="banner" id="banner"></div>
+    <div class="toast" id="toast"></div>
     <div class="speedo">
       <svg viewBox="0 0 200 120" class="arc">
         <path d="M20 110 A80 80 0 0 1 180 110" class="track" />
@@ -79,11 +90,11 @@
 
   <section id="station" class="screen">
     <div class="panel menu">
-      <div class="eyebrow">Заправка «Топливо 24»</div>
-      <h2>Заправиться?</h2>
-      <div class="tank-big"><span class="fbar big"><i id="stTankBar"></i></span><div class="tank-nums"><b id="stTank">0</b> / <span id="stCap">60</span> л</div></div>
+      <div class="eyebrow" id="stEyebrow">Заправка «Топливо 24»</div>
+      <h2 id="stTitle">Заправиться?</h2>
+      <div class="tank-big"><span class="fbar big" id="stBarWrap"><i id="stTankBar"></i></span><div class="tank-nums"><b id="stTank">0</b> <span id="stUnit">/ 60 л</span></div></div>
       <div class="st-row"><span>Монеты</span><b><span class="coin"></span><span id="stCoins">100</span></b></div>
-      <div class="st-row"><span>Цена</span><b>1 монета за литр</b></div>
+      <div class="st-row"><span>Цена</span><b id="stPrice">1 монета за литр</b></div>
       <button id="stFull" class="go">Полный бак</button>
       <button id="stTen" class="ghost">+10 л</button>
       <button id="stLeave" class="ghost">Уехать</button>
@@ -93,7 +104,7 @@
   <section id="over" class="screen">
     <div class="panel menu">
       <div class="eyebrow">Заезд окончен</div>
-      <h2>Топливо кончилось</h2>
+      <h2 id="ovTitle">Топливо кончилось</h2>
       <div class="st-row"><span>Проехали</span><b id="ovKm">0 км</b></div>
       <div class="st-row"><span>Осталось монет</span><b><span class="coin"></span><span id="ovCoins">0</span></b></div>
       <div class="st-row"><span>Рекорд</span><b id="ovBest">0 км</b></div>

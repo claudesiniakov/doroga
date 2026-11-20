@@ -24,7 +24,8 @@ export function terrainHeight(x: number, z: number, seed: number): number {
 }
 
 /** Съезд на заправку: полоса открывается с s0, колонка у sStop, полоса сливается к sEnd. */
-export interface Exit { index: number; s0: number; sStop: number; sEnd: number; }
+export type ExitKind = 'fuel' | 'repair';
+export interface Exit { index: number; kind: ExitKind; s0: number; sStop: number; sEnd: number; }
 export const EXIT_W = 3.5;
 const EXIT_TAPER = 80;
 
@@ -70,7 +71,9 @@ export class RoadPath {
     while (!this.exits.length || this.exits[this.exits.length - 1].sEnd < s + 3000) {
       const last = this.exits[this.exits.length - 1];
       const s0 = last ? last.sEnd + 3400 + this.exitRnd() * 3600 : 2600;
-      this.exits.push({ index: this.exits.length, s0, sStop: s0 + 300, sEnd: s0 + 420 });
+      const index = this.exits.length;
+      // каждый третий съезд — автосервис, остальные — заправки
+      this.exits.push({ index, kind: index % 3 === 1 ? 'repair' : 'fuel', s0, sStop: s0 + 300, sEnd: s0 + 420 });
     }
   }
 
@@ -85,9 +88,9 @@ export class RoadPath {
   }
 
   /** Следующий съезд впереди (начало полосы дальше s). */
-  nextExit(s: number): Exit {
-    this.ensureExits(s);
-    return this.exits.find((e) => e.sStop > s)!;
+  nextExit(s: number, kind?: ExitKind): Exit {
+    this.ensureExits(s + 20000);
+    return this.exits.find((e) => e.sStop > s && (!kind || e.kind === kind))!;
   }
 
   /** Ширина полосы съезда справа в точке s (0 — съезда нет). */

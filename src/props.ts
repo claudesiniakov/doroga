@@ -437,6 +437,39 @@ export function exitStation(out: BuildingParts, m: THREE.Matrix4) {
   S(new THREE.BoxGeometry(3, 2.4, 0.1).translate(-3, 1.2, 13.98), 0x1c2a33);
 }
 
+/** Автосервис у съезда (те же локальные оси, что у заправки): боксы с воротами, подъёмник, шины. */
+export function repairShop(out: BuildingParts, m: THREE.Matrix4) {
+  const S = (g: THREE.BufferGeometry, c: number) => out.solid.push(withColor(g, c, false).applyMatrix4(m));
+  S(new THREE.BoxGeometry(64, 1.6, 24).translate(0, -0.79, 13.8), 0x6a6d70);
+  S(new THREE.BoxGeometry(64, 0.02, 0.2).translate(0, 0.02, 2.0), 0xd8d6cf);
+  // здание: два бокса, ворота к дороге
+  const bz = 11.5;
+  S(new THREE.BoxGeometry(20, 6.2, 11).translate(0, 3.1, bz + 5.5), 0xc9d2da);
+  S(new THREE.BoxGeometry(20.4, 0.5, 11.4).translate(0, 6.4, bz + 5.5), 0x2f5f9e);
+  S(new THREE.BoxGeometry(20.2, 0.6, 0.2).translate(0, 0.3, bz - 0.05), 0x8a9096);
+  for (const x of [-5, 5]) {
+    S(new THREE.BoxGeometry(7.4, 4.4, 0.12).translate(x, 2.2, bz - 0.06), 0x30353b);       // проём
+    S(new THREE.BoxGeometry(7.8, 0.25, 0.25).translate(x, 4.5, bz - 0.12), 0x2f5f9e);      // перемычка
+  }
+  // левые ворота подняты: внутри подъёмник и тёмный бокс
+  S(new THREE.BoxGeometry(7.2, 4.3, 6).translate(-5, 2.15, bz + 3), 0x1b1e22);
+  for (const x of [-7.6, -2.4]) S(new THREE.BoxGeometry(0.35, 3.6, 0.35).translate(x, 1.8, bz + 2.5), 0xf2c21b);
+  S(new THREE.BoxGeometry(5.6, 0.2, 2).translate(-5, 1.6, bz + 2.5), 0x8a8f94);
+  // правые ворота опущены — рифлёные полосы
+  for (let k = 0; k < 11; k++) S(new THREE.BoxGeometry(7.3, 0.06, 0.04).translate(5, 0.25 + k * 0.4, bz - 0.15), 0x9aa3ab);
+  // шины в стопках, бочки, компрессор
+  for (const [x, z, n] of [[9.5, 8.5, 4], [10.6, 8.6, 3], [-9.8, 9.0, 5]] as const) {
+    for (let k = 0; k < n; k++) {
+      const t = new THREE.TorusGeometry(0.34, 0.14, 8, 18).rotateX(Math.PI / 2);
+      S(t.translate(x, 0.15 + k * 0.28, z), 0x161616);
+    }
+  }
+  for (const [x, z] of [[12.5, 9.5], [13.3, 9.9]] as const) S(new THREE.CylinderGeometry(0.32, 0.32, 0.9, 14).translate(x, 0.45, z), 0x2b5fa8);
+  S(new THREE.BoxGeometry(1.0, 1.1, 0.7).translate(-12.5, 0.55, 9.6), 0xd2401f);
+  // разметка места ремонта у полосы
+  for (const x of [-3, 3]) S(new THREE.BoxGeometry(0.15, 0.02, 3.2).translate(x, 0.025, 3.6), 0xe8d24a);
+}
+
 export class PropKit {
   readonly geo: Record<PropId, THREE.BufferGeometry>;
   readonly mat: THREE.MeshStandardMaterial;
@@ -494,6 +527,18 @@ export class PropKit {
           g.strokeStyle = '#111'; g.lineWidth = 12; g.strokeRect(10, 10, 492, 172);
           g.fillStyle = '#111'; g.font = 'bold 72px "Arial Narrow", Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(arg, 256, 100);
         })
+        : kind === 'service'
+          ? canvasTex(512, 128, (g) => {
+            g.fillStyle = '#2f5f9e'; g.fillRect(0, 0, 512, 128);
+            g.fillStyle = '#fff'; g.font = '900 64px "Arial Black", Arial'; g.textAlign = 'center'; g.textBaseline = 'middle';
+            g.fillText('АВТОСЕРВИС', 290, 68);
+            // гаечный ключ
+            g.save(); g.translate(58, 64); g.rotate(-0.7);
+            g.fillRect(-6, -34, 12, 54);
+            g.beginPath(); g.arc(0, -36, 18, 0, Math.PI * 2); g.fill();
+            g.fillStyle = '#2f5f9e'; g.fillRect(-7, -60, 14, 26);
+            g.restore();
+          })
         : kind === 'fuel'
           ? canvasTex(512, 128, (g) => {
             g.fillStyle = '#d2401f'; g.fillRect(0, 0, 512, 128);

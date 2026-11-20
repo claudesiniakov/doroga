@@ -72,7 +72,7 @@ async function main() {
     $('carEyebrow').textContent = `Гараж · машина ${sel + 1} из ${configs.length}`;
     $('carName').textContent = cfg.name;
     $('carTag').textContent = cfg.tagline;
-    $('carTank').textContent = `Бак ${cfg.tankL} л · расход ${DriveScene.LITERS_PER_KM} л/км · запас хода ${Math.round(cfg.tankL / DriveScene.LITERS_PER_KM)} км · старт ${DriveScene.START_COINS} монет`;
+    $('carTank').textContent = `Бак ${cfg.tankL} л · расход ${DriveScene.LITERS_PER_KM} л/км · запас хода ${Math.round(cfg.tankL / DriveScene.LITERS_PER_KM)} км`;
     $('carStats').innerHTML = statNames.map(([k, n]) =>
       `<li>${n}<span class="b"><i style="width:${cfg.stats[k] * 100}%"></i></span><em>${Math.round(cfg.stats[k] * 100)}</em></li>`).join('');
     const slots = configs.map((c, i) =>
@@ -135,6 +135,7 @@ async function main() {
     input.enabled = false;
     await fade(true);
     drive.attachCar(car, cfg);
+    drive.insurance = { ...ins };
     drive.reset(skipIntro, startS);
     renderer.setExposure(0.6);
     renderer.setBloom(0.18, 4.5, 0.35);
@@ -170,20 +171,60 @@ async function main() {
   input.onPause = () => (state === 'drive' ? pause() : resume());
   input.onCamera = () => drive.toggleCamera();
 
-  // ——— заправка ———
+  // ——— страховки (покупаются перед заездом из стартовых монет) ———
+  const ins = { kasko: false, osago: false };
+  try { Object.assign(ins, JSON.parse(localStorage.getItem('doroga.ins') || '{}')); } catch { /* нет хранилища */ }
+  const renderIns = () => {
+    $('insKasko').classList.toggle('on', ins.kasko);
+    $('insOsago').classList.toggle('on', ins.osago);
+    $('startCoins').textContent = String(DriveScene.START_COINS - (ins.kasko ? DriveScene.KASKO : 0) - (ins.osago ? DriveScene.OSAGO : 0));
+    try { localStorage.setItem('doroga.ins', JSON.stringify(ins)); } catch { /* нет хранилища */ }
+  };
+  $('insKasko').addEventListener('click', () => { ins.kasko = !ins.kasko; renderIns(); });
+  $('insOsago').addEventListener('click', () => { ins.osago = !ins.osago; renderIns(); });
+  renderIns();
+
+  // ——— заправка и автосервис: одна панель ———
   const updateStation = () => {
-    $('stTank').textContent = String(Math.ceil(drive.fuel - 1e-6));
-    $('stCap').textContent = String(drive.tank);
-    $('stTankBar').style.width = `${(drive.fuel / drive.tank) * 100}%`;
-    $('stCoins').textContent = String(drive.coins);
-    const need = Math.ceil(drive.tank - drive.fuel - 1e-6);
-    const can = Math.min(need, Math.floor(drive.coins / DriveScene.PRICE));
+    const repair = drive.stationKind === 'repair';
     const full = $<HTMLButtonElement>('stFull'), ten = $<HTMLButtonElement>('stTen');
-    full.disabled = can <= 0;
-    full.textContent = can <= 0 ? (need <= 0 ? 'Бак полный' : 'Не хватает монет')
-      : can < need ? `На все монеты · ${can} л` : `Полный бак · ${need} л за ${need * DriveScene.PRICE}`;
-    ten.disabled = can <= 0;
-    ten.style.display = can > 10 ? '' : 'none';
+    $('stCoins').textContent = String(drive.coins);
+    if (!repair) {
+      $('stEyebrow').textContent = 'Заправка «Топливо 24»';
+      $('stTitle').textContent = 'Заправиться?';
+      $('stTank').textContent = String(Math.ceil(drive.fuel - 1e-6));
+      $('stUnit').textContent = `/ ${drive.tank} л`;
+      $('stTankBar').style.width = `${(drive.fuel / drive.tank) * 100}%`;
+      $('stBarWrap').classList.remove('hp');
+      $('stPrice').textContent = '1 монета за литр';
+      const need = Math.ceil(drive.tank - drive.fuel - 1e-6);
+      const can = Math.min(need, Math.floor(drive.coins / DriveScene.PRICE));
+      full.disabled = can <= 0;
+      full.textContent = can <= 0 ? (need <= 0 ? 'Бак полный' : 'Не хватает монет')
+        : can < need ? `На все монеты · ${can} л` : `Полный бак · ${need} л за ${need * DriveScene.PRICE}`;
+      ten.disabled = can <= 0;
+      ten.textContent = '+10 л · 10 монет';
+      ten.style.display = can > 10 ? '' : 'none';
+    } else {
+      $('stEyebrow').textContent = 'Автосервис';
+      $('stTitle').textContent = 'Отремонтировать?';
+      $('stTank').textContent = String(Math.round(drive.health));
+      $('stUnit').textContent = '%';
+      $('stTankBar').style.width = `${drive.health}%`;
+      $('stBarWrap').classList.add('hp');
+      const kasko = drive.insurance.kasko;
+      $('stPrice').textContent = kasko ? 'по КАСКО — бесплатно' : '1 монета за 10 %';
+      const need = Math.max(0, 100 - drive.health);
+      const canPct = kasko ? need : Math.min(need, Math.floor(drive.coins / DriveScene.REPAIR_PRICE) * 10);
+      full.disabled = canPct <= 0;
+      full.textContent = need <= 0 ? 'Машина целая'
+        : canPct <= 0 ? 'Не хватает монет'
+          : canPct < need ? `На все монеты · +${canPct} %`
+            : `Полный ремонт · ${kasko ? 'бесплатно' : `${drive.repairCost(need)} монет`}`;
+      ten.disabled = canPct <= 0;
+      ten.textContent = `+10 % · ${kasko ? 'бесплатно' : `${DriveScene.REPAIR_PRICE} монета`}`;
+      ten.style.display = need > 10 && canPct > 0 ? '' : 'none';
+    }
   };
   drive.onStation = () => {
     state = 'station';
@@ -191,8 +232,24 @@ async function main() {
     updateStation();
     show('hud', 'station');
   };
-  $('stFull').addEventListener('click', () => { drive.refuel(drive.tank); updateStation(); });
-  $('stTen').addEventListener('click', () => { drive.refuel(10); updateStation(); });
+  $('stFull').addEventListener('click', () => {
+    if (drive.stationKind === 'repair') drive.repair(100); else drive.refuel(drive.tank);
+    updateStation();
+  });
+  $('stTen').addEventListener('click', () => {
+    if (drive.stationKind === 'repair') drive.repair(10); else drive.refuel(10);
+    updateStation();
+  });
+  // ——— удары: здоровье и ОСАГО ———
+  let toastTimer = 0;
+  drive.onDamage = ({ damage, fine, covered }) => {
+    const t = $('toast');
+    t.innerHTML = `−${damage} % здоровья` + (covered ? ' · ущерб покрыло ОСАГО' : fine > 0 ? ` · ущерб другой машине <span class="coin"></span>−${fine}` : '');
+    t.classList.toggle('ok', covered);
+    t.classList.add('on');
+    clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(() => t.classList.remove('on'), 2600);
+  };
   $('stLeave').addEventListener('click', () => {
     if (state !== 'station') return;
     drive.leaveStation();
@@ -207,6 +264,7 @@ async function main() {
     finishRun();
     state = 'over';
     input.enabled = false;
+    $('ovTitle').textContent = drive.endReason === 'wreck' ? 'Машина разбита' : 'Топливо кончилось';
     $('ovKm').textContent = `${(drive.odometer / 1000).toFixed(1)} км`;
     $('ovCoins').textContent = String(drive.coins);
     $('ovBest').textContent = `${getRecord().toFixed(1)} км`;
@@ -280,6 +338,8 @@ async function main() {
   let lastSpeed = -1;
 
   const fuelBox = $('fuelBox'), fuelBar = $('fuelBar'), fuelL = $('fuelL'), coinsEl = $('coins'), banner = $('banner');
+  const hpBox = $('hpBox'), hpBar = $('hpBar'), hpVal = $('hpVal');
+  let chipsKey = '';
   let bannerKey = '';
   const setBanner = (html: string, warn = false) => {
     const key = html + warn;
@@ -295,16 +355,32 @@ async function main() {
     fuelL.textContent = String(Math.ceil(drive.fuel));
     fuelBox.classList.toggle('low', f < 0.2);
     coinsEl.textContent = String(drive.coins);
+    const hp = drive.health / 100;
+    hpBar.style.width = `${hp * 100}%`;
+    hpVal.textContent = String(Math.round(drive.health));
+    hpBox.classList.toggle('low', hp < 0.35);
+    const ck = `${drive.insurance.kasko}${drive.insurance.osago}`;
+    if (ck !== chipsKey) {
+      chipsKey = ck;
+      $('insChips').innerHTML = (drive.insurance.kasko ? '<i>КАСКО</i>' : '') + (drive.insurance.osago ? '<i>ОСАГО</i>' : '');
+    }
     const ph = drive.phase;
     const toExit = drive.nextExitStartDist, toStation = drive.nextStationDist;
     const r50 = (m: number) => Math.max(50, Math.round(m / 50) * 50);
-    if (ph === 'pitIn' || ph === 'refuel') setBanner('⛽ Заезжаем на заправку');
+    const kind = drive.nextExitKind;
+    const place = kind === 'repair' ? '🔧 Автосервис' : '⛽ Заправка';
+    const toPlace = kind === 'repair' ? drive.nextRepairDist : toStation;
+    if (ph === 'pitIn' || ph === 'refuel') setBanner(drive.stationKind === 'repair' ? '🔧 Заезжаем в автосервис' : '⛽ Заезжаем на заправку');
     else if (ph === 'empty') setBanner('Топливо кончилось', true);
-    else if (ph === 'drive' && drive.lane === 2) setBanner(`Съезд на заправку<small>колонка через ${r50(toStation)} м</small>`);
-    else if (ph === 'drive' && toExit < 700 && toStation > 30) {
+    else if (ph === 'wrecked') setBanner('Машина разбита', true);
+    else if (ph === 'drive' && drive.lane === 2) setBanner(`${place}<small>${kind === 'repair' ? 'бокс' : 'колонка'} через ${r50(toPlace)} м</small>`);
+    else if (ph === 'drive' && toExit < 700 && toPlace > 30) {
+      const urgent = kind === 'repair' ? hp < 0.35 : f < 0.2;
       setBanner(!drive.exitOpen
-        ? `⛽ Заправка через ${r50(toExit)} м<small>перестройтесь в правую полосу</small>`
-        : `⛽ Съезд на заправку открыт<small>${innerWidth < 720 ? 'свайп' : '→'} — съехать</small>`, f < 0.2);
+        ? `${place} через ${r50(toExit)} м<small>перестройтесь в правую полосу</small>`
+        : `${place}: съезд открыт<small>${innerWidth < 720 ? 'свайп' : '→'} — съехать</small>`, urgent);
+    } else if (hp < 0.35 && ph === 'drive') {
+      setBanner(`Машина повреждена: ${Math.round(drive.health)} %<small>автосервис через ${(drive.nextRepairDist / 1000).toFixed(1)} км</small>`, true);
     } else if (f < 0.2 && ph === 'drive') {
       setBanner(`Мало топлива: ${Math.ceil(drive.fuel)} л<small>до заправки ${(toStation / 1000).toFixed(1)} км · хватит на ${(drive.fuel / DriveScene.LITERS_PER_KM).toFixed(1)} км</small>`, true);
     } else setBanner('');
@@ -357,7 +433,54 @@ async function runShot(kind: string, ctx: {
   const p = new URLSearchParams(location.search);
   const steps = Number(p.get('steps') || 90);
   if (kind === 'sim') (ctx.drive.world.constructor as any).stats = { base: [], scatter: [], far: [] };
-  if (kind === 'pit') {
+  if (kind === 'repair') {
+    const d = ctx.drive;
+    const log: string[] = [];
+    const ex = d.world.path.nextExit(0, 'repair');
+    log.push(`сервис: s0=${Math.round(ex.s0)} kind=${ex.kind}`);
+    let t = 0;
+    const step = (shift = 0) => { t += 1 / 60; d.update(1 / 60, { throttle: 0, brake: 0, laneShift: shift }, t); };
+    // страховки — как игрок: переключатели в гараже
+    const setIns = (k: boolean, o: boolean) => {
+      for (const [id, want] of [['insKasko', k], ['insOsago', o]] as const) {
+        const b = document.getElementById(id)!;
+        if (b.classList.contains('on') !== want) b.click();
+      }
+    };
+    for (const kasko of [false, true]) {
+      setIns(kasko, false);
+      await ctx.startDrive(true, ex.s0 - 150);
+      d.fuel = 50;
+      log.push(`старт (КАСКО=${kasko}): монет ${d.coins}`);
+      d.health = 40;
+      const c0 = d.coins;
+      while (!d.exitOpen && t < 400) step();
+      step(1);
+      while (d.phase !== 'refuel' && t < 600) step();
+      log.push(`у бокса: phase=${d.phase} kind=${d.stationKind} панель=${document.querySelector('#station')!.classList.contains('show')} текст="${document.querySelector('#stFull')!.textContent}"`);
+      const got = d.repair(100);
+      log.push(`ремонт +${got}%: здоровье ${d.health}, списано ${c0 - d.coins}`);
+      ctx.drive.leaveStation();
+      (document.querySelector('#stLeave') as HTMLElement).click();
+    }
+    // удары: без ОСАГО и с ОСАГО — случайная езда до 6 ударов
+    for (const osago of [false, true]) {
+      setIns(false, osago);
+      await ctx.startDrive(true, 300);
+      d.fuel = 60;
+      const fines: number[] = [];
+      d.onDamage = (inf) => fines.push(inf.fine);
+      let nextShift = 0;
+      while (d.crashes < 6 && d.phase !== 'stopped' && t < 3000) {
+        let sh = 0;
+        if (t > nextShift) { sh = Math.random() < 0.5 ? -1 : 1; nextShift = t + 0.7 + Math.random(); }
+        t += 1 / 60;
+        d.update(1 / 60, { throttle: 1, brake: 0, laneShift: sh }, t);
+      }
+      log.push(`ОСАГО=${osago}: ударов ${d.crashes}, штрафы [${fines.join(',')}], монет ${d.coins}, здоровье ${d.health}, phase=${d.phase}, причина=${d.endReason}`);
+    }
+    console.warn('REPAIR ' + log.join(' | '));
+  } else if (kind === 'pit') {
     // сценарий заправки: съезд → колонка → полный бак → выезд → пустой бак
     const d = ctx.drive;
     const ex = d.world.path.nextExit(0);

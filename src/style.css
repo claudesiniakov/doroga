@@ -25,7 +25,12 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .screen { position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity .5s ease; }
 .screen.show { opacity: 1; }
 .screen.show > * { pointer-events: auto; }
-.screen.show > .hint, .screen.show > .controls-hint, .screen.show > .speedo, .screen.show > .top { pointer-events: none; }
+/* прозрачные для касаний (свайпы смены полосы проходят сквозь них к слою #touch) */
+.screen.show > .hint, .screen.show > .controls-hint, .screen.show > .speedo, .screen.show > .top,
+.screen.show > .hud-top, .screen.show > .banner, .screen.show > .toast { pointer-events: none; }
+.hud-left { pointer-events: none; }
+.hud-right { pointer-events: none; }
+.hud-right > #pauseBtn { pointer-events: auto; }
 
 .panel {
   background: var(--glass);
@@ -92,7 +97,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   position: absolute; top: calc(18px + var(--safe-t)); left: calc(24px + var(--safe-l)); right: calc(24px + var(--safe-r));
   display: flex; justify-content: space-between; align-items: center; pointer-events: none;
 }
-.hud-top > * { pointer-events: auto; }
+
 .hud-top { align-items: flex-start; }
 .hud-right { display: grid; gap: 8px; justify-items: end; }
 /* одометр под спидометром: барабаны с цифрами, десятые — инверсные */
@@ -150,7 +155,7 @@ kbd {
 .pedal.on { background: rgba(255, 140, 60, .35); color: var(--ink); border-color: rgba(255, 170, 100, .6); }
 .pedal.brake { left: calc(22px + var(--safe-l)); }
 .pedal.gas {
-  right: calc(22px + var(--safe-r)); width: 58px; height: min(230px, 46vh); border-radius: 18px; overflow: hidden; cursor: ns-resize;
+  right: calc(22px + var(--safe-r)); height: min(230px, 46vh); overflow: hidden; cursor: ns-resize;
   background: rgba(20, 22, 26, .18); border-color: rgba(255, 255, 255, .14);
 }
 .gas-fill {
@@ -170,10 +175,10 @@ kbd {
 .gas-val span { font-size: 10px; letter-spacing: .14em; color: var(--ink-2); }
 .pedal.gas.on { background: rgba(20, 22, 26, .18); }
 .pedal.gas { transition: height .18s ease-out; }
-.pedal.gas.collapsed { height: 58px; }
+.pedal.gas.collapsed { height: 92px; }  /* как кнопка тормоза */
 .pedal.gas.collapsed .gas-ticks { opacity: 0; }
 .pedal.gas.collapsed .gas-val { top: 50%; transform: translateY(-50%); }
-.pedal.gas.collapsed .gas-val b { font-size: 17px; }
+.pedal.gas.collapsed .gas-val b { font-size: 22px; }
 .gas-ticks, .gas-val { transition: opacity .18s, top .18s, transform .18s; }
 
 /* ——— пауза ——— */

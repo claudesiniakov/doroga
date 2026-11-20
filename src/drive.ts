@@ -3,6 +3,8 @@ import { Sky } from 'three/examples/jsm/objects/Sky.js';
 import { RoadWorld, RoadFrame, makeRoadMaterials } from './road';
 import { ROAD, makeRoadTextures, makeGroundTextures, makeGravelTextures } from './textures';
 import { CarModel, CarConfig, DIM } from './car';
+import { Traffic, PlayerState, CrashEvent } from './traffic';
+import { TrafficAssets } from './traffic-models';
 import { clamp, damp, lerp, smoothstep } from './noise';
 
 export interface DriveInput {
@@ -21,6 +23,11 @@ export class DriveScene {
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.PerspectiveCamera(55, 1, 0.1, 4000);
   readonly world: RoadWorld;
+  readonly traffic: Traffic;
+  crashes = 0;
+  onCrash?: (e: CrashEvent) => void;
+  private shakeAmp = 0;
+  private player: PlayerState = { s: 0, v: 0, d: 0, lane: 0, length: 4.5, width: 1.9 };
   private sky: Sky;
   private sun = new THREE.DirectionalLight(0xffd2a0, 5.2);
   private sunDir = new THREE.Vector3();
@@ -100,6 +107,9 @@ export class DriveScene {
       makeGravelTextures(256), anisotropy);
     this.world = new RoadWorld(seed, mats);
     this.scene.add(this.world.group);
+    this.traffic = new Traffic(this.world.path, new TrafficAssets());
+    this.traffic.onCrash = (e) => this.crash(e);
+    this.scene.add(this.traffic.group);
     this.frame = this.world.path.frame(0);
   }
 
@@ -133,6 +143,9 @@ export class DriveScene {
     this.odometer = 0;
     this.placeCar(0);
     this.world.prime(this.s, this.car.root.position);
+    this.crashes = 0;
+    this.shakeAmp = 0;
+    this.traffic.populate(this.playerState(), 0);
     this.placeCar(0);
     this.updateSun();
     this.snapCamera();
@@ -164,7 +177,9 @@ export class DriveScene {
       else if (input.brake > 0) { a = -cfg.brake * input.brake; brake = input.brake; }
       else a = clamp((CRUISE - this.v) * 0.35, -2.2, 1.8);
     }
-    this.v = clamp(this.v + a * dt, this.phase === 'intro' ? 0 : MIN_SPEED, vmax);
+    // тормозом ниже MIN_SPEED не сбросить, но после удара скорость может быть меньше — машина разгонится сама
+    const floor = this.phase === 'intro' ? 0 : Math.min(MIN_SPEED, this.v);
+    this.v = clamp(this.v + a * dt, floor, vmax);
     if (input.brake > 0 && this.v <= MIN_SPEED + 0.01) brake = input.brake;
     this.lastBrake = brake;
     const ds = this.v * dt;
@@ -202,6 +217,8 @@ export class DriveScene {
 
     this.updateSun();
     this.world.update(this.s, this.car.root.position);
+    this.traffic.update(dt, this.playerState(), this.odometer, time);
+    this.shakeAmp = Math.max(0, this.shakeAmp - dt * 1.6);
     this.sky.material.uniforms.time.value = time;
     this.updateCamera(dt, time);
     this.sky.position.copy(this.camera.position);
@@ -295,11 +312,31 @@ export class DriveScene {
     }
   }
 
+  private playerState(): PlayerState {
+    const p = this.player;
+    p.s = this.s; p.v = this.v; p.d = this.d; p.lane = this.lane;
+    return p;
+  }
+
+  /** Удар о машину трафика: потеря скорости, отброс, встряска. */
+  private crash(e: CrashEvent) {
+    if (this.phase !== 'drive') return;
+    this.crashes++;
+    const r = this.traffic.resolve(this.playerState());
+    this.s += r.ds;
+    if (r.v !== null) this.v = r.v;
+    if (r.lane !== null) { this.lane = r.lane; this.dv *= -0.4; }
+    this.shakeAmp = 0.35 + e.severity * 0.65;
+    this.pitchV += (e.side ? 0 : 1.5) * e.severity;
+    this.rollV += (e.side ? 2.5 : 0.6) * (Math.random() - 0.5) * 2;
+    this.onCrash?.(e);
+  }
+
   private applyCamera(time: number) {
     const p = this.car.root.position;
     // камера немного отстаёт по поперечному смещению машины
     this.camera.position.copy(p).add(this.camOffset);
-    const shake = smoothstep(35, 58, this.v) * 0.012;
+    const shake = smoothstep(35, 58, this.v) * 0.012 + this.shakeAmp * 0.08;
     this.camera.position.y += Math.sin(time * 23.1) * shake + Math.sin(time * 31.7) * shake * 0.6;
     this.camera.position.x += Math.sin(time * 19.3) * shake * 0.5;
     this.camera.lookAt(this._look.copy(p).add(this.camLook));

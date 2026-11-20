@@ -168,3 +168,8 @@ kbd {
 
 /* режим автоматических снимков: без анимаций */
 .shot *, .shot *::before { transition: none !important; }
+
+/* вспышка при ударе */
+#hit { position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity .5s ease-out;
+  box-shadow: inset 0 0 160px 40px rgba(255, 40, 20, .55); }
+#hit.on { opacity: 1; transition: none; }

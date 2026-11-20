@@ -16,7 +16,7 @@ export interface CarConfig {
 }
 
 /** Монотонная кубическая интерполяция (Фрич–Карлсон) по отсортированным x. */
-function spline(pts: [number, number][]) {
+export function spline(pts: [number, number][]) {
   const n = pts.length;
   const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
   const d: number[] = [], m: number[] = new Array(n).fill(0);
@@ -113,7 +113,7 @@ function surfaceZ(x: number, y: number, end: 1 | -1) {
 }
 
 /** Лофт: ряды (станции по z) × кольцо точек; материалы назначаются по квадам. */
-function loft(rows: THREE.Vector3[][], classify: (a: THREE.Vector3, r: number, c: number) => number, closed: boolean, ccw: boolean) {
+export function loft(rows: THREE.Vector3[][], classify: (a: THREE.Vector3, r: number, c: number) => number, closed: boolean, ccw: boolean) {
   const R = rows.length, C = rows[0].length;
   const pos: number[] = [];
   for (const row of rows) for (const p of row) pos.push(p.x, p.y, p.z);

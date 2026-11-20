@@ -136,6 +136,13 @@ async function main() {
   };
   input.onPause = () => (state === 'drive' ? pause() : resume());
   input.onCamera = () => drive.toggleCamera();
+  drive.onCrash = (e) => {
+    const hit = $('hit');
+    hit.style.setProperty('--k', String(e.severity));
+    hit.classList.add('on');
+    requestAnimationFrame(() => requestAnimationFrame(() => hit.classList.remove('on')));
+    if (navigator.vibrate) navigator.vibrate(e.side ? 60 : 120);
+  };
   addEventListener('keydown', (e) => {
     if (state === 'pause' && (e.code === 'Escape' || e.code === 'KeyP')) resume();
     if (state === 'garage' && (e.code === 'Enter' || e.code === 'Space')) $('go').click();
@@ -219,7 +226,34 @@ async function runShot(kind: string, ctx: {
 }) {
   const p = new URLSearchParams(location.search);
   const steps = Number(p.get('steps') || 90);
-  if (kind === 'tex') {
+  if (kind === 'sim') {
+    // логика без отрисовки: N секунд езды со случайными перестроениями
+    await ctx.startDrive(true, 200);
+    const d = ctx.drive;
+    const secs = Number(p.get('secs') || 120);
+    let overlaps = 0, walls = 0, maxCount = 0, minV = 1e9, laneShift = 0, nextShift = 2;
+    let tSim = 0;
+    const stats = { sedan: 0, truck: 0 };
+    for (let i = 0; i < secs * 60; i++) {
+      tSim += 1 / 60;
+      if (tSim > nextShift) { laneShift = Math.random() < 0.5 ? -1 : 1; nextShift = tSim + 1 + Math.random() * 3; }
+      d.update(1 / 60, { throttle: Math.random() < 0.3 ? 1 : 0, brake: 0, laneShift }, tSim);
+      laneShift = 0;
+      const vs = d.traffic.vehicles;
+      maxCount = Math.max(maxCount, vs.length);
+      for (const a of vs) {
+        minV = Math.min(minV, a.v);
+        for (const b of vs) {
+          if (a === b || b.s < a.s) continue;
+          if (b.s - a.s < (a.length + b.length) / 2 && Math.abs(a.d - b.d) < (a.width + b.width) / 2 - 0.1) overlaps++;
+        }
+        const near = vs.filter((o) => Math.abs(o.s - a.s) < 6);
+        if (new Set(near.map((o) => o.lane)).size >= 3) walls++;
+      }
+      if (i % 600 === 0) for (const a of vs) stats[a.kind]++;
+    }
+    console.warn('SIM', JSON.stringify({ km: (d.odometer / 1000).toFixed(2), crashes: d.crashes, overlaps, walls, maxCount, minKmh: (minV * 3.6).toFixed(0), now: d.traffic.count, stats }));
+  } else if (kind === 'tex') {
     const map = (ctx.drive.world as any).mats.road.map as THREE.DataTexture;
     const { data, width, height } = map.image as { data: Uint8Array; width: number; height: number };
     const c = document.createElement('canvas');
@@ -249,6 +283,14 @@ async function runShot(kind: string, ctx: {
     ctx.drive.lane = lane;
     if (!intro) ctx.drive.d = lane * 3.5;
     const v = p.get('v');
+    if (p.get('near')) {
+      ctx.drive.traffic.clear();
+      const s0 = ctx.drive.s;
+      const nearS = Number(p.get('near'));
+      ctx.drive.traffic.debugPlace('truck', s0 + 40, lane + (lane < 1 ? 1 : -1) * 1, 90);
+      ctx.drive.traffic.debugPlace('sedan', s0 + nearS, lane + (lane < 1 ? 1 : -1) * 1, 88);
+      ctx.drive.traffic.debugPlace('sedan', s0 + 60, lane === -1 ? 1 : -1, 90);
+    }
     for (let i = 0; i < steps; i++) {
       if (v) ctx.drive.v = Number(v) / 3.6;
       ctx.frame(1 / 60);

@@ -440,7 +440,40 @@ async function main() {
   });
   document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
 
-  $('go').addEventListener('click', () => { if (state === 'garage') startDrive(); });
+  // ——— полный экран и веб-приложение ———
+  const docEl = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> };
+  const fsEnabled = !!(document.fullscreenEnabled || (document as any).webkitFullscreenEnabled);
+  const standalone = matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || (navigator as any).standalone === true;
+  const isFs = () => !!(document.fullscreenElement || (document as any).webkitFullscreenElement);
+  const enterFs = async (landscape: boolean) => {
+    if (!fsEnabled || isFs()) return;
+    try {
+      await (docEl.requestFullscreen ? docEl.requestFullscreen({ navigationUI: 'hide' }) : docEl.webkitRequestFullscreen?.());
+      if (landscape) await (screen.orientation as any)?.lock?.('landscape').catch(() => undefined);
+    } catch { /* браузер отказал — играем в окне */ }
+  };
+  if (fsEnabled && !standalone && !SHOT) {
+    $('fsBtn').hidden = false;
+    $('fsBtn').addEventListener('click', () => (isFs() ? document.exitFullscreen?.() : enterFs(false)));
+  }
+  for (const ev of ['fullscreenchange', 'webkitfullscreenchange']) document.addEventListener(ev, () => setTimeout(resize, 50));
+  // iPhone: страница не может скрыть Safari — подсказка «на экран Домой» (один раз, можно закрыть)
+  const isIOS = /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  let tipSeen = false;
+  try { tipSeen = localStorage.getItem('doroga.iosTip') === '1'; } catch { /* нет хранилища */ }
+  if (isIOS && !standalone && !tipSeen && !SHOT) $('iosTip').hidden = false;
+  $('iosTipClose').addEventListener('click', () => {
+    $('iosTip').hidden = true;
+    try { localStorage.setItem('doroga.iosTip', '1'); } catch { /* нет хранилища */ }
+  });
+  if ('serviceWorker' in navigator && !SHOT && location.protocol === 'https:') navigator.serviceWorker.register('./sw.js').catch(() => undefined);
+
+  $('go').addEventListener('click', () => {
+    if (state !== 'garage') return;
+    // на телефоне — сразу на весь экран и горизонтально (нажатие — жест пользователя, браузер разрешит)
+    if (matchMedia('(pointer: coarse)').matches) enterFs(true);
+    startDrive();
+  });
   $('pauseBtn').addEventListener('click', pause);
   $('resume').addEventListener('click', resume);
   $('restart').addEventListener('click', async () => { finishRun(); await startDrive(); });

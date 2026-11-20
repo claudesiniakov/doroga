@@ -4,6 +4,12 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#07080a" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Дорога" />
   <title>Дорога</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%2307080a%22/%3E%3Cpath d=%22M13 4h6l5 24H8z%22 fill=%22%23ff8a3d%22/%3E%3Cpath d=%22M15.3 8h1.4v4h-1.4zM15.2 15h1.6v5h-1.6z%22 fill=%22%2307080a%22/%3E%3C/svg%3E" />
 </head>
@@ -20,7 +26,10 @@
   <section id="garage" class="screen">
     <header class="top">
       <div class="logo">ДОРОГА</div>
-      <div class="wallet-top"><span class="coin"></span><b id="walletTop">100</b></div>
+      <div class="top-right">
+        <button class="icon-btn fs-btn" id="fsBtn" aria-label="На весь экран" hidden><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+        <div class="wallet-top"><span class="coin"></span><b id="walletTop">100</b></div>
+      </div>
     </header>
     <div class="panel car-card">
       <div class="tabs" id="tabs"></div>
@@ -55,6 +64,10 @@
         </section>
       </div>
       <button id="go" class="go">Поехать</button>
+    </div>
+    <div class="ios-tip" id="iosTip" hidden>
+      <b>На весь экран</b> — нажмите <span class="share">⬆︎</span> «Поделиться» → «На экран „Домой“» и запускайте игру с иконки.
+      <button id="iosTipClose" aria-label="Закрыть">✕</button>
     </div>
     <div class="hint drag-hint">Потяните, чтобы повернуть машину</div>
   </section>

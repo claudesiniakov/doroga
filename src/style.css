@@ -345,3 +345,24 @@ kbd {
 .reset-all { margin-top: 12px; padding: 0; border: 0; background: none; color: var(--ink-3); font-size: 12.5px; text-decoration: underline dotted; text-underline-offset: 3px; }
 .reset-all:hover { color: var(--ink-2); }
 .reset-all.confirm { color: #ff8a7a; font-weight: 600; text-decoration: none; padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(255, 110, 90, .5); background: rgba(255, 80, 60, .08); }
+
+/* ——— полный экран и веб-приложение ——— */
+html, body { height: 100dvh; }
+.top-right { display: flex; align-items: center; gap: 8px; }
+.fs-btn svg { fill: none; color: var(--ink); stroke: currentColor; }
+.ios-tip {
+  position: absolute; left: calc(16px + var(--safe-l)); right: calc(16px + var(--safe-r)); top: calc(70px + var(--safe-t));
+  padding: 10px 36px 10px 14px; border-radius: 12px; background: var(--glass); border: 1px solid var(--line);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); font-size: 13px; line-height: 1.4; color: var(--ink-2);
+}
+.ios-tip b { color: var(--ink); }
+.ios-tip .share { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 4px; border: 1px solid var(--ink-3); font-size: 11px; color: var(--ink); }
+.ios-tip button { position: absolute; right: 6px; top: 6px; width: 26px; height: 26px; border: 0; background: none; color: var(--ink-2); font-size: 14px; }
+.ios-tip[hidden], .fs-btn[hidden] { display: none; }
+/* телефон вертикально: компактная карточка, машина видна над ней */
+@media (max-width: 720px) and (orientation: portrait) {
+  .slide .tag, .slide .stats { display: none; }
+  .car-card h1 { font-size: 26px; margin: 4px 0 2px; }
+  .tankline { margin: 0 0 12px; }
+  .car-card { padding: 14px 16px; }
+}

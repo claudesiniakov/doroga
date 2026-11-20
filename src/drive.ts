@@ -323,7 +323,12 @@ export class DriveScene {
         this.pitExit = ex;
         this.phase = 'pitIn';
       }
-      if (input.throttle > 0) a = cfg.accel * Math.pow(Math.max(0, 1 - this.v / vmax), 0.6) * input.throttle;
+      if (input.throttle > 0) {
+        // газ задаёт целевую скорость: 0 % — круиз, 100 % — максимум машины, между — плавно
+        const vt = CRUISE + (vmax - CRUISE) * input.throttle;
+        if (this.v < vt) a = cfg.accel * Math.pow(Math.max(0, 1 - this.v / vmax), 0.6) * Math.min(1, (vt - this.v) / 3 + 0.15);
+        else a = clamp((vt - this.v) * 0.35, -2.2, 0);
+      }
       else if (input.brake > 0) { a = -cfg.brake * input.brake; brake = input.brake; }
       else a = clamp((CRUISE - this.v) * 0.35, this.phase === 'pitOut' ? -2.2 : -2.2, this.phase === 'pitOut' ? 3.2 : 1.8);
     }

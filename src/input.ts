@@ -5,6 +5,8 @@ export class Input {
   private shift = 0;
   private keys = new Set<string>();
   private pedals = { gas: false, brake: false };
+  /** Ползунок газа на сенсорном экране: 0…1, пока палец на нём. */
+  private gasLevel = 0;
   onPause?: () => void;
   onCamera?: () => void;
   enabled = false;
@@ -21,7 +23,7 @@ export class Input {
       if (this.isDriveKey(e.code)) e.preventDefault();
     });
     addEventListener('keyup', (e) => this.keys.delete(e.code));
-    addEventListener('blur', () => { this.keys.clear(); this.pedals.gas = this.pedals.brake = false; });
+    addEventListener('blur', () => { this.keys.clear(); this.pedals.gas = this.pedals.brake = false; this.gasLevel = 0; });
 
     // касание левой/правой половины экрана — смена полосы; свайп тоже
     let sx = 0, sy = 0, st = 0, swiped = false;
@@ -50,8 +52,33 @@ export class Input {
       el.addEventListener('pointercancel', off);
       el.addEventListener('lostpointercapture', off);
     };
-    hold(gas, 'gas');
     hold(brake, 'brake');
+
+    // газ — вертикальный ползунок: где палец, столько и газа (низ 0 %, верх 100 %); отпустил — 0
+    const fill = gas.querySelector<HTMLElement>('.gas-fill');
+    const val = gas.querySelector<HTMLElement>('.gas-val b');
+    const setGas = (v: number) => {
+      this.gasLevel = v;
+      const pct = Math.round(v * 100);
+      if (fill) fill.style.height = `${pct}%`;
+      if (val) val.textContent = String(pct);
+      gas.setAttribute('aria-valuenow', String(pct));
+      gas.classList.toggle('on', v > 0);
+    };
+    const fromY = (y: number) => {
+      const r = gas.getBoundingClientRect();
+      const pad = 10;   // у краёв — гарантированные 0 и 100 %
+      return Math.min(1, Math.max(0, (r.bottom - pad - y) / (r.height - pad * 2)));
+    };
+    let active = -1;
+    gas.addEventListener('pointerdown', (e) => {
+      e.preventDefault(); try { gas.setPointerCapture(e.pointerId); } catch { /* нет захвата */ } active = e.pointerId; setGas(fromY(e.clientY));
+    });
+    gas.addEventListener('pointermove', (e) => { if (e.pointerId === active) setGas(fromY(e.clientY)); });
+    const release = (e: PointerEvent) => { if (e.pointerId === active) { active = -1; setGas(0); } };
+    gas.addEventListener('pointerup', release);
+    gas.addEventListener('pointercancel', release);
+    gas.addEventListener('lostpointercapture', release);
   }
 
   private isDriveKey(c: string) {
@@ -60,7 +87,7 @@ export class Input {
 
   poll() {
     const k = this.keys;
-    this.throttle = this.enabled && (k.has('ArrowUp') || k.has('KeyW') || this.pedals.gas) ? 1 : 0;
+    this.throttle = !this.enabled ? 0 : k.has('ArrowUp') || k.has('KeyW') ? 1 : this.gasLevel;
     this.brake = this.enabled && (k.has('ArrowDown') || k.has('KeyS') || k.has('Space') || this.pedals.brake) ? 1 : 0;
   }
 

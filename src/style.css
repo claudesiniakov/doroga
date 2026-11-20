@@ -126,7 +126,25 @@ kbd {
 }
 .pedal.on { background: rgba(255, 140, 60, .35); color: var(--ink); border-color: rgba(255, 170, 100, .6); }
 .pedal.brake { left: calc(22px + var(--safe-l)); }
-.pedal.gas { right: calc(22px + var(--safe-r)); }
+.pedal.gas {
+  right: calc(22px + var(--safe-r)); height: min(230px, 46vh); overflow: hidden; cursor: ns-resize;
+}
+.gas-fill {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 0;
+  background: linear-gradient(to top, rgba(255, 120, 40, .75), rgba(255, 190, 90, .45));
+  transition: height .06s linear;
+}
+.gas-ticks {
+  position: absolute; inset: 10px 0; pointer-events: none;
+  background: repeating-linear-gradient(to top, transparent 0 calc(25% - 1px), rgba(255,255,255,.22) calc(25% - 1px) 25%);
+}
+.gas-val {
+  position: absolute; left: 0; right: 0; top: 12px; display: grid; justify-items: center; gap: 2px; pointer-events: none;
+  font-size: 12px; color: var(--ink);
+}
+.gas-val b { font-size: 24px; font-weight: 750; letter-spacing: 0; line-height: 1; }
+.gas-val span { font-size: 10px; letter-spacing: .14em; color: var(--ink-2); }
+.pedal.gas.on { background: var(--glass); }
 
 /* ——— пауза ——— */
 #pause { display: grid; place-items: center; background: rgba(5, 6, 8, .35); }

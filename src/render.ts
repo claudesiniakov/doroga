@@ -17,9 +17,9 @@ export interface Quality {
 }
 
 export const QUALITY: Record<QualityName, Quality> = {
-  low: { name: 'low', pixelRatio: 1, shadowMap: 1024, bloom: false, msaa: 0, textureSize: 512 },
-  medium: { name: 'medium', pixelRatio: 1.5, shadowMap: 2048, bloom: true, msaa: 4, textureSize: 1024 },
-  high: { name: 'high', pixelRatio: 2, shadowMap: 4096, bloom: true, msaa: 4, textureSize: 1024 },
+  low: { name: 'low', pixelRatio: 1.25, shadowMap: 1024, bloom: false, msaa: 0, textureSize: 512 },
+  medium: { name: 'medium', pixelRatio: 1.75, shadowMap: 2048, bloom: true, msaa: 4, textureSize: 1024 },
+  high: { name: 'high', pixelRatio: 2.5, shadowMap: 4096, bloom: true, msaa: 4, textureSize: 1024 },
 };
 
 export function detectQuality(): QualityName {

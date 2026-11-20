@@ -10,7 +10,7 @@ const renderer = new Renderer(document.getElementById('gl') as HTMLCanvasElement
 const pmrem = new THREE.PMREMGenerator(renderer.gl);
 const garage = new GarageScene(pmrem, document.body);
 const base = (cars as CarConfig[])[0];
-const car = buildVette({ ...base, color: '#f4f5f2', sponsor: 'absouleins.ru' });
+const car = buildVette({ ...base, color: '#f4f5f2', sponsor: 'absolutins.ru' });
 garage.attachCar(car);
 renderer.setExposure(1.0);
 renderer.setBloom(0.22, 3.0, 0.4);

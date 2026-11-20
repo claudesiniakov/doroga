@@ -45,13 +45,35 @@ vec3 liveryColor(vec3 p, vec3 n, vec3 base) {
 
 function logoTexture(text: string) {
   const c = document.createElement('canvas');
-  c.width = 1024; c.height = 192;
+  c.width = 2048; c.height = 320;
   const g = c.getContext('2d')!;
-  g.clearRect(0, 0, 1024, 192);
-  g.font = 'italic 900 118px "Arial Black", Arial, sans-serif';
+  g.clearRect(0, 0, 2048, 320);
+  g.font = 'italic 900 210px "Arial Black", Arial, sans-serif';
   g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.lineWidth = 14; g.strokeStyle = '#ffffff'; g.strokeText(text, 512, 100);
-  g.fillStyle = '#0a1f5c'; g.fillText(text, 512, 100);
+  g.lineJoin = 'round';
+  g.lineWidth = 26; g.strokeStyle = '#ffffff'; g.strokeText(text, 1024, 168);
+  g.fillStyle = '#0a1f5c'; g.fillText(text, 1024, 168);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
+}
+
+/** Эмблема на дверь: большая «a» в синем круге с белой окантовкой. */
+function letterTexture(letter: string) {
+  const S = 1024;
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const g = c.getContext('2d')!;
+  g.clearRect(0, 0, S, S);
+  g.beginPath(); g.arc(S / 2, S / 2, S * 0.47, 0, Math.PI * 2);
+  g.fillStyle = '#ffffff'; g.fill();
+  g.beginPath(); g.arc(S / 2, S / 2, S * 0.43, 0, Math.PI * 2);
+  g.fillStyle = '#0a1f5c'; g.fill();
+  g.font = `900 ${Math.round(S * 0.72)}px "Arial Black", Arial, sans-serif`;
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = '#ffffff';
+  g.fillText(letter, S / 2, S * 0.47);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 8;
@@ -133,7 +155,7 @@ export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity =
     const ax = Math.abs(p.x);
     if (p.z > 2.0 && p.y < 0.36 && ax < 0.7) return 1;                       // нижняя решётка
     if (p.z > 1.9 && p.y < 0.2) return 1;                                    // сплиттер
-    if (p.z < -2.15 && p.y < 0.5) return 1;                                  // диффузор
+    if (p.z < -2.27 && p.y < 0.47) return 1;                                 // диффузор (по плоскости кормы — ровный край)
     if (p.y < sh.base(p.z) + 0.06 && ax > 0.55) return 1;                   // пороги
     return 0;
   }, true, true);
@@ -320,24 +342,28 @@ export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity =
   }
 
   // ——— надписи спонсора (видны вместе с ливреей) ———
-  const logoMat = new THREE.MeshStandardMaterial({ map: logoTexture(cfg.sponsor ?? 'absouleins.ru'), transparent: true, roughness: 0.35, polygonOffset: true, polygonOffsetFactor: -3 });
+  const logoMat = new THREE.MeshStandardMaterial({ map: logoTexture(cfg.sponsor ?? 'absolutins.ru'), transparent: true, roughness: 0.35, polygonOffset: true, polygonOffsetFactor: -3 });
   const logos = new THREE.Group();
   logos.visible = false;
   body.add(logos);
+  // на дверях — большая «a» по центру (с наклоном по изгибу борта)
+  const letterMat = new THREE.MeshStandardMaterial({ map: letterTexture((cfg.sponsor ?? 'absolutins.ru').charAt(0)), transparent: true, roughness: 0.3, polygonOffset: true, polygonOffsetFactor: -3 });
   for (const side of [-1, 1]) {
-    const z = 0.15, y = 0.44;
-    const p = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.19), logoMat);
-    p.position.set(side * (sh.xAt(z, y) + 0.004), y, z);
-    p.rotation.y = side * Math.PI / 2;
+    const z = 0.2, y = 0.6, size = 0.44;
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(size, size), letterMat);
+    p.position.set(side * (sh.xAt(z, y) + 0.006), y, z);
+    const dxdy = (sh.xAt(z, y + 0.1) - sh.xAt(z, y - 0.1)) / 0.2;
+    const tilt = side * Math.atan(-dxdy);
+    p.quaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), tilt)
+      .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), side * Math.PI / 2));
     logos.add(p);
   }
+  // на корме — полное название между фонарями и номером
   {
-    const z = 1.62, y = sh.top(z) + 0.004;
-    const slope = Math.atan2(sh.top(z + 0.1) - sh.top(z - 0.1), 0.2);
-    const p = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.12), logoMat);
-    p.position.set(0.42, y, z);
-    p.rotation.set(-Math.PI / 2 - slope, 0, 0);
-    p.rotateZ(Math.PI);
+    const y = 0.8, z = sh.surfaceZ(0.45, y, -1) - 0.008;
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.156), logoMat);
+    p.position.set(0, y, z);
+    p.rotation.y = Math.PI;
     logos.add(p);
   }
 

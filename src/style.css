@@ -341,3 +341,7 @@ kbd {
   .tabs { margin-bottom: 8px; }
 }
 @media (max-width: 720px) { .hint.drag-hint { display: none; } }
+
+.reset-all { margin-top: 12px; padding: 0; border: 0; background: none; color: var(--ink-3); font-size: 12.5px; text-decoration: underline dotted; text-underline-offset: 3px; }
+.reset-all:hover { color: var(--ink-2); }
+.reset-all.confirm { color: #ff8a7a; font-weight: 600; text-decoration: none; padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(255, 110, 90, .5); background: rgba(255, 80, 60, .08); }

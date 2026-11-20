@@ -229,6 +229,7 @@ export class DriveScene {
     this.policeFine = 0;
     this.schedulePolice();
     this.placeCar(0);
+    this.world.planTrip(startS, startS + this.tripKm * 1000);
     this.world.prime(this.s, this.car.root.position);
     this.crashes = 0;
     this.shakeAmp = 0;
@@ -261,9 +262,11 @@ export class DriveScene {
     } else if (this.phase === 'policeIn') {
       // к обочине и остановка за патрульной машиной
       const left = Math.max(0, this.policeS! - 10 - this.s);
-      a = clamp((Math.sqrt(2 * 2.4 * left) - this.v) * 3, -7, 1);
+      a = clamp((Math.sqrt(2 * 3.5 * left) - this.v) * 3, -10, 1);
       brake = 1;
-      if (left < 0.4 && this.v < 0.6) {
+      // никогда не въезжаем в патрульную машину: упор за 8 м
+      if (this.s > this.policeS! - 8) { this.s = this.policeS! - 8; this.v = 0; }
+      if ((left < 0.4 && this.v < 0.6) || this.v === 0) {
         this.v = 0; a = 0;
         this.phase = 'protocol';
         this.policeFine = Math.min(DriveScene.POLICE_FINE, this.coins);
@@ -287,7 +290,7 @@ export class DriveScene {
       this.v = 0; a = 0; brake = 1;
     } else if (this.phase === 'empty' || this.phase === 'wrecked' || this.phase === 'finish') {
       // бак пуст — накат; машина разбита — резко тормозим; финиш — плавно тормозим
-      a = this.phase === 'empty' ? -1.6 - this.v * 0.02 : this.phase === 'finish' ? -4.5 : -6;
+      a = this.phase === 'empty' ? -1.6 - this.v * 0.02 : this.phase === 'finish' ? -9.5 : -6;
       brake = this.phase === 'empty' ? 0 : 1;
       if (this.v + a * dt <= 0.05) {
         this.v = 0; a = 0;
@@ -305,7 +308,9 @@ export class DriveScene {
       if (this.phase === 'pitOut' && this.lane !== 2) this.phase = 'drive';
       if (this.phase === 'policeOut' && Math.abs(this.d - this.lane * ROAD.laneWidth) < 0.4) this.phase = 'drive';
       // патруль впереди: машина сама уходит на обочину
-      if (this.phase === 'drive' && this.policeS !== null && this.policeFine === 0 && this.s > this.policeS - 160 && this.s < this.policeS - 40) {
+      // начинаем заранее — с учётом тормозного пути на текущей скорости
+      const policeLead = 60 + (this.v * this.v) / (2 * 4);
+      if (this.phase === 'drive' && this.policeS !== null && this.policeFine === 0 && this.s > this.policeS - policeLead && this.s < this.policeS - 12) {
         this.phase = 'policeIn';
         this.lane = 3;
       }

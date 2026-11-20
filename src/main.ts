@@ -114,6 +114,25 @@ async function main() {
     $('go').textContent = `Поехать · поездка №${trip}, ${tripKm(trip)} км`;
   };
 
+  // ——— начать сначала: полный сброс прогресса (в два нажатия) ———
+  {
+    const btn = $('resetAll');
+    let armed = 0;
+    btn.addEventListener('click', () => {
+      if (!armed) {
+        btn.classList.add('confirm');
+        btn.textContent = 'Точно сбросить? Кошелёк, поездки, статистика, КБМ — к началу. Нажмите ещё раз';
+        armed = window.setTimeout(() => { armed = 0; btn.classList.remove('confirm'); btn.textContent = 'Начать сначала'; }, 5000);
+        return;
+      }
+      clearTimeout(armed);
+      for (const k of ['doroga.wallet', 'doroga.trip', 'doroga.stats', 'doroga.kaskoPrice', 'doroga.kbm', 'doroga.ins', 'doroga.car']) {
+        try { localStorage.removeItem(k); } catch { /* нет хранилища */ }
+      }
+      location.reload();
+    });
+  }
+
   // ——— карусель карточки гаража (вкладки + свайп) ———
   {
     const slidesEl = $('slides');
@@ -566,7 +585,46 @@ async function runShot(kind: string, ctx: {
   const p = new URLSearchParams(location.search);
   const steps = Number(p.get('steps') || 90);
   if (kind === 'sim') (ctx.drive.world.constructor as any).stats = { base: [], scatter: [], far: [] };
-  if (kind === 'trip') {
+  if (kind === 'stops') {
+    const d = ctx.drive, log: string[] = [];
+    let t = 0;
+    const run = (cond: () => boolean, kmh?: number, max = 90) => {
+      const t0 = t;
+      while (!cond() && t - t0 < max) { t += 1 / 60; if (kmh && d.phase === 'drive') d.v = kmh / 3.6; d.update(1 / 60, { throttle: kmh ? 1 : 0, brake: 0, laneShift: 0 }, t); }
+    };
+    const osago = document.getElementById('insOsago')!;
+    if (osago.classList.contains('on')) osago.click();
+    for (const kmh of [90, 200]) {
+      await ctx.startDrive(true, 30);
+      d.policeS = d.s + 900; d.fuel = 60;
+      let minGap = Infinity;
+      const t0 = t;
+      while (d.phase !== 'protocol' && t - t0 < 90) {
+        t += 1 / 60; if (d.phase === 'drive') d.v = kmh / 3.6;
+        d.update(1 / 60, { throttle: 1, brake: 0, laneShift: 0 }, t);
+        minGap = Math.min(minGap, d.policeS! - d.s);
+      }
+      log.push(`ДПС на ${kmh} км/ч: phase=${d.phase}, встал за ${(d.policeS! - d.s).toFixed(1)} м, ближе всего ${minGap.toFixed(1)} м`);
+    }
+    for (const kmh of [90, 200]) {
+      await ctx.startDrive(true, 30);
+      d.policeS = null; d.fuel = 60;
+      d.s = d.finishS - 300;
+      run(() => d.phase === 'finish', kmh);
+      const sF = d.s;
+      run(() => d.phase === 'stopped');
+      log.push(`финиш на ${kmh} км/ч: остановка через ${(d.s - sF).toFixed(0)} м после линии`);
+    }
+    for (const km of [4, 6, 10, 20]) {
+      d.world.path.planTrip(30, 30 + km * 1000);
+      const ex = d.world.path.exits.filter((e) => e.sStop > 30 && e.sStop < 30 + km * 1000);
+      log.push(`${km} км: ` + ex.map((e) => `${e.kind === 'repair' ? 'сервис' : 'заправка'} ${((e.sStop - 30) / 1000).toFixed(1)}`).join(', '));
+    }
+    const rb = document.getElementById('resetAll')!;
+    rb.click();
+    log.push(`сброс, 1-е нажатие: «${rb.textContent}»`);
+    console.warn('STOPS ' + log.join(' | '));
+  } else if (kind === 'trip') {
     for (const k of ['doroga.wallet', 'doroga.trip', 'doroga.kaskoPrice', 'doroga.stats', 'doroga.ins']) localStorage.removeItem(k);
     location.search.includes('reloaded') || null;
     const d = ctx.drive, log: string[] = [];

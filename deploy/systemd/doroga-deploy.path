@@ -1,0 +1,8 @@
+[Unit]
+Description=Watch Doroga deployment branch
+
+[Path]
+PathChanged=/root/doroga-bare.git/refs/heads/main
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,11 @@
+[Unit]
+Description=Build and publish Doroga
+After=network-online.target nginx.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+StateDirectory=doroga-deploy
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/local/libexec/doroga-publish
+TimeoutStartSec=10min

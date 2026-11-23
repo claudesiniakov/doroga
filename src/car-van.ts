@@ -33,10 +33,10 @@ export function buildVan(cfg: CarConfig, envIntensity = 1): CarModel {
   };
   const tube = (pts: THREE.Vector3[], r: number, m: THREE.Material, cast = false) =>
     add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), Math.max(8, pts.length * 6), r, 8, false), m, 0, 0, 0, cast);
-  const onSurf = (x: number, y: number, end: 1 | -1, out = 0) => new THREE.Vector3(x, y, sh.surfaceZ(x, y, end) + end * out);
 
   // ——— кузов и «аквариум» ———
-  const bm = new THREE.Mesh(loft(sh.body(120, 28), vanBodyClassify(sh), true, true), [paint, plastic]);
+  const classifyBody = vanBodyClassify(sh);
+  const bm = new THREE.Mesh(loft(sh.body(120, 28), (p) => Math.abs(p.z) < 2.1 ? classifyBody(p) : 0, true, true), [paint, plastic]);
   bm.castShadow = bm.receiveShadow = true;
   body.add(bm);
   const gh = vanGreenhouse(sh);
@@ -44,46 +44,77 @@ export function buildVan(cfg: CarConfig, envIntensity = 1): CarModel {
   ghm.castShadow = true;
   body.add(ghm);
   add(new THREE.BoxGeometry(1.4, 0.5, 3.9), under, 0, 0.5, -0.05, false);
-  // щётка пятой двери
-  add(new THREE.BoxGeometry(0.42, 0.018, 0.012).rotateZ(0.5), plastic, 0.1, 1.16, gh.zC - 0.03, false);
 
-  // ——— перед: стреловидные фары по форме носа, решётка, противотуманки ———
-  for (const side of [-1, 1]) {
-    const xs = [0.42, 0.55, 0.68, 0.78, 0.84].map((x) => side * x);
-    const yL = (x: number) => 0.74 + (Math.abs(x) - 0.42) * 0.22;
-    tube(xs.map((x) => onSurf(x, yL(x), 1, -0.014)), 0.05, glass);
-    tube(xs.map((x) => onSurf(x, yL(x) + 0.025, 1, 0.024)), 0.009, headMat);
-    tube(xs.slice(0, 3).map((x) => onSurf(x, yL(x) - 0.025, 1, 0.022)), 0.013, headMat);
-    add(new RoundedBoxGeometry(0.12, 0.04, 0.03, 2, 0.01), amber, side * 0.8, yL(0.8) - 0.01, sh.surfaceZ(0.8, 0.8, 1) - 0.02, false);
-    // противотуманки
-    const fz = sh.surfaceZ(0.66, 0.4, 1);
-    add(new THREE.CylinderGeometry(0.045, 0.045, 0.03, 20).rotateX(Math.PI / 2), headMat, side * 0.66, 0.4, fz + 0.005, false);
-    add(new THREE.TorusGeometry(0.05, 0.008, 6, 20), chrome, side * 0.66, 0.4, fz + 0.012, false);
-  }
-  tube([-0.4, -0.2, 0, 0.2, 0.4].map((x) => onSurf(x, 0.71, 1, 0.004)), 0.012, chrome);
-  tube([-0.36, -0.18, 0, 0.18, 0.36].map((x) => onSurf(x, 0.66, 1, 0.004)), 0.006, chrome);
-
-  // ——— зад: вертикальные фонари на стойках, номер, ручка ———
-  for (const side of [-1, 1]) {
-    const pts: THREE.Vector3[] = [];
-    for (let k = 0; k <= 6; k++) {
-      const y = 0.68 + k * 0.06;
-      const x = side * (sh.xAt(-2.37, y) - 0.03);
-      pts.push(onSurf(x, y, -1, 0.004));
+  // Накладки и световые элементы проецируются на фактическую сетку кузова.
+  const endRay = new THREE.Raycaster();
+  const surfacePoint = (x: number, y: number, end: 1 | -1, offset: number, mesh = bm) => {
+    endRay.ray.origin.set(x, y, end * 3);
+    endRay.ray.direction.set(0, 0, -end);
+    const z = endRay.intersectObject(mesh, false)[0]?.point.z ?? sh.surfaceZ(x, y, end);
+    return new THREE.Vector3(x, y, z + end * offset);
+  };
+  const endPanel = (end: 1 | -1, point: (u: number, v: number) => [number, number],
+    material: THREE.Material, offset = 0.009) => {
+    const geometry = new THREE.PlaneGeometry(1, 1, 24, 12);
+    const positions = geometry.getAttribute('position');
+    for (let i = 0; i < positions.count; i++) {
+      const [x, y] = point(0.5 + end * positions.getX(i), positions.getY(i) + 0.5);
+      const p = surfacePoint(x, y, end, offset);
+      positions.setXYZ(i, p.x, p.y, p.z);
     }
-    tube(pts, 0.035, glass);
-    tube(pts.map((p) => p.clone().add(new THREE.Vector3(0, 0, -0.03))), 0.017, tailMat);
-    add(new RoundedBoxGeometry(0.06, 0.07, 0.03, 2, 0.01), amber, side * (sh.xAt(-2.37, 0.62) - 0.07), 0.62, sh.surfaceZ(0.7, 0.62, -1) - 0.02, false);
+    geometry.computeVertexNormals();
+    add(geometry, material, 0, 0, 0, false);
+  };
+  const rectangle = (end: 1 | -1, x: number, y: number, width: number, height: number,
+    material: THREE.Material, offset?: number) =>
+    endPanel(end, (u, v) => [x + (u - 0.5) * width, y + (v - 0.5) * height], material, offset);
+
+  const wiper = Array.from({ length: 9 }, (_, i) => surfacePoint(-0.09 + i * 0.043, 1.125 + i * 0.012, -1, 0.012, ghm));
+  tube(wiper, 0.009, plastic);
+
+  for (const side of [-1, 1]) {
+    const headlight = (u: number, v: number): [number, number] => {
+      const x = side * 0.59 + (u - 0.5) * 0.37;
+      const wing = (Math.abs(x) - 0.405) / 0.37;
+      return [x, 0.713 + wing * 0.069 + (v - 0.5) * (0.095 - wing * 0.047)];
+    };
+    endPanel(1, headlight, plastic);
+    endPanel(1, (u, v) => headlight(0.055 + u * 0.89, 0.59 + v * 0.23), headMat, 0.018);
+    endPanel(1, (u, v) => headlight(side > 0 ? 0.72 + u * 0.16 : 0.12 + u * 0.16, 0.2 + v * 0.25), amber, 0.018);
+
+    const fogX = side * 0.62, fogY = 0.425;
+    const fogRing = Array.from({ length: 25 }, (_, i) => {
+      const angle = i * Math.PI / 12;
+      return surfacePoint(fogX + Math.cos(angle) * 0.041, fogY + Math.sin(angle) * 0.041, 1, 0.013);
+    });
+    tube(fogRing, 0.005, chrome);
+    const fog = new THREE.CircleGeometry(0.032, 28);
+    const positions = fog.getAttribute('position');
+    for (let i = 0; i < positions.count; i++) {
+      const p = surfacePoint(fogX + positions.getX(i), fogY + positions.getY(i), 1, 0.016);
+      positions.setXYZ(i, p.x, p.y, p.z);
+    }
+    fog.computeVertexNormals();
+    add(fog, headMat, 0, 0, 0, false);
+
+    const rearLight = (u: number, v: number): [number, number] => {
+      const x = 0.73 - 0.49 * v ** 3;
+      const y = 0.635 + 0.35 * (1 - (1 - v) ** 3);
+      const dx = -1.47 * v ** 2, dy = 1.05 * (1 - v) ** 2;
+      const width = (u - 0.5) * 0.068 / Math.hypot(dx, dy);
+      return [side * x + dy * width, y - side * dx * width];
+    };
+    endPanel(-1, rearLight, plastic);
+    endPanel(-1, (u, v) => rearLight(0.24 + u * 0.52, 0.19 + v * 0.76), tailMat, 0.018);
+    endPanel(-1, (u, v) => rearLight(0.24 + u * 0.52, 0.02 + v * 0.08), amber, 0.018);
   }
-  {
-    const y = 0.8, z = sh.surfaceZ(0.27, y, -1) - 0.012;
-    const plate = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.112),
-      new THREE.MeshStandardMaterial({ map: makePlateTexture(cfg.plate), roughness: 0.4, metalness: 0.2 }));
-    plate.position.set(0, y, z);
-    plate.rotation.y = Math.PI;
-    body.add(plate);
-    add(new RoundedBoxGeometry(0.34, 0.035, 0.03, 2, 0.012), chrome, 0, 0.93, sh.surfaceZ(0.17, 0.93, -1) - 0.015, false);
-  }
+  rectangle(1, 0, 0.47, 0.93, 0.115, plastic);
+  rectangle(1, 0, 0.491, 0.84, 0.014, chrome, 0.018);
+  rectangle(1, 0, 0.66, 0.66, 0.025, chrome);
+  rectangle(-1, 0, 0.80, 0.52, 0.112,
+    new THREE.MeshStandardMaterial({ map: makePlateTexture(cfg.plate), roughness: 0.4, metalness: 0.2 }));
+  rectangle(-1, 0, 0.927, 0.26, 0.025, chrome);
+  rectangle(-1, 0, 0.40, 1.08, 0.10, plastic);
 
   // ——— бока: двери, направляющая сдвижной двери, ручки, зеркала, рейлинги ———
   const gap = new THREE.MeshBasicMaterial({ color: 0x050505 });

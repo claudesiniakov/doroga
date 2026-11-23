@@ -3,6 +3,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { Shape } from './traffic-models';
 import { loft, spline, bodyStations, CarConfig, CarModel } from './car';
 import { makePlateTexture } from './textures';
+import { smoothstep } from './noise';
 import absolutLogo from './brand/absolut-logo.svg?raw';
 
 /**
@@ -113,6 +114,7 @@ export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity =
 
   const black = new THREE.MeshPhysicalMaterial({ color: 0x0b0b0c, roughness: 0.42, metalness: 0.1, clearcoat: 0.4, envMapIntensity: envIntensity });
   const carbon = new THREE.MeshStandardMaterial({ color: 0x141518, roughness: 0.55, metalness: 0.3 });
+  const satin = new THREE.MeshStandardMaterial({ color: 0x78818c, metalness: 0.65, roughness: 0.30, envMapIntensity: envIntensity });
   const glass = new THREE.MeshPhysicalMaterial({ color: 0x0b1117, roughness: 0.02, metalness: 0.1, clearcoat: 1, envMapIntensity: 1.6 * envIntensity });
   const chrome = new THREE.MeshStandardMaterial({ color: 0xe6e8ec, metalness: 1, roughness: 0.14, envMapIntensity: envIntensity });
   const under = new THREE.MeshStandardMaterial({ color: 0x0d0d0e, roughness: 0.9 });
@@ -148,7 +150,7 @@ export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity =
   rows.push(f1, f0);
   const bodyGeo = loft(rows, (p) => {
     const ax = Math.abs(p.x);
-    if (p.y < sh.base(p.z) + 0.06 && ax > 0.55) return 1;                   // пороги
+    if (p.z < 1.58 && p.y < sh.base(p.z) + 0.06 && ax > 0.55) return 1;                   // пороги
     return 0;
   }, true, true);
   const bm = new THREE.Mesh(bodyGeo, [paintBody, black]);
@@ -163,7 +165,8 @@ export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity =
   const gRows: THREE.Vector3[][] = [];
   for (let r = 0; r < GR; r++) {
     const z = zC + ((zA - zC) * r) / (GR - 1);
-    const yb = sh.top(z) - 0.012, H = Math.max(0, roof(z) - yb);
+    const pillarBase = 0.086 * (1 - smoothstep(-0.53, -0.37, z));
+    const yb = sh.top(z) - 0.012 - pillarBase, H = Math.max(0, roof(z) - yb);
     // ширина — по «плечам» кузова (чуть ниже верха), а не по самому верху, где сечение сходится к середине
     const wb = sh.xAt(z, sh.top(z) - 0.09) - 0.015, wr = wb * 0.9; // кабина почти во всю ширину кузова
     const ring: THREE.Vector3[] = [];
@@ -177,11 +180,10 @@ export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity =
   }
   const ghGeo = loft(gRows, (p, _r, c) => {
     const s = (sOf[c] + sOf[c + 1]) / 2, z = p.z;
+    if (z <= -0.42) return s > 0.8 ? 1 : 0;                    // заднее стекло и стойки до кузова
     if (s < 0.07) return 2;
     if (z > 0.38) return s > 0.58 && s < 0.72 ? 2 : 1;          // лобовое, чёрные A-стойки
-    if (z > -0.42) return s > 0.8 ? 0 : 1;                       // крыша, боковые стёкла
-    if (s > 0.8) return 1;                                       // заднее стекло
-    return 0;                                                    // контрфорсы
+    return s > 0.8 ? 0 : 1;                                      // крыша, боковые стёкла
   }, false, false);
   const gh = new THREE.Mesh(ghGeo, [paintBody, glass, black]);
   gh.castShadow = true;
@@ -221,13 +223,25 @@ export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity =
     (mesh.material as THREE.Material).side = THREE.DoubleSide;
     return mesh;
   };
-  // Передний воздухозаборник и рёбра повторяют поверхность носа.
-  endPatch(1, -0.64, 0.64, (x) => 0.23 + 0.018 * (x / 0.64) ** 2,
-    (x) => 0.375 - 0.045 * (x / 0.64) ** 2, black, 0.010);
-  for (const y of [0.267, 0.298, 0.329]) {
-    const xs = [-0.53, -0.36, -0.18, 0, 0.18, 0.36, 0.53];
-    tube(xs.map((x) => new THREE.Vector3(x, y, frontSurface(x, y) + 0.019)), 0.0045, carbon);
+  // Решётка выше кромки бампера, сплиттер отдельной деталью под ней.
+  endPatch(1, -0.63, 0.63, (x) => 0.276 + 0.014 * (x / 0.63) ** 2,
+    (x) => 0.416 - 0.042 * (x / 0.63) ** 2, black, 0.008);
+  for (const y of [0.304, 0.337, 0.370]) {
+    const xs = Array.from({ length: 19 }, (_, i) => (i - 9) * 0.059);
+    tube(xs.map((x) => new THREE.Vector3(x, y, frontSurface(x, y) + 0.015)), 0.004, y === 0.337 ? satin : carbon);
   }
+
+  const splitter = new THREE.Shape();
+  splitter.moveTo(-0.76, 2.04);
+  splitter.quadraticCurveTo(-0.62, 2.33, 0, 2.345);
+  splitter.quadraticCurveTo(0.62, 2.33, 0.76, 2.04);
+  splitter.lineTo(0.70, 1.99);
+  splitter.quadraticCurveTo(0, 2.17, -0.70, 1.99);
+  splitter.closePath();
+  const splitterGeo = new THREE.ExtrudeGeometry(splitter, {
+    depth: 0.032, curveSegments: 18, bevelEnabled: true, bevelSegments: 2, bevelSize: 0.008, bevelThickness: 0.006,
+  });
+  add(splitterGeo.rotateX(Math.PI / 2), carbon, 0, 0.252, 0, false);
   // диффузор: панель по плоскости кормы + рёбра
   endPatch(-1, -0.78, 0.78, () => 0.2, (x) => 0.46 - 0.06 * (Math.abs(x) / 0.78) ** 2, black);
   for (const x of [-0.5, -0.3, 0.3, 0.5]) add(new THREE.BoxGeometry(0.012, 0.1, 0.12), carbon, x, 0.32, sh.surfaceZ(Math.abs(x), 0.32, -1) + 0.03, false);
@@ -261,13 +275,38 @@ export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity =
     }
   }
 
-  // крышка двигателя: стекло с жалюзи между контрфорсами
+  // Крышка двигателя, рамка и жалюзи следуют кривизне задней панели.
   {
-    const z0 = -1.15, z1 = -1.95, len = z0 - z1, zc = (z0 + z1) / 2;
-    const y = sh.top(zc) + 0.012;
-    const lid = add(new RoundedBoxGeometry(0.9, 0.02, len, 2, 0.009), glass, 0, y, zc, false);
-    lid.rotation.x = Math.atan2(sh.top(z1) - sh.top(z0), len) * -1;
-    for (let k = 0; k < 7; k++) add(new THREE.BoxGeometry(0.86, 0.012, 0.025), carbon, 0, y + 0.012, z0 - 0.1 - k * 0.1, false);
+    const deckHeight = (x: number, z: number) => {
+      intakeRay.ray.origin.set(x, 2, z);
+      intakeRay.ray.direction.set(0, -1, 0);
+      return intakeRay.intersectObject(bm, false)[0]?.point.y ?? sh.top(z);
+    };
+    const deckPanel = (v0: number, v1: number, inset: number, material: THREE.Material,
+      frontLift: number, rearLift = frontLift) => {
+      const geometry = new THREE.PlaneGeometry(1, 1, 24, Math.max(3, Math.ceil((v1 - v0) * 30)));
+      const positions = geometry.getAttribute('position');
+      for (let i = 0; i < positions.count; i++) {
+        const t = positions.getY(i) + 0.5;
+        const v = v0 + (v1 - v0) * t;
+        const z = -1.14 - 0.82 * v;
+        const rounding = 0.045 * (1 - Math.sin(Math.PI * v)) ** 4;
+        const halfWidth = 0.425 - 0.045 * v - rounding - inset;
+        const x = 2 * halfWidth * positions.getX(i);
+        const lift = frontLift + (rearLift - frontLift) * t;
+        positions.setXYZ(i, x, deckHeight(x, z) + lift, z);
+      }
+      geometry.computeVertexNormals();
+      add(geometry, material, 0, 0, 0, false);
+    };
+
+    deckPanel(0, 1, 0, carbon, 0.007);
+    deckPanel(0.035, 0.34, 0.023, glass, 0.014);
+    deckPanel(0.36, 0.96, 0.022, under, 0.014);
+    for (let k = 0; k < 6; k++) {
+      const start = 0.391 + k * 0.091;
+      deckPanel(start, start + 0.045, 0.038, carbon, 0.030, 0.019);
+    }
   }
 
   // ——— задний спойлер: карбоновое антикрыло на двух стойках с торцевыми пластинами ———
@@ -336,6 +375,15 @@ export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity =
     const face = add(new THREE.CircleGeometry(1, 18), chrome, side * (bx + 0.13), my, mz - 0.05, false);
     face.scale.set(0.09, 0.038, 1);
     face.rotation.y = Math.PI;
+    const handleY = 0.82;
+    const handle = Array.from({ length: 9 }, (_, i) => {
+      const z = -0.45 + i * 0.02;
+      intakeRay.ray.origin.set(side * 2, handleY, z);
+      intakeRay.ray.direction.set(-side, 0, 0);
+      const x = intakeRay.intersectObject(bm, false)[0]?.point.x ?? side * sh.xAt(z, handleY);
+      return new THREE.Vector3(x + side * 0.009, handleY, z);
+    });
+    tube(handle, 0.007, satin);
     for (const z of [0.92, -0.58]) {
       const pts: THREE.Vector3[] = [];
       for (let k = 0; k <= 8; k++) {

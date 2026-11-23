@@ -22,8 +22,6 @@ class Vehicle {
   braking = false;
   spin = 0;
   roll = 0;
-  latAcc = 0;
-  lean = 0;
   constructor(readonly kind: TrafficKind, readonly vis: TrafficVisual) {}
   get length() { return this.vis.template.length; }
   get width() { return this.vis.template.width; }
@@ -38,9 +36,7 @@ export interface CrashEvent { severity: number; side: boolean; }
 export class Traffic {
   readonly group = new THREE.Group();
   private list: Vehicle[] = [];
-  private pool: Record<TrafficKind, TrafficVisual[]> = { sedan: [], truck: [], moto: [], van: [], tiller: [], tow: [], limo: [], classic: [] };
-  /** Сбитые мотоциклы: летят по баллистике с кувырком в сторону от трассы, потом исчезают. */
-  private flying: { v: Vehicle; s: number; d: number; h: number; vs: number; vd: number; vh: number; t: number; rot: THREE.Euler; w: THREE.Vector3 }[] = [];
+  private pool: Record<TrafficKind, TrafficVisual[]> = { sedan: [], truck: [], van: [], tow: [], limo: [], classic: [] };
   private rnd = mulberry32(4242);
   private frame: RoadFrame;
   private spawnTimer = 0;
@@ -58,9 +54,7 @@ export class Traffic {
 
   clear() {
     for (const v of this.list) this.release(v);
-    for (const f of this.flying) this.release(f.v);
     this.list = [];
-    this.flying = [];
   }
 
   /** Плотность растёт с пройденным расстоянием: от ~11 до ~22 машин в зоне. */
@@ -167,7 +161,6 @@ export class Traffic {
     this.list.sort((a, b) => a.s - b.s);
     for (const v of this.list) this.drive(v, dt, p);
     for (const v of this.list) this.place(v, dt, time);
-    this.updateFlying(dt, p);
     this.collide(p);
   }
 
@@ -188,11 +181,10 @@ export class Traffic {
 
   /** Модель следования IDM + решения о перестроении. */
   private drive(v: Vehicle, dt: number, p: PlayerState) {
-    const truck = v.kind === 'truck' || v.kind === 'tow', moto = v.kind === 'moto';
-    const tiller = v.kind === 'tiller';
+    const truck = v.kind === 'truck' || v.kind === 'tow';
     const long = truck || v.kind === 'limo';
-    const aMax = tiller ? 0.4 : truck ? 0.9 : moto ? 2.6 : 1.6, bComf = truck || tiller ? 1.8 : moto ? 3.2 : 2.6;
-    const s0 = long ? 9 : moto ? 4 : 6, T = long ? 1.8 : moto ? 0.9 : 1.3;
+    const aMax = truck ? 0.9 : 1.6, bComf = truck ? 1.8 : 2.6;
+    const s0 = long ? 9 : 6, T = long ? 1.8 : 1.3;
     const idm = (gap: number, lv: number) => {
       const dvl = v.v - lv;
       const sStar = s0 + Math.max(0, v.v * T + (v.v * dvl) / (2 * Math.sqrt(aMax * bComf)));
@@ -213,7 +205,6 @@ export class Traffic {
       if (busy >= 2) a = Math.min(a, -1.8);
     }
     a = clamp(a, -8, aMax);
-    if (tiller) a = Math.min(a, (v.v0 - v.v) * 2);    // не быстрее 30 км/ч даже после толчка
     v.braking = a < -0.9;
     v.v = Math.max(0, v.v + a * dt);
     v.s += v.v * dt;
@@ -251,13 +242,12 @@ export class Traffic {
       }
     }
     // плавное смещение к полосе (перестроение ~3 c у легковых, ~4.5 c у грузовиков)
-    const w = long ? 1.0 : moto ? 2.1 : 1.4;
+    const w = long ? 1.0 : 1.4;
     const target = v.targetLane * LANE;
     const acc = w * w * (target - v.d) - 2 * w * v.dv;
     v.dv += acc * dt;
     v.d += v.dv * dt;
     v.roll = clamp(-acc * (truck ? 0.012 : 0.008), -0.05, 0.05);
-    v.latAcc = acc;
   }
 
   private _m = new THREE.Matrix4();
@@ -274,13 +264,7 @@ export class Traffic {
     this._x.crossVectors(f.up, this._f).normalize();
     this._m.makeBasis(this._x, f.up, this._f);
     root.quaternion.setFromRotationMatrix(this._m);
-    if (v.kind === 'moto') {
-      // мотоцикл наклоняется внутрь поворота/перестроения: tg(наклона) = боковое ускорение / g
-      const lat = v.latAcc - v.v * v.v * f.curvature;
-      const target = clamp(Math.atan2(lat, 9.81), -0.55, 0.55);
-      v.lean += (target - v.lean) * Math.min(1, dt * 6);
-      v.vis.body.rotation.z = v.lean;
-    } else v.vis.body.rotation.z = v.roll;
+    v.vis.body.rotation.z = v.roll;
     v.vis.body.rotation.x = v.braking ? 0.008 : 0;
     v.spin += (v.v * dt) / v.vis.template.wheelR;
     for (const a of v.vis.axles) a.rotation.x = v.spin;
@@ -300,54 +284,12 @@ export class Traffic {
       const oy = (v.width + p.width) / 2 - 0.12 - Math.abs(dd);
       if (ox <= 0 || oy <= 0) continue;
       const side = oy < ox * 0.6;
-      if (v.kind === 'moto') { this.knockOff(v, p); this.onCrash?.({ severity: 0.2, side }); this.crashCooldown = 0.6; return; }
       const severity = side ? 0.35 : clamp(Math.abs(p.v - v.v) / 15, 0.25, 1);
       this.crashCooldown = 1.0;
       // удар передаёт немного скорости машине трафика
       if (!side && ds > 0) v.v = Math.min(v.v0 + 3, v.v + (p.v - v.v) * 0.35);
       this.onCrash?.({ severity, side });
       return;
-    }
-  }
-
-  /** Сбить мотоцикл: снять с потока и отправить в полёт с кувырком прочь от трассы. */
-  private knockOff(v: Vehicle, p: PlayerState) {
-    this.list.splice(this.list.indexOf(v), 1);
-    const away = Math.abs(v.d - p.d) > 0.3 ? Math.sign(v.d - p.d) : v.d >= 0 ? 1 : -1;   // в сторону ближайшей обочины
-    const push = Math.max(6, Math.abs(p.v - v.v));
-    const r = () => this.rnd() - 0.5;
-    this.flying.push({
-      v, s: v.s, d: v.d, h: 0,
-      // вперёд — быстрее машины игрока (летит перед капотом, его видно), вбок — ровно за обочину
-      vs: p.v + 3 + push * 0.3, vd: away * (ROAD.half + 3 + this.rnd() * 4 - away * v.d) / 1.7, vh: 6 + this.rnd() * 1.5,
-      t: 0, rot: new THREE.Euler(0, 0, v.lean, 'YXZ'),
-      w: new THREE.Vector3(r() * 9 - 3, r() * 6, away * (5 + this.rnd() * 5)),
-    });
-  }
-
-  private _q = new THREE.Quaternion();
-  private updateFlying(dt: number, p: PlayerState) {
-    for (let i = this.flying.length - 1; i >= 0; i--) {
-      const f = this.flying[i];
-      f.t += dt;
-      f.vh -= 9.81 * dt;
-      f.s += f.vs * dt; f.d += f.vd * dt; f.h += f.vh * dt;
-      if (f.h <= 0) {                                  // удар о землю: отскок и трение, кувырок затухает
-        f.h = 0;
-        if (f.vh < -2) { f.vh *= -0.32; f.w.multiplyScalar(0.55); } else { f.vh = 0; f.w.multiplyScalar(Math.max(0, 1 - dt * 5)); }
-        const k = Math.max(0, 1 - dt * 2.5);
-        f.vs *= k; f.vd *= k;
-      }
-      f.rot.x += f.w.x * dt; f.rot.y += f.w.y * dt; f.rot.z += f.w.z * dt;
-      const fr = this.path.frame(f.s, this.frame);
-      const root = f.v.vis.root;
-      root.position.copy(fr.pos).addScaledVector(fr.right, f.d).addScaledVector(fr.up, f.h);
-      this._x.crossVectors(fr.up, fr.fwd).normalize();
-      this._m.makeBasis(this._x, fr.up, fr.fwd);
-      root.quaternion.setFromRotationMatrix(this._m).multiply(this._q.setFromEuler(f.rot));
-      f.v.vis.body.rotation.set(0, 0, 0);
-      f.v.vis.blinkL.material = f.v.vis.blinkR.material = this.assets.blinkOff;
-      if (f.t > 9 || f.s < p.s - DESPAWN_BEHIND) { this.release(f.v); this.flying.splice(i, 1); }
     }
   }
 

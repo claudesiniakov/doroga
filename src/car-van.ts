@@ -159,7 +159,7 @@ export function buildVan(cfg: CarConfig, envIntensity = 1): CarModel {
     face.position.set(mx, my, mz - 0.058);
     face.rotation.y = Math.PI;
     body.add(face);
-    body.add(buildRoofRail(ghm, side * 0.33, [
+    body.add(buildRoofRail(ghm, side * 0.44, [
       [0.50, 0.027], [0.41, 0.060], [0.22, 0.075],
       [-0.60, 0.075], [-1.50, 0.075], [-1.74, 0.060], [-1.84, 0.027],
     ], chrome, plastic));

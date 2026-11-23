@@ -57,5 +57,25 @@
       "handling": 0.6,
       "brakes": 0.66
     }
+  },
+  {
+    "id": "vaz2107",
+    "name": "ВАЗ‑2107",
+    "tagline": "Классический заднеприводный седан с мягкой подвеской",
+    "color": "#f5f5f3",
+    "maxSpeedKmh": 150,
+    "accel": 4.0,
+    "brake": 8.5,
+    "laneChangeTime": 0.56,
+    "plate": "ВАЗ 207",
+    "tankL": 39,
+    "body": "classic",
+    "roll": 1.4,
+    "stats": {
+      "speed": 0.52,
+      "accel": 0.41,
+      "handling": 0.53,
+      "brakes": 0.56
+    }
   }
 ]

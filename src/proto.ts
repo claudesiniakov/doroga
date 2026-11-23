@@ -4,6 +4,7 @@ import { GarageScene } from './garage';
 import { buildPlayerCar } from './player-car';
 import type { CarConfig } from './car';
 import { TrafficAssets, type TrafficKind } from './traffic-models';
+import { createMotoPreview, createTillerPreview } from './proto-vehicles';
 import cars from './cars.json';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#gl')!;
@@ -26,9 +27,7 @@ const trafficNames: Record<TrafficKind, string> = {
   limo: 'Лимузин',
   truck: 'Грузовик',
   tow: 'Эвакуатор',
-  moto: 'Мотоцикл',
   van: 'Минивэн',
-  tiller: 'Мотоблок с повозкой',
 };
 
 let traffic: TrafficAssets | undefined;
@@ -50,6 +49,8 @@ const trafficGroup = document.querySelector<HTMLOptGroupElement>('#traffic')!;
 for (const kind of Object.keys(trafficNames) as TrafficKind[]) {
   addOption(trafficGroup, kind, trafficNames[kind], () => getTraffic().create(kind));
 }
+addOption(trafficGroup, 'moto', 'Мотоцикл', () => createMotoPreview(getTraffic()));
+addOption(trafficGroup, 'tiller', 'Мотоблок с повозкой', () => createTillerPreview(getTraffic()));
 addOption(trafficGroup, 'police', 'Патруль ДПС', () => getTraffic().createPolice().vis);
 
 const params = new URLSearchParams(location.search);

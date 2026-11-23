@@ -14,8 +14,7 @@ export interface CarConfig {
   plate: string;
   /** Объём бака, л. */
   tankL: number;
-  /** Тип кузова: купе или внедорожник. */
-  body?: 'coupe' | 'suv' | 'van' | 'vette';
+  body?: 'coupe' | 'suv' | 'van' | 'vette' | 'classic';
   /** Множитель крена/клевка кузова (мягкая подвеска > 1). */
   roll?: number;
   stats: { speed: number; accel: number; handling: number; brakes: number };

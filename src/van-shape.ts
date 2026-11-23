@@ -20,27 +20,29 @@ export function vanShape(): Shape {
 export function vanGreenhouse(sh: Shape, GR = 90, GK = 30) {
   const zA = 1.45, zC = -2.375;
   const roof = spline([[zC, sh.top(zC)], [-2.355, 1.56], [-2.24, 1.72], [0.55, 1.765], [0.85, 1.7], [1.2, 1.42], [zA, sh.top(zA)]]);
-  const sOf: number[] = [];
-  for (let k = 0; k <= GK; k++) sOf.push(Math.sin((Math.PI * k) / GK));
+  const angles = Array.from({ length: GK + 1 }, (_, k) => Math.PI * k / GK);
+  angles.splice(1, 0, 0.003);
+  angles.splice(angles.length - 1, 0, Math.PI - 0.003);
+  const sOf = angles.map((angle) => Math.sin(angle));
   const rows: THREE.Vector3[][] = [];
   for (let r = 0; r < GR; r++) {
     const t = r / (GR - 1);
     const z = zC + (zA - zC) * (t < 0.05 ? t * 0.3 : 0.015 + (t - 0.05) * (0.985 / 0.95));
-    const yb = sh.top(z) - 0.01, H = Math.max(0, roof(z) - yb);
-    const wb = sh.xAt(z, yb) - 0.03, wr = Math.min(wb, 0.8);
+    const yb = sh.top(z) - 0.055, H = Math.max(0, roof(z) - yb);
+    const wb = sh.xAt(z, yb) - 0.016, wr = wb * 0.95;
     const ring: THREE.Vector3[] = [];
-    for (let k = 0; k <= GK; k++) {
-      const phi = Math.PI - (Math.PI * k) / GK;
+    for (const angle of angles) {
+      const phi = Math.PI - angle;
       const s = Math.sin(phi), c = Math.cos(phi);
       const a = wb + (wr - wb) * Math.min(1, s * 1.05);
-      ring.push(new THREE.Vector3(Math.sign(c) * a * Math.pow(Math.abs(c), 2 / 4), yb + H * Math.pow(s, 2 / 5), z));
+      ring.push(new THREE.Vector3(Math.sign(c) * a * Math.pow(Math.abs(c), 2 / 5.6), yb + H * Math.pow(s, 2 / 5), z));
     }
     rows.push(ring);
   }
   // 0 — кузов, 1 — стекло, 2 — чёрные стойки/уплотнитель
   const classify = (p: THREE.Vector3, _r: number, c: number) => {
     const s = (sOf[c] + sOf[c + 1]) / 2, z = p.z;
-    if (s < 0.06) return 2;
+    if (s < 0.003) return 2;
     if (z > 0.85) return s > 0.6 && s < 0.76 ? 0 : 1;               // лобовое и A-стойки
     // пятая дверь: на вертикальном изломе каждый столбец сетки идёт от пояса до крыши — стекло всё, кроме краёв
     if (z < -2.3) return s > 0.14 ? 1 : 0;

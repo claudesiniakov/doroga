@@ -8,6 +8,7 @@ import { TrafficAssets } from './traffic-models';
 import { mountainRing } from './props';
 import { makeWaterNormal } from './textures';
 import { clamp, damp, lerp, smoothstep } from './noise';
+import { START_COINS, LITERS_PER_KM, FUEL_PRICE, REPAIR_PRICE, POLICE_FINE } from './drive-rules';
 
 export interface DriveInput {
   throttle: number;
@@ -80,22 +81,16 @@ export class DriveScene {
   kaskoRepairUsed = false;
   private finishGate?: THREE.Group;
   // ДПС: без ОСАГО — случайная проверка, не больше одной за заезд
-  static readonly POLICE_FINE = 8;
   /** Где стоит патруль (null — в этом заезде проверки нет). */
   policeS: number | null = null;
   policeFine = 0;
   onPolice?: () => void;
   private police!: { vis: { root: THREE.Group }; red: THREE.MeshStandardMaterial; blue: THREE.MeshStandardMaterial };
   // топливо и деньги
-  static readonly START_COINS = 100;
-  static readonly LITERS_PER_KM = 2;
-  static readonly PRICE = 1; // монет за литр
   fuel = 0;
-  coins = DriveScene.START_COINS;
+  coins = START_COINS;
   get tank() { return this.cfg.tankL; }
   // здоровье и страховки
-  static readonly KASKO = 40;
-  static readonly REPAIR_PRICE = 1; // монет за 10 %
   health = 100;
   insurance = { kasko: false, osago: false, osagoPrice: 10 };
   /** Причина конца заезда. */
@@ -281,7 +276,7 @@ export class DriveScene {
       if ((left < 0.4 && this.v < 0.6) || this.v === 0) {
         this.v = 0; a = 0;
         this.phase = 'protocol';
-        this.policeFine = Math.min(DriveScene.POLICE_FINE, this.coins);
+        this.policeFine = Math.min(POLICE_FINE, this.coins);
         this.coins -= this.policeFine;
         this.onPolice?.();
       }
@@ -358,7 +353,7 @@ export class DriveScene {
     this.odometer += ds;
     // расход: 2 л на км
     if (this.phase !== 'intro') {
-      this.fuel = Math.max(0, this.fuel - (ds / 1000) * DriveScene.LITERS_PER_KM);
+      this.fuel = Math.max(0, this.fuel - (ds / 1000) * LITERS_PER_KM);
       if (this.fuel <= 0 && (this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'policeOut' || this.phase === 'policeIn')) this.phase = 'empty';
       if (this.health <= 0 && (this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'empty')) this.phase = 'wrecked';
       // финиш поездки
@@ -546,9 +541,9 @@ export class DriveScene {
   refuel(liters: number): number {
     // литры — целые (доливка до полного — округляется вверх), цена — 1 монета за литр
     const space = Math.ceil(this.tank - this.fuel - 1e-6);
-    const l = Math.max(0, Math.min(Math.floor(liters), space, Math.floor(this.coins / DriveScene.PRICE)));
+    const l = Math.max(0, Math.min(Math.floor(liters), space, Math.floor(this.coins / FUEL_PRICE)));
     this.fuel = Math.min(this.tank, this.fuel + l);
-    this.coins -= l * DriveScene.PRICE;
+    this.coins -= l * FUEL_PRICE;
     return l;
   }
 
@@ -635,14 +630,14 @@ export class DriveScene {
 
   /** Цена ремонта на pct процентов (с КАСКО — бесплатно). */
   repairCost(pct: number) {
-    return this.insurance.kasko ? 0 : Math.ceil(pct / 10 - 1e-6) * DriveScene.REPAIR_PRICE;
+    return this.insurance.kasko ? 0 : Math.ceil(pct / 10 - 1e-6) * REPAIR_PRICE;
   }
 
   /** Отремонтировать до pct процентов (шагами по 10 %, сколько хватит монет). Возвращает восстановленные %. */
   repair(pct: number): number {
     let want = Math.min(pct, 100 - this.health);
     if (want <= 0) return 0;
-    if (!this.insurance.kasko) want = Math.min(want, Math.floor(this.coins / DriveScene.REPAIR_PRICE) * 10);
+    if (!this.insurance.kasko) want = Math.min(want, Math.floor(this.coins / REPAIR_PRICE) * 10);
     if (want <= 0) return 0;
     this.coins -= this.repairCost(want);
     if (this.insurance.kasko) this.kaskoRepairUsed = true;

@@ -68,7 +68,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .stats .b { height: 4px; border-radius: 4px; background: var(--line); overflow: hidden; }
 .stats .b i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
 .stats em { font-style: normal; color: var(--ink); font-variant-numeric: tabular-nums; text-align: right; }
-.slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
+.slots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-bottom: 18px; }
 .slot {
   height: 54px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255, 255, 255, .03);
   display: grid; place-items: center; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3);

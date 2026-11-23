@@ -51,7 +51,7 @@ export function buildKedr(cfg: CarConfig, envIntensity = 1): CarModel {
 
   // ——— «аквариум»: раскосое лобовое, плоская крыша, вертикальная пятая дверь ———
   const zA = 0.72, zC = -1.865;
-  const roof = spline([[zC, sh.top(zC)], [-1.845, 1.53], [-1.77, 1.65], [-0.8, 1.68], [0.17, 1.67], [0.34, 1.59], [zA, sh.top(zA)]]);
+  const roof = spline([[zC, sh.top(zC)], [-1.845, 1.53], [-1.64, 1.655], [-0.8, 1.685], [0.14, 1.677], [0.34, 1.6], [zA, sh.top(zA)]]);
   const GR = 90, GK = 30;
   const angles = [0, 0.012, ...Array.from({ length: GK - 1 }, (_, k) => Math.PI * (k + 1) / GK), Math.PI - 0.012, Math.PI];
   const rows: THREE.Vector3[][] = [];
@@ -59,8 +59,10 @@ export function buildKedr(cfg: CarConfig, envIntensity = 1): CarModel {
     const t = r / (GR - 1);
     // ряды гуще у торцов — там излом пятой двери и лобового
     const z = zC + (zA - zC) * (t < 0.06 ? t * 0.3 : 0.018 + (t - 0.06) * (0.982 / 0.94));
-    const yb = sh.top(z) - 0.01, H = Math.max(0, roof(z) - yb);
-    const wb = sh.xAt(z, yb) - 0.025, wr = Math.min(wb, 0.765);
+    // Широкая кабина начинается на плечах кузова, ниже его центрального гребня.
+    const yb = sh.top(z) - 0.064, H = Math.max(0, roof(z) - yb);
+    const wb = sh.xAt(z, yb) - 0.024;
+    const wr = Math.min(wb * 0.94, 0.69);
     const ring: THREE.Vector3[] = [];
     for (const angle of angles) {
       const phi = Math.PI - angle;
@@ -73,8 +75,8 @@ export function buildKedr(cfg: CarConfig, envIntensity = 1): CarModel {
   const gh = loft(rows, (p, _r, c) => {
     const s = (Math.sin(angles[c]) + Math.sin(angles[c + 1])) / 2, z = p.z;
     if (s < 0.03) return 0;                                          // пояс под окнами
-    if (z > 0.36) return s > 0.6 && s < 0.8 ? 0 : 1;                  // A-стойка
-    if (z < -1.82) return s > 0.14 ? 1 : 0;                         // стекло пятой двери (на изломе)
+    if (z > 0.36) return s > 0.64 ? 1 : 0;                         // лобовое и A-стойки
+    if (z < -1.70) return s > 0.57 ? 1 : 0;                         // стекло наклонной пятой двери
     if (s > 0.86) return 0;                                          // крыша
     if (Math.abs(z + 0.57) < 0.061) return 0;                         // широкая стойка за дверью
     if (z < -1.58) return 0;                                        // задняя стойка
@@ -150,13 +152,17 @@ export function buildKedr(cfg: CarConfig, envIntensity = 1): CarModel {
   for (const side of [-1, 1]) {
     body.add(buildRoofRail(ghm, side * 0.34, [
       [0.15, 0.027], [0.06, 0.055], [-0.12, 0.07],
-      [-0.74, 0.07], [-1.36, 0.07], [-1.52, 0.055], [-1.62, 0.027],
+      [-0.68, 0.07], [-1.24, 0.07], [-1.39, 0.055], [-1.50, 0.027],
     ], plastic, plastic));
-    // зеркала на ножке
-    const mz = 0.62, my = 1.2, mx = side * (sh.xAt(mz, 1.04) + 0.09);
-    add(new RoundedBoxGeometry(0.06, 0.15, 0.2, 2, 0.02), plastic, mx, my, mz);
-    add(new THREE.PlaneGeometry(0.16, 0.12).rotateY(Math.PI), chrome, mx, my, mz - 0.032, false);
-    add(new THREE.BoxGeometry(0.1, 0.03, 0.04), plastic, side * (sh.xAt(mz, 1.04) + 0.03), 1.12, mz);
+    // Ножка зеркала ставится в основание расширенной передней стойки.
+    const mz = 0.55, my = 1.115;
+    ray.ray.origin.set(side * 2, my, mz);
+    ray.ray.direction.set(-side, 0, 0);
+    const mount = ray.intersectObject(ghm, false)[0]?.point.x ?? side * sh.xAt(mz, sh.top(mz) - 0.064);
+    const mx = mount + side * 0.115;
+    add(new RoundedBoxGeometry(0.15, 0.033, 0.042, 2, 0.012), plastic, mount + side * 0.055, my, mz);
+    add(new RoundedBoxGeometry(0.15, 0.103, 0.055, 2, 0.018), plastic, mx, my + 0.047, mz);
+    add(new THREE.PlaneGeometry(0.116, 0.075).rotateY(Math.PI), chrome, mx, my + 0.047, mz - 0.029, false);
     // Шов двери и ручка повторяют боковину кузова.
     const doorPoint = (y: number, z: number, offset: number) => {
       ray.ray.set(new THREE.Vector3(side * 2, y, z), new THREE.Vector3(-side, 0, 0));

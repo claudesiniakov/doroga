@@ -3,7 +3,7 @@ import { DecalGeometry } from 'three/examples/jsm/geometries/DecalGeometry.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { spline, loft, bodyStations } from './car';
-import { clamp, mulberry32 } from './noise';
+import { clamp, mulberry32, smoothstep } from './noise';
 import { makePlateTexture } from './textures';
 import { VAN, vanShape, vanGreenhouse, vanBodyClassify } from './van-shape';
 
@@ -195,8 +195,8 @@ function buildSedan(variant: 'sedan' | 'police' | 'limo' | 'classic' = 'sedan'):
     top: [[-2.075, 0.89], [-2.01, 0.98], [-1.24, 0.99], [-0.45, 1.02], [0.58, 1.01], [0.96, 0.955], [1.78, 0.925], [2.015, 0.905], [2.075, 0.81]],
     bottom: [[-2.075, 0.43], [-1.88, 0.35], [-1.5, 0.26], [1.44, 0.26], [1.89, 0.32], [2.075, 0.42]],
     width: [[-2.075, 0.77], [-1.75, 0.80], [-0.5, 0.81], [0.85, 0.81], [1.75, 0.79], [2.075, 0.75]],
-    planFront: 22, planRear: 20, axles: [1.24, -1.19], wheelR: 0.30, archR: 0.345, archBlend: 0.035,
-    seLow: 7, seHigh: 7, tumble: 0.055,
+    planFront: 27, planRear: 24, axles: [1.24, -1.19], wheelR: 0.30, archR: 0.345, archBlend: 0.043,
+    seLow: 7, seHigh: 8, tumble: 0.055,
   } : {
     halfLen: 2.3,
     top: [[-2.3, 0.72], [-2.26, 0.9], [-2.05, 0.985], [-1.5, 1.0], [-1.0, 0.985], [0, 0.94], [0.9, 0.905], [1.4, 0.865], [1.95, 0.79], [2.2, 0.69], [2.3, 0.5]],
@@ -205,13 +205,21 @@ function buildSedan(variant: 'sedan' | 'police' | 'limo' | 'classic' = 'sedan'):
     planFront: 5, planRear: 10, axles: [1.4, -1.38], wheelR: 0.31, archR: 0.355, archBlend: police ? 0.04 : undefined,
   });
   const b = new Builder();
-  const body = loft(sh.body(84, 22), () => 0, true, true);
+  const bodyRows = sh.body(84, 22);
+  if (classic) {
+    for (const row of bodyRows) for (const point of row) {
+      const alongHood = smoothstep(0.84, 1.31, point.z) * (1 - smoothstep(2.00, 2.075, point.z));
+      const crest = 1 - smoothstep(0.22, 0.37, Math.abs(point.x));
+      point.y += 0.041 * alongHood * crest * smoothstep(sh.top(point.z) - 0.09, sh.top(point.z), point.y);
+    }
+  }
+  const body = loft(bodyRows, () => 0, true, true);
   b.add(body, 'paint');
 
   // «аквариум» седана: лобовое, крыша, задняя стойка, багажник отдельно
   const zA = classic ? 0.89 : 1.0, zC = classic ? -1.33 : -1.42;
   const roof = classic
-    ? spline([[zC, sh.top(zC)], [-0.87, 1.365], [-0.65, 1.44], [0.23, 1.435], [0.35, 1.39], [zA, sh.top(zA)]])
+    ? spline([[zC, sh.top(zC)], [-0.91, 1.385], [-0.72, 1.45], [0.22, 1.446], [0.37, 1.395], [zA, sh.top(zA)]])
     : spline([[zC, sh.top(zC)], [-1.05, 1.24], [-0.6, 1.42], [0.25, 1.44], [0.65, 1.26], [zA, sh.top(zA)]]);
   const GR = 36, GK = 22;
   const angles = Array.from({ length: GK + 1 }, (_, k) => Math.PI * k / GK);
@@ -225,7 +233,8 @@ function buildSedan(variant: 'sedan' | 'police' | 'limo' | 'classic' = 'sedan'):
     const z = zC + ((zA - zC) * r) / (GR - 1);
     // Ниже линия стыка с кузовом шире, а профиль крыши остаётся прежним.
     const yb = sh.top(z) - (police || classic ? 0.06 : 0.03), H = Math.max(0, roof(z) - yb);
-    const wb = sh.xAt(z, yb) - 0.03, wr = Math.min(wb, 0.7);
+    const wb = sh.xAt(z, yb) - 0.03;
+    const wr = classic ? wb * 0.92 : Math.min(wb, 0.7);
     const ring: THREE.Vector3[] = [];
     for (const angle of angles) {
       const phi = Math.PI - angle;
@@ -239,7 +248,8 @@ function buildSedan(variant: 'sedan' | 'police' | 'limo' | 'classic' = 'sedan'):
     const s = (sOf[c] + sOf[c + 1]) / 2, z = p.z;
     if (classic) {
       if (s < 0.03) return 0;
-      if (z > 0.38 || z < -0.86) return s > 0.65 ? 1 : 0;
+      if (z > 0.38) return s > 0.58 ? 1 : 0;
+      if (z < -0.90) return s > 0.67 ? 1 : 0;
       if (s > 0.79) return 0;
       return Math.abs(z + 0.2) < 0.042 ? 2 : 1;
     }
@@ -278,24 +288,41 @@ function buildSedan(variant: 'sedan' | 'police' | 'limo' | 'classic' = 'sedan'):
 
   const tail = new Builder(), bl = new Builder(), br = new Builder();
   if (classic) {
-    b.add(panel(0.65, 0.26, 0, 0.746, 1, 0.022), 'chrome');
-    b.add(panel(0.605, 0.215, 0, 0.746, 1, 0.032), 'black');
-    for (const y of [0.675, 0.713, 0.751, 0.789, 0.827]) {
-      b.add(panel(0.57, 0.014, 0, y, 1, 0.041), 'chrome');
+    b.add(panel(0.68, 0.298, 0, 0.771, 1, 0.025), 'chrome');
+    b.add(panel(0.625, 0.247, 0, 0.771, 1, 0.035), 'black');
+    for (const y of [0.669, 0.706, 0.743, 0.780, 0.817, 0.854]) {
+      b.add(panel(0.59, 0.010, 0, y, 1, 0.042), 'chrome');
     }
+    b.add(panel(0.49, 0.15, 0, 0.673, -1, 0.012), 'black');
 
     for (const end of [-1, 1] as const) {
-      b.add(panel(1.46, 0.11, 0, 0.475, end, 0.021), 'black');
+      b.add(panel(1.50, 0.11, 0, 0.475, end, 0.021), 'black');
       b.add(panel(1.38, 0.023, 0, 0.515, end, 0.031), 'chrome');
     }
     for (const side of [-1, 1]) {
       b.add(panel(0.34, 0.16, side * 0.51, 0.723, 1, 0.018), 'black');
-      b.add(panel(0.245, 0.122, side * 0.475, 0.730, 1, 0.028), 'head');
+      b.add(panel(0.227, 0.109, side * 0.478, 0.729, 1, 0.028), 'head');
+      for (const x of [0.425, 0.478, 0.531]) {
+        b.add(panel(0.004, 0.10, side * x, 0.729, 1, 0.033), 'chrome');
+      }
       b.add(panel(0.048, 0.118, side * 0.637, 0.730, 1, 0.028), 'beacon');
       b.add(panel(0.37, 0.16, side * 0.51, 0.72, -1, 0.018), 'black');
       tail.add(panel(0.30, 0.055, side * 0.51, 0.757, -1, 0.026), 'head');
       (side > 0 ? bl : br).add(panel(0.13, 0.043, side * 0.59, 0.69, -1, 0.026), 'head');
       b.add(panel(0.12, 0.043, side * 0.445, 0.69, -1, 0.026), 'chrome');
+      const sidePoint = (y: number, z: number, lift: number) => {
+        ray.ray.origin.set(side * 2, y, z);
+        ray.ray.direction.set(-side, 0, 0);
+        const x = ray.intersectObject(shell, false)[0]?.point.x ?? side * sh.xAt(z, y);
+        return new THREE.Vector3(x + side * lift, y, z);
+      };
+      const trim = Array.from({ length: 19 }, (_, i) => sidePoint(0.735, -1.74 + i * 3.48 / 18, 0.008));
+      b.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(trim), 36, 0.008, 6, false), 'black');
+      for (const z of [-0.98, -0.20, 0.63]) {
+        const points = Array.from({ length: 9 }, (_, i) => sidePoint(0.57 + i * 0.43 / 8, z, 0.003));
+        b.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 18, 0.0032, 5, false), 'black');
+      }
+      b.box(0.025, 0.032, 0.067, 'beacon', sidePoint(0.825, 1.01, 0.006), 0.006);
       for (const z of [-0.72, 0.05]) {
         const y = sh.top(z) - 0.15, x = side * (sh.xAt(z, y) + 0.005);
         b.box(0.028, 0.023, 0.095, 'chrome', { x, y, z }, 0.008);
@@ -304,7 +331,7 @@ function buildSedan(variant: 'sedan' | 'police' | 'limo' | 'classic' = 'sedan'):
       b.box(0.16, 0.09, 0.075, 'black', { x: side * 0.82, y, z }, 0.018);
       b.box(0.13, 0.068, 0.009, 'chrome', { x: side * 0.82, y, z: z - 0.04 });
     }
-    b.add(panel(0.39, 0.10, 0, 0.675, -1, 0.017), 'plate');
+    b.add(panel(0.39, 0.10, 0, 0.675, -1, 0.022), 'plate');
   } else {
     b.add(panel(0.98, 0.10, 0, 0.43, 1, 0.014), 'black');
     b.add(panel(0.82, 0.018, 0, 0.448, 1, 0.024), 'chrome');

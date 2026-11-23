@@ -145,16 +145,15 @@ export class Traffic {
     const r = this.rnd();
     const ahead = s > p.s;
     const tow = ahead && r < 0.015 && !this.list.some((o) => o.kind === 'tow');
-    const limo = ahead && r >= 0.36 && r < 0.39 && !this.list.some((o) => o.kind === 'limo');
     const summer = this.summer && this.seasonal;
     const kind: RoadTrafficKind = summer && r >= 0.63 && r < 0.70 ? 'moto'
       : summer && r >= 0.70 && r < 0.73 ? 'tiller'
-      : tow ? 'tow' : limo ? 'limo' : r < 0.22 ? 'truck' : r < 0.36 ? 'van' : r >= 0.39 && r < 0.51 ? 'classic' : r >= 0.51 && r < 0.63 ? 'kedr' : 'sedan';
+      : tow ? 'tow' : r < 0.22 ? 'truck' : r < 0.36 ? 'van' : r >= 0.39 && r < 0.51 ? 'classic' : r >= 0.51 && r < 0.63 ? 'kedr' : 'sedan';
     // Крупные машины появляются в правой и средней полосах, легковые — по всей трассе.
     const truck = kind === 'truck' || tow;
-    const lanes = kind === 'tiller' ? [1] : truck || limo ? [1, 1, 0] : [-1, 0, 0, 1, 1];
+    const lanes = kind === 'tiller' ? [1] : truck ? [1, 1, 0] : [-1, 0, 0, 1, 1];
     const lane = lanes[Math.floor(this.rnd() * lanes.length)];
-    const gap = limo ? 55 : 45;
+    const gap = 45;
     if (!this.laneFree(lane, s, gap, gap, p)) return false;
     if (this.wouldBlockAll(lane, s, 40)) return false;
     const v = new Vehicle(kind, this.acquire(kind));
@@ -163,7 +162,7 @@ export class Traffic {
     v.d = lane * LANE;
     // желаемая скорость: левее — быстрее; грузовики медленнее
     const base = kind === 'tiller' ? 28 : kind === 'moto' ? 97 + this.rnd() * 18 : truck ? (tow ? 65 : 72) + this.rnd() * 14
-      : [102, 88, 76][lane + 1] + (this.rnd() - 0.5) * 18 - (kind === 'classic' ? 9 : kind === 'van' || kind === 'kedr' || limo ? 5 : 0);
+      : [102, 88, 76][lane + 1] + (this.rnd() - 0.5) * 18 - (kind === 'classic' ? 9 : kind === 'van' || kind === 'kedr' ? 5 : 0);
     v.v0 = v.v = base / 3.6;
     v.cooldown = 3 + this.rnd() * 5;
     this.list.push(v);

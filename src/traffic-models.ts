@@ -194,6 +194,7 @@ function buildSedan(variant: 'sedan' | 'police' | 'limo' | 'classic' = 'sedan'):
   const police = variant === 'police';
   const limo = variant === 'limo';
   const classic = variant === 'classic';
+  const sedan = variant === 'sedan';
   const cabinShift = classic ? 0.17 : 0;
   const rearDoor = -0.98, middleDoor = -0.20, frontDoor = 0.63;
   const sh = new Shape(classic ? {
@@ -229,7 +230,7 @@ function buildSedan(variant: 'sedan' | 'police' | 'limo' | 'classic' = 'sedan'):
     : spline([[zC, sh.top(zC)], [-1.05, 1.24], [-0.6, 1.42], [0.25, 1.44], [0.65, 1.26], [zA, sh.top(zA)]]);
   const GR = 36, GK = 22;
   const angles = Array.from({ length: GK + 1 }, (_, k) => Math.PI * k / GK);
-  if (classic) {
+  if (classic || sedan) {
     angles.splice(angles.length - 1, 0, Math.PI - 0.001);
     angles.splice(1, 0, 0.001);
   }
@@ -240,16 +241,17 @@ function buildSedan(variant: 'sedan' | 'police' | 'limo' | 'classic' = 'sedan'):
   cabinStations.sort((a, b) => a - b);
   for (const z of cabinStations) {
     // Ниже линия стыка с кузовом шире, а профиль крыши остаётся прежним.
-    const yb = sh.top(z) - (police || classic ? 0.06 : 0.03), H = Math.max(0, roof(z) - yb);
-    const wb = sh.xAt(z, yb) - 0.03;
-    const wr = classic ? wb * 0.92 : Math.min(wb, 0.7);
+    const yb = sh.top(z) - (sedan ? 0.105 : police || classic ? 0.06 : 0.03);
+    const H = Math.max(0, roof(z) - yb);
+    const wb = sh.xAt(z, yb) - (sedan ? 0.012 : 0.03);
+    const wr = sedan || classic ? wb * 0.92 : Math.min(wb, 0.7);
     const ring: THREE.Vector3[] = [];
     for (const angle of angles) {
       const phi = Math.PI - angle;
       const s = Math.sin(phi), c = Math.cos(phi);
       const height = Math.pow(s, classic ? 0.28 : 2 / 3.4);
       const a = wb + (wr - wb) * Math.min(1, (classic ? height : s) * 1.1);
-      ring.push(new THREE.Vector3(Math.sign(c) * a * Math.pow(Math.abs(c), classic ? 0.28 : 2 / 2.4), yb + H * height, z));
+      ring.push(new THREE.Vector3(Math.sign(c) * a * Math.pow(Math.abs(c), classic ? 0.28 : sedan ? 0.42 : 2 / 2.4), yb + H * height, z));
     }
     gRows.push(ring);
   }

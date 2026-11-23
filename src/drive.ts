@@ -22,6 +22,7 @@ const SUN_ELEVATION = 6.5;   // градусы — «золотой час»
 const SUN_AZIMUTH = 62;
 const CRUISE = 25;           // м/с = 90 км/ч
 const MIN_SPEED = 11;
+const MONTH_DURATION = 21;
 const LEFT_SHOULDER = -2;
 const RIGHT_SHOULDER = 4;
 const SHOULDER_OFFSET = ROAD.half - 0.35;
@@ -344,8 +345,8 @@ export class DriveScene {
       this.phase === 'pitIn' || this.phase === 'policeIn')) {
       this.monthTime += elapsed;
       // Въезд на АЗС или остановка ДПС завершаются перед обновлением полиса.
-      if (this.monthTime >= 30 && this.phase === 'drive') {
-        this.monthTime %= 30;
+      if (this.monthTime >= MONTH_DURATION && this.phase === 'drive') {
+        this.monthTime %= MONTH_DURATION;
         this.month = (this.month + 1) % 12;
         const winter = this.winterForMonth();
         if (winter !== this.world.snow) {

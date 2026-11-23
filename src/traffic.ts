@@ -38,7 +38,7 @@ export interface CrashEvent { severity: number; side: boolean; }
 export class Traffic {
   readonly group = new THREE.Group();
   private list: Vehicle[] = [];
-  private pool: Record<TrafficKind, TrafficVisual[]> = { sedan: [], truck: [], moto: [], van: [], tiller: [] };
+  private pool: Record<TrafficKind, TrafficVisual[]> = { sedan: [], truck: [], moto: [], van: [], tiller: [], tow: [] };
   /** Сбитые мотоциклы: летят по баллистике с кувырком в сторону от трассы, потом исчезают. */
   private flying: { v: Vehicle; s: number; d: number; h: number; vs: number; vd: number; vh: number; t: number; rot: THREE.Euler; w: THREE.Vector3 }[] = [];
   private rnd = mulberry32(4242);
@@ -126,8 +126,10 @@ export class Traffic {
     const r = this.rnd();
     // мотоблок с повозкой — редкость, только впереди и только в правой полосе
     const tiller = s > p.s && this.rnd() < 0.03 && !this.list.some((o) => o.kind === 'tiller');
-    const kind: TrafficKind = tiller ? 'tiller' : r < 0.22 ? 'truck' : r < 0.34 ? 'moto' : r < 0.48 ? 'van' : 'sedan';
-    const truck = kind === 'truck', moto = kind === 'moto';
+    // Эвакуатор занимает небольшую долю появлений грузовиков впереди.
+    const tow = !tiller && s > p.s && r < 0.015 && !this.list.some((o) => o.kind === 'tow');
+    const kind: TrafficKind = tiller ? 'tiller' : tow ? 'tow' : r < 0.22 ? 'truck' : r < 0.34 ? 'moto' : r < 0.48 ? 'van' : 'sedan';
+    const truck = kind === 'truck' || tow, moto = kind === 'moto';
     // мото быстрее потока: если игрок едет медленнее, чаще появляются сзади и обгоняют
     if (moto && p.v < 28 && s > p.s && this.rnd() < 0.6) s = p.s - 110 - this.rnd() * 40;
     // грузовики — только в правой и средней полосе, чаще в правой; мото — чаще левее
@@ -140,7 +142,7 @@ export class Traffic {
     v.lane = v.targetLane = lane;
     v.d = lane * LANE;
     // желаемая скорость: левее — быстрее; грузовики медленнее
-    const base = tiller ? 20 + this.rnd() * 10 : truck ? 72 + this.rnd() * 14 : moto ? 100 + this.rnd() * 32 : [102, 88, 76][lane + 1] + (this.rnd() - 0.5) * 18 - (kind === 'van' ? 5 : 0);
+    const base = tiller ? 20 + this.rnd() * 10 : truck ? (tow ? 65 : 72) + this.rnd() * 14 : moto ? 100 + this.rnd() * 32 : [102, 88, 76][lane + 1] + (this.rnd() - 0.5) * 18 - (kind === 'van' ? 5 : 0);
     v.v0 = base / 3.6;
     v.v = v.v0;
     v.cooldown = tiller ? Infinity : 3 + this.rnd() * 5;   // мотоблок не перестраивается
@@ -188,7 +190,7 @@ export class Traffic {
 
   /** Модель следования IDM + решения о перестроении. */
   private drive(v: Vehicle, dt: number, p: PlayerState) {
-    const truck = v.kind === 'truck', moto = v.kind === 'moto';
+    const truck = v.kind === 'truck' || v.kind === 'tow', moto = v.kind === 'moto';
     const tiller = v.kind === 'tiller';
     const aMax = tiller ? 0.4 : truck ? 0.9 : moto ? 2.6 : 1.6, bComf = truck || tiller ? 1.8 : moto ? 3.2 : 2.6;
     const s0 = truck ? 9 : moto ? 4 : 6, T = truck ? 1.8 : moto ? 0.9 : 1.3;

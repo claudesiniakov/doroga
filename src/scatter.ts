@@ -55,7 +55,7 @@ const RULES: Record<BiomeId, Rule[]> = {
     { id: 'rock', d: 0.012, o: [9, 40], s: [0.4, 1.4], sea: 'land' },
   ],
 };
-const NO_SHADOW = new Set<PropId>(['pineLo', 'spruceLo', 'oakLo', 'birchLo', 'cactusLo', 'rockLo', 'delineator', 'dryBush']);
+const NO_SHADOW = new Set<PropId>(['pineLo', 'spruceLo', 'oakLo', 'birchLo', 'cactusLo', 'rockLo', 'delineator', 'dryBush', 'festiveLights']);
 const TREES = new Set<PropId>([...forestTrees, 'pineLo', 'spruceLo', 'oakLo', 'birchLo', 'bush', 'dryBush', 'cactus', 'cactusLo']);
 
 function forestShare(species: ForestSpecies, s: number, offset: number, seed: number) {
@@ -298,6 +298,30 @@ export function scatterChunk(world: RoadWorld, k: number, i0: number, i1: number
     }
   }
 
+  if (world.snow) {
+    // Одна подходящая площадка на группу чанков. Посев не зависит от порядка их загрузки.
+    const blockSize = 20;
+    const block = Math.floor(k / blockSize);
+    const holidayRnd = mulberry32(p.seed * 743 + block * 1999 + 77);
+    const treeChunk = block * blockSize + 4 + Math.floor(holidayRnd() * 12);
+    if (k === treeChunk) {
+      const i = Math.floor((i0 + i1) / 2), s = i * STEP;
+      const offset = half + 6 + holidayRnd() * 3;
+      const preferred = holidayRnd() < 0.5 ? -1 : 1;
+      for (const side of [preferred, -preferred]) {
+        if (seaSideAt(i) === side || blocked(side, s, offset, 3)) continue;
+        const at = ground(i, side * offset, tmp, 0.15);
+        if (!Number.isNaN(p.sea[i]) && at.y < p.sea[i] + 0.35) continue;
+        const scale = 0.56 + holidayRnd() * 0.13;
+        const rotation = new THREE.Quaternion().setFromAxisAngle(UP, holidayRnd() * Math.PI * 2);
+        put('spruce', at, rotation, scale);
+        put('festiveLights', at, rotation, scale);
+        foot.push({ side, s0: s - 2, s1: s + 2, o0: offset - 2, o1: offset + 2 });
+        break;
+      }
+    }
+  }
+
   // ——— растительность по правилам районов ———
   const len = s1c - s0c;
   const col = new THREE.Color();
@@ -333,7 +357,8 @@ export function scatterChunk(world: RoadWorld, k: number, i0: number, i1: number
 
   // ——— сборка мешей ———
   for (const [id, e] of inst) {
-    const im = new THREE.InstancedMesh(kit.geo[id], kit.mat, e.m.length);
+    const material = id === 'festiveLights' ? kit.festiveMat : kit.mat;
+    const im = new THREE.InstancedMesh(kit.geo[id], material, e.m.length);
     for (let n = 0; n < e.m.length; n++) { im.setMatrixAt(n, e.m[n]); im.setColorAt(n, e.c[n]); }
     im.userData.sharedGeo = true;
     im.castShadow = !NO_SHADOW.has(id);

@@ -63,17 +63,52 @@ const shade = (base: number, lo: number, hi: number, y0: number, y1: number, jit
   };
 
 // ——— растительность ———
+function spruceTier(t: number, tiers: number, lo: boolean) {
+  const progress = t / (tiers - 1);
+  return { r: 2.3 - progress * 1.5, h: 3.4 - progress * 1.2, y: 2.2 + t * (lo ? 2.6 : 1.6) };
+}
+
 function spruce(lo: boolean) {
   const parts: THREE.BufferGeometry[] = [];
   parts.push(prep(at(new THREE.CylinderGeometry(0.1, 0.2, 3.2, lo ? 5 : 7), 0, 1.6, 0), 0x4a3426));
   const tiers = lo ? 3 : 5;
   for (let t = 0; t < tiers; t++) {
-    const k = t / (tiers - 1);
-    const r = 2.3 - k * 1.5, h = 3.4 - k * 1.2, y = 2.2 + t * (lo ? 2.6 : 1.6);
+    const { r, h, y } = spruceTier(t, tiers, lo);
     let cone: THREE.BufferGeometry = new THREE.ConeGeometry(r, h, lo ? 6 : 11, lo ? 1 : 3);
     if (!lo) cone = displace(cone.toNonIndexed(), 0.35, 1.3, 7 + t);
     parts.push(prep(at(cone, 0, y + h / 2, 0, 0, t * 0.7), shade(0x24452b, 0.55, 1.15, y, y + h, 0.25, t)));
   }
+  return merge(parts);
+}
+
+function festiveLights() {
+  const parts: THREE.BufferGeometry[] = [];
+  const palette = [0xff483f, 0xffcd57, 0x48cfff, 0x61ef89, 0xff82da];
+  const bulb = new THREE.IcosahedronGeometry(0.105, 0);
+  for (let t = 0; t < 5; t++) {
+    const { r, h, y } = spruceTier(t, 5, false);
+    const count = 24 - t * 3;
+    for (let n = 0; n < count; n++) {
+      const angle = (n / count) * Math.PI * 2 + t * 0.52;
+      const rise = 0.22 + 0.11 * Math.sin(angle * 3);
+      const radius = r * (1 - rise / h) + 0.07;
+      const color = new THREE.Color(palette[(n + t * 2) % palette.length]).multiplyScalar(2.4);
+      parts.push(prep(bulb.clone().translate(Math.cos(angle) * radius, y + rise, Math.sin(angle) * radius), () => color));
+    }
+  }
+  const star = new THREE.Shape();
+  for (let n = 0; n < 10; n++) {
+    const angle = Math.PI / 2 + n * Math.PI / 5;
+    const radius = n % 2 ? 0.22 : 0.48;
+    const x = Math.cos(angle) * radius, y = Math.sin(angle) * radius;
+    if (n === 0) star.moveTo(x, y); else star.lineTo(x, y);
+  }
+  star.closePath();
+  const golden = new THREE.Color(0xffb839).multiplyScalar(2.3);
+  for (const azimuth of [0, Math.PI / 2]) {
+    parts.push(prep(new THREE.ShapeGeometry(star).rotateY(azimuth).translate(0, 11.0, 0), () => golden));
+  }
+  bulb.dispose();
   return merge(parts);
 }
 
@@ -216,7 +251,7 @@ function fence() {
 }
 
 export type PropId =
-  | 'pine' | 'pineLo' | 'spruce' | 'spruceLo' | 'oak' | 'oakLo' | 'birch' | 'birchLo' | 'bush' | 'dryBush'
+  | 'pine' | 'pineLo' | 'spruce' | 'spruceLo' | 'festiveLights' | 'oak' | 'oakLo' | 'birch' | 'birchLo' | 'bush' | 'dryBush'
   | 'cactus' | 'cactusLo' | 'rock' | 'rockLo' | 'redRock' | 'delineator' | 'lamp' | 'powerPole' | 'lifeguard' | 'fence';
 
 // ——— текстуры фасадов ———
@@ -439,6 +474,7 @@ export function repairShop(out: BuildingParts, m: THREE.Matrix4) {
 export class PropKit {
   readonly geo: Record<PropId, THREE.BufferGeometry>;
   readonly mat: THREE.MeshStandardMaterial;
+  readonly festiveMat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
   readonly houseMat: THREE.MeshStandardMaterial;
   readonly towerMat: THREE.MeshStandardMaterial;
   readonly solidMat: THREE.MeshStandardMaterial;
@@ -452,7 +488,7 @@ export class PropKit {
       oak: blobTree(0x4a3a2a, 0x3f6a2e, false), oakLo: blobTree(0x4a3a2a, 0x3f6a2e, true),
       birch: blobTree(0xe8e6df, 0x6f9a3e, false, true), birchLo: blobTree(0xe8e6df, 0x6f9a3e, true, true),
       bush: bush(0x41652f, false), dryBush: bush(0x8a7a52, true),
-      spruce: spruce(false), spruceLo: spruce(true),
+      spruce: spruce(false), spruceLo: spruce(true), festiveLights: festiveLights(),
       cactus: cactus(false), cactusLo: cactus(true),
       rock: rock(0x8d8478, false, 3), rockLo: rock(0x8d8478, true, 3), redRock: rock(0xa8633e, false, 9),
       delineator: delineator(), lamp: lamp(), powerPole: powerPole(), lifeguard: lifeguard(), fence: fence(),

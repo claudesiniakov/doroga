@@ -9,7 +9,7 @@ import { VAN, vanShape, vanGreenhouse, vanBodyClassify } from './van-shape';
 
 // Оси моделей трафика: +Z — вперёд, +Y — вверх, +X — ЛЕВЫЙ борт (базис «вверх × вперёд»).
 /** Ключи материалов: детали модели склеиваются по ним — несколько draw call на машину. */
-type MatKey = 'paint' | 'paint2' | 'glass' | 'black' | 'chrome' | 'grey' | 'head' | 'plate' | 'logo' | 'chevron' | 'rubber' | 'rim' | 'wood';
+type MatKey = 'paint' | 'paint2' | 'glass' | 'black' | 'chrome' | 'grey' | 'head' | 'beacon' | 'plate' | 'logo' | 'chevron' | 'rubber' | 'rim' | 'wood';
 const TEXTURED: MatKey[] = ['plate', 'logo', 'chevron'];
 
 class Builder {
@@ -172,7 +172,7 @@ export class Shape {
   }
 }
 
-export type TrafficKind = 'sedan' | 'truck' | 'moto' | 'van' | 'tiller';
+export type TrafficKind = 'sedan' | 'truck' | 'moto' | 'van' | 'tiller' | 'tow';
 
 export interface TrafficTemplate {
   kind: TrafficKind;
@@ -586,6 +586,62 @@ function buildTruck(): TrafficTemplate {
   };
 }
 
+/** Эвакуатор со сдвижной платформой, лебёдкой и жёлтым маячком. */
+function buildTow(): TrafficTemplate {
+  const b = new Builder();
+  const cabZ = 2.03, cabFront = 2.95, rear = -3.2;
+  b.box(1.0, 0.26, 5.9, 'black', { x: 0, y: 0.64, z: -0.1 });
+  b.box(2.08, 1.56, 1.82, 'paint', { x: 0, y: 1.62, z: cabZ }, 0.13);
+  b.box(1.83, 0.65, 0.04, 'glass', { x: 0, y: 1.91, z: cabFront }, 0.02);
+  b.box(2.14, 0.24, 0.23, 'black', { x: 0, y: 0.86, z: cabFront - 0.01 }, 0.06);
+  b.box(1.25, 0.23, 0.04, 'black', { x: 0, y: 1.17, z: cabFront + 0.012 }, 0.02);
+  for (const y of [1.11, 1.18, 1.25]) {
+    b.box(1.12, 0.018, 0.024, 'chrome', { x: 0, y, z: cabFront + 0.036 });
+  }
+
+  const deckY = 1.03, deckZ = -0.76;
+  b.box(2.22, 0.16, 3.38, 'grey', { x: 0, y: deckY, z: deckZ }, 0.04);
+  b.box(2.20, 0.14, 0.81, 'grey', { x: 0, y: 0.93, z: -2.84 }, 0.035, new THREE.Euler(-0.25, 0, 0));
+  for (const side of [-1, 1]) {
+    b.box(0.042, 0.52, 0.93, 'glass', { x: side * 1.035, y: 1.91, z: 2.38 }, 0.015);
+    b.box(0.05, 0.04, 0.18, 'grey', { x: side * 1.043, y: 1.50, z: 1.98 }, 0.012);
+    b.box(0.24, 0.04, 0.04, 'black', { x: side * 1.10, y: 1.95, z: 2.76 });
+    b.box(0.09, 0.27, 0.16, 'black', { x: side * 1.24, y: 1.88, z: 2.76 }, 0.03);
+    b.box(0.27, 0.12, 0.035, 'head', { x: side * 0.83, y: 1.17, z: cabFront + 0.02 }, 0.015);
+    b.box(0.56, 0.033, 3.2, 'black', { x: side * 0.68, y: deckY + 0.09, z: deckZ });
+    for (let i = 0; i < 10; i++) {
+      b.box(0.53, 0.016, 0.035, 'grey', { x: side * 0.68, y: deckY + 0.106, z: 0.64 - i * 0.31 });
+    }
+    b.box(0.045, 0.08, 3.32, 'paint', { x: side * 1.105, y: deckY, z: deckZ });
+    b.box(0.55, 0.33, 0.025, 'black', { x: side * 0.85, y: 0.54, z: -2.24 });
+  }
+
+  b.box(2.10, 0.47, 0.10, 'black', { x: 0, y: 1.29, z: 0.93 }, 0.045);
+  b.add(new THREE.CylinderGeometry(0.09, 0.09, 0.33, 12).rotateZ(Math.PI / 2),
+    'chrome', { x: 0, y: deckY + 0.19, z: 0.78 });
+  b.box(0.87, 0.055, 0.22, 'black', { x: 0, y: 2.42, z: 1.93 }, 0.02);
+  b.box(0.81, 0.11, 0.19, 'beacon', { x: 0, y: 2.49, z: 1.93 }, 0.045);
+
+  b.box(2.12, 0.18, 0.13, 'black', { x: 0, y: 0.67, z: rear });
+  b.add(new THREE.PlaneGeometry(2.04, 0.08), 'chevron', { x: 0, y: 0.84, z: rear - 0.056 }, new THREE.Euler(0, Math.PI, 0));
+  b.box(0.52, 0.112, 0.012, 'plate', { x: 0, y: 0.66, z: rear - 0.071 }, 0, new THREE.Euler(0, Math.PI, 0));
+
+  const tail = new Builder(), bl = new Builder(), br = new Builder();
+  for (const side of [-1, 1]) {
+    tail.box(0.22, 0.075, 0.025, 'head', { x: side * 0.79, y: 0.68, z: rear - 0.07 }, 0.01);
+    (side > 0 ? bl : br).box(0.092, 0.075, 0.025, 'head', { x: side * 0.96, y: 0.68, z: rear - 0.07 }, 0.01);
+  }
+  const wheelR = 0.39;
+  const axles = [
+    { z: 1.82, y: wheelR, ...axleGeometry(wheelR, 0.23, 0.21, 0.87, false) },
+    { z: -1.62, y: wheelR, ...axleGeometry(wheelR, 0.23, 0.19, 0.82, true) },
+  ];
+  return {
+    kind: 'tow', length: 6.55, width: 2.3, parts: b.build(), wheelR, axles,
+    tail: tail.build().get('head')!, blinkL: bl.build().get('head')!, blinkR: br.build().get('head')!,
+  };
+}
+
 // ——— материалы (общие для всех машин) ———
 function logoTexture(name: string, accent: string) {
   const c = document.createElement('canvas');
@@ -637,6 +693,7 @@ export class TrafficAssets {
   readonly moto = buildMoto();
   readonly van = buildVanTraffic();
   readonly tiller = buildTiller();
+  readonly tow = buildTow();
   private paints = new Map<string, THREE.MeshPhysicalMaterial>();
   readonly mats: Record<Exclude<MatKey, 'paint' | 'paint2' | 'logo' | 'plate'>, THREE.Material>;
   readonly tailOff = new THREE.MeshStandardMaterial({ color: 0x3a0000, emissive: 0xff1a12, emissiveIntensity: 1.6, roughness: 0.3 });
@@ -655,6 +712,7 @@ export class TrafficAssets {
       black: new THREE.MeshStandardMaterial({ color: 0x0c0c0d, roughness: 0.6 }),
       chrome: new THREE.MeshStandardMaterial({ color: 0xdfe2e6, metalness: 1, roughness: 0.18 }),
       grey: new THREE.MeshStandardMaterial({ color: 0x55585c, metalness: 0.5, roughness: 0.5 }),
+      beacon: new THREE.MeshStandardMaterial({ color: 0xff9c20, emissive: 0xff9a10, emissiveIntensity: 1.5, roughness: 0.28 }),
       head: new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xf2f5ff, emissiveIntensity: 2.2, roughness: 0.2 }),
       chevron: new THREE.MeshStandardMaterial({ map: chevronTexture(), roughness: 0.35, emissive: 0xffffff, emissiveIntensity: 0.08 }),
       rubber: new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.88 }),
@@ -732,8 +790,7 @@ export class TrafficAssets {
 
   /** Новый экземпляр машины трафика. */
   create(kind: TrafficKind): TrafficVisual {
-    const t = kind === 'sedan' ? this.sedan : kind === 'moto' ? this.moto : kind === 'van' ? this.van : kind === 'tiller' ? this.tiller : this.truck;
-    return this.createVisual(t);
+    return this.createVisual(this[kind]);
   }
 
   private createVisual(t: TrafficTemplate, policeStripe?: THREE.Material): TrafficVisual {
@@ -742,14 +799,14 @@ export class TrafficAssets {
     const body = new THREE.Group();
     root.add(body);
     const color = this.pick(kind === 'sedan' || kind === 'van' ? SEDAN_COLORS : kind === 'moto' ? MOTO_COLORS : kind === 'tiller' ? TILLER_COLORS : CAB_COLORS);
-    const paint = this.paint(policeStripe ? '#f2f3f1' : color);
+    const paint = this.paint(policeStripe ? '#f2f3f1' : kind === 'tow' ? '#f0a51d' : color);
     const paint2 = kind === 'tiller' ? this.cloth : this.paint(this.rnd() < 0.75 ? '#eef0f0' : this.pick([['#b8bcc2', 1], ['#2b4f8a', 1], ['#c9b89a', 1]]));
     const logo = this.logos[Math.floor(this.rnd() * this.logos.length)];
     const plate = this.plates[Math.floor(this.rnd() * this.plates.length)];
     for (const [k, g] of t.parts) {
       const mat = k === 'paint' ? paint : k === 'paint2' ? paint2 : k === 'logo' ? (policeStripe ?? logo) : k === 'plate' ? plate : this.mats[k];
       const m = new THREE.Mesh(g, mat);
-      m.castShadow = k !== 'logo' && k !== 'plate' && k !== 'head' && k !== 'chevron';
+      m.castShadow = k !== 'logo' && k !== 'plate' && k !== 'head' && k !== 'beacon' && k !== 'chevron';
       m.receiveShadow = k === 'paint' || k === 'paint2';
       body.add(m);
     }

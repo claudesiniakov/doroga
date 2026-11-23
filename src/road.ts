@@ -410,6 +410,7 @@ export class RoadWorld {
   private chunks = new Map<number, Chunk>();
   private postGeo: THREE.BufferGeometry;
   readonly far: FarTerrain;
+  snow = false;
 
   readonly kit: PropKit;
 

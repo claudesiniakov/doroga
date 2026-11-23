@@ -184,6 +184,7 @@ export class DriveScene {
   }
 
   setSnow(on: boolean) {
+    this.world.snow = on;
     this.world.mats.setSnow(on);
     this.sun.color.setHex(on ? 0xe4efff : 0xffd2a0);
     this.sun.intensity = on ? 4.2 : 5.2;

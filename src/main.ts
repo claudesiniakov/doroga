@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import './style.css';
+import './home.css';
 import cars from './cars.json';
 import { Renderer, detectQuality, QualityName } from './render';
 import type { CarConfig } from './car';
@@ -21,6 +22,7 @@ if (SHOT) document.documentElement.classList.add('shot');
 const screens = ['loading', 'garage', 'hud', 'pause', 'station', 'breakdown', 'over', 'kbm', 'protocol'] as const;
 function show(...ids: string[]) {
   for (const s of screens) $(s).classList.toggle('show', ids.includes(s));
+  $('garage').inert = !ids.includes('garage') || ids.includes('kbm');
 }
 const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -184,12 +186,19 @@ async function main() {
     const tabsEl = $('tabs');
     const desktop = matchMedia('(pointer: fine)');
     tabsEl.innerHTML = slides.map((slide, i) =>
-      `<button type="button" data-i="${i}" aria-pressed="false">${slide.dataset.name}</button>`).join('');
+      `<button type="button" id="home-tab-${i}" data-i="${i}" role="tab" aria-controls="home-slide-${i}">${slide.dataset.name}</button>`).join('');
     const tabs = [...tabsEl.querySelectorAll('button')];
+    slides.forEach((slide, i) => {
+      slide.id = `home-slide-${i}`;
+      slide.setAttribute('role', 'tabpanel');
+      slide.setAttribute('aria-labelledby', tabs[i].id);
+    });
     const markSlide = (index: number) => {
       tabs.forEach((tab, i) => {
         tab.classList.toggle('on', i === index);
-        tab.setAttribute('aria-pressed', String(i === index));
+        tab.setAttribute('aria-selected', String(i === index));
+        tab.tabIndex = i === index ? 0 : -1;
+        slides[i].inert = i !== index;
         slides[i].classList.toggle('active', i === index);
       });
     };
@@ -206,6 +215,19 @@ async function main() {
       if (!button) return;
       const index = Number(button.dataset.i);
       openTab(index, SHOT ? 'instant' : 'smooth');
+      if (index === recordsIndex) void renderRecords();
+    });
+    tabsEl.addEventListener('keydown', (event) => {
+      const tab = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-i]');
+      if (!tab) return;
+      const current = Number(tab.dataset.i);
+      const index = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1
+        : event.key === 'ArrowLeft' ? (current + tabs.length - 1) % tabs.length
+          : event.key === 'ArrowRight' ? (current + 1) % tabs.length : current;
+      if (current === index) return;
+      event.preventDefault();
+      openTab(index);
+      tabs[index].focus();
       if (index === recordsIndex) void renderRecords();
     });
     slidesEl.addEventListener('scroll', () => {
@@ -240,6 +262,8 @@ async function main() {
     void renderRecords();
     if (garage) garage.attachCar(car);
     else drive.previewRoad(car, cfg);
+    $('garage').classList.remove('is-renewal');
+    $('homeMode').textContent = 'Бесконечный заезд';
     $('insuranceHeading').textContent = 'Страховка на год';
     openInsuranceTab();
     renderer.setExposure(garage ? 1.0 : 0.6);
@@ -360,6 +384,8 @@ async function main() {
     $('kaskoPrice').textContent = String(kaskoPrice);
     $('insKasko').classList.toggle('on', ins.kasko);
     $('insOsago').classList.toggle('on', ins.osago);
+    $('insKasko').setAttribute('aria-pressed', String(ins.kasko));
+    $('insOsago').setAttribute('aria-pressed', String(ins.osago));
     $('osagoPrice').textContent = String(osagoPrice(kbm));
     $('kbmNow').textContent = fmtK(KBM[kbm].k);
     $('kbmCls').textContent = KBM[kbm].cls;
@@ -378,9 +404,17 @@ async function main() {
     $('kbmBuy').textContent = ins.osago ? 'ОСАГО уже выбрано' : afford ? `Купить ОСАГО за ${osagoPrice(kbm)}` : 'Не хватает монет';
     ($('kbmBuy') as HTMLButtonElement).disabled = ins.osago || !afford;
   };
-  let kbmBack: string[] = ['garage'];
-  const openKbm = () => { renderKbmTable(); kbmBack = ['garage']; show('garage', 'kbm'); };
-  const closeKbm = () => show(...kbmBack);
+  let kbmTrigger: HTMLElement | null = null;
+  const openKbm = () => {
+    kbmTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    renderKbmTable();
+    show('garage', 'kbm');
+    $('kbmClose').focus({ preventScroll: true });
+  };
+  const closeKbm = () => {
+    show('garage');
+    kbmTrigger?.focus({ preventScroll: true });
+  };
   $('insKasko').addEventListener('click', () => { ins.kasko = !ins.kasko; renderIns(); });
   $('insOsago').addEventListener('click', () => {
     if (ins.osago) { ins.osago = false; renderIns(); return; }
@@ -549,7 +583,9 @@ async function main() {
       state = 'renewal';
       input.enabled = false;
       ins.kasko = ins.osago = false;
-      $('insuranceHeading').textContent = 'Январь · выберите страховку на новый год';
+      $('garage').classList.add('is-renewal');
+      $('homeMode').textContent = 'Новый страховой год';
+      $('insuranceHeading').textContent = 'Январь · выберите страховку';
       openInsuranceTab();
       renderIns();
       show('garage');
@@ -597,6 +633,11 @@ async function main() {
     if (navigator.vibrate) navigator.vibrate(e.side ? 60 : 120);
   };
   addEventListener('keydown', (e) => {
+    if (e.code === 'Escape' && $('kbm').classList.contains('show')) {
+      e.preventDefault();
+      closeKbm();
+      return;
+    }
     if ((state === 'drive' || state === 'pause') && (e.code === 'Escape' || e.code === 'KeyP')) {
       e.preventDefault();
       if (!e.repeat) {

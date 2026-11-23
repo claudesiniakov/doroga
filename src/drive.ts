@@ -280,13 +280,15 @@ export class DriveScene {
   }
 
   private frameRoadPreview() {
-    const view = this.world.path.frame(this.s - 12);
     const narrow = Math.max(0, 1.15 - this.camera.aspect);
-    this.camera.position.copy(view.pos).addScaledVector(view.up, 3.2 - narrow * 1.7).addScaledVector(view.right, 1.7);
+    const wide = smoothstep(1.15, 1.45, this.camera.aspect);
+    const view = this.world.path.frame(this.s - lerp(12, 8, wide));
+    this.camera.position.copy(view.pos).addScaledVector(view.up, 3.2 - narrow * 1.7 - wide * 0.65)
+      .addScaledVector(view.right, 1.7);
     const target = this.world.path.frame(this.s + 10);
     this.camera.lookAt(target.pos.clone()
-      .addScaledVector(target.right, 4.1 + narrow * 9)
-      .addScaledVector(target.up, 1.5 - narrow * 3.6));
+      .addScaledVector(target.right, 4.1 + narrow * 9 + wide * 1.2)
+      .addScaledVector(target.up, 1.5 - narrow * 5.4));
   }
 
   /** Новый заезд: машина стоит на обочине, начинается заставка выезда. */

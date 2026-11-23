@@ -23,52 +23,58 @@
     <div class="sub" id="loadtext">Прокладываем трассу…</div>
   </section>
 
-  <section id="garage" class="screen">
+  <section id="garage" class="screen" aria-labelledby="homeTitle" inert>
     <header class="top">
-      <div class="logo">ДОРОГА</div>
       <div class="top-right">
         <a class="prototypes-link" href="./proto.html">Прототипы</a>
         <button class="icon-btn fs-btn" id="fsBtn" aria-label="На весь экран" hidden><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
-        <div class="wallet-top"><span class="coin"></span><b id="walletTop">100</b></div>
+        <div class="wallet-top" aria-label="Монеты"><span class="coin" aria-hidden="true"></span><b id="walletTop">100</b></div>
       </div>
     </header>
-    <div class="panel car-card">
-      <div class="tabs" id="tabs"></div>
-      <div class="slides" id="slides">
-        <section class="slide" data-name="Страховка">
-          <div class="eyebrow" id="insuranceHeading">Страховка на год</div>
-          <div class="ins">
-            <button class="ins-opt" id="insKasko"><span class="chk"></span><span class="t"><b>КАСКО · <span id="kaskoPrice">40</span></b><small>Защищает ваш автомобиль (добровольно): от угона, повреждения или полной гибели.</small></span></button>
-            <button class="ins-opt" id="insOsago"><span class="chk"></span><span class="t"><b>ОСАГО · <span id="osagoPrice">10</span></b><small>Защищает вашу ответственность перед другими — компенсирует чужой ущерб, если вы виноваты в ДТП (в России оно обязательно).</small></span></button>
-            <button class="kbm-link" id="kbmLink">КБМ <b id="kbmNow">1,17</b> · класс <b id="kbmCls">3</b> — таблица</button>
-          </div>
-          <div class="startcoins">В кошельке <span class="coin"></span><b id="walletCard">100</b> · на поездку останется <b id="startCoins">100</b></div>
-        </section>
-        <section class="slide" data-name="Аналитика">
-          <div class="eyebrow">Аналитика</div>
-          <div class="gstats">
-            <div><span>Следующий год</span><b id="gsTrip">№1</b></div>
-            <div><span>Пройдено всего</span><b id="gsKm">0 км</b></div>
-            <div><span>Столкновений</span><b id="gsCrashes">0</b></div>
-            <div><span>Лет за рулём</span><b id="gsDone">0</b></div>
-            <div><span>Собрано монет</span><b id="gsCoins">0</b></div>
-            <div class="wide"><span>Последняя поездка</span><b id="gsLast">—</b></div>
-          </div>
-          <button class="reset-all" id="resetAll">Начать сначала</button>
-        </section>
-        <section class="slide" data-name="Рекорды">
-          <div class="eyebrow" id="recordsTitle">Топ-100 по пробегу</div>
-          <p id="recordsEmpty">Здесь будут результаты завершённых заездов.</p>
-          <div class="records-scroll" id="recordsScroll" hidden>
-            <table class="records-table" aria-labelledby="recordsTitle">
-              <thead><tr><th scope="col">Место</th><th scope="col">Ник</th><th scope="col">Пробег</th></tr></thead>
-              <tbody id="recordsBody"></tbody>
-            </table>
-          </div>
-        </section>
+    <div class="home-shell">
+      <div class="home-heading">
+        <span id="homeMode">Бесконечный заезд</span>
+        <h1 id="homeTitle">Дорога</h1>
       </div>
-      <button id="go" class="go">Поехать</button>
+      <div class="car-card home-card">
+        <div class="tabs" id="tabs" role="tablist" aria-label="Меню игры"></div>
+        <div class="slides" id="slides">
+          <section class="slide" data-name="Страховка">
+            <h2 class="home-section-title" id="insuranceHeading">Страховка на год</h2>
+            <div class="ins">
+              <button class="ins-opt" id="insKasko"><span class="chk"></span><span class="t"><b>КАСКО · <span id="kaskoPrice">40</span></b><small>Защищает ваш автомобиль (добровольно): от угона, повреждения или полной гибели.</small></span></button>
+              <button class="ins-opt" id="insOsago"><span class="chk"></span><span class="t"><b>ОСАГО · <span id="osagoPrice">10</span></b><small>Защищает вашу ответственность перед другими — компенсирует чужой ущерб, если вы виноваты в ДТП (в России оно обязательно).</small></span></button>
+              <button class="kbm-link" id="kbmLink">КБМ <b id="kbmNow">1,17</b> · класс <b id="kbmCls">3</b> — таблица</button>
+            </div>
+            <div class="startcoins">В кошельке <span class="coin"></span><b id="walletCard">100</b> · на поездку останется <b id="startCoins">100</b></div>
+          </section>
+          <section class="slide" data-name="Аналитика">
+            <h2 class="home-section-title">Аналитика</h2>
+            <div class="gstats">
+              <div><span>Следующий год</span><b id="gsTrip">№1</b></div>
+              <div><span>Пройдено всего</span><b id="gsKm">0 км</b></div>
+              <div><span>Столкновений</span><b id="gsCrashes">0</b></div>
+              <div><span>Лет за рулём</span><b id="gsDone">0</b></div>
+              <div><span>Собрано монет</span><b id="gsCoins">0</b></div>
+              <div class="wide"><span>Последняя поездка</span><b id="gsLast">—</b></div>
+            </div>
+            <button class="reset-all" id="resetAll">Начать сначала</button>
+          </section>
+          <section class="slide" data-name="Рекорды">
+            <h2 class="home-section-title" id="recordsTitle">Топ-100 по пробегу</h2>
+            <p id="recordsEmpty">Здесь будут результаты завершённых заездов.</p>
+            <div class="records-scroll" id="recordsScroll" hidden>
+              <table class="records-table" aria-labelledby="recordsTitle">
+                <thead><tr><th scope="col">Место</th><th scope="col">Ник</th><th scope="col">Пробег</th></tr></thead>
+                <tbody id="recordsBody"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+        <button id="go" class="go">Поехать</button>
+      </div>
     </div>
+    <div class="home-vehicle" aria-hidden="true">Комета GT</div>
     <div class="ios-tip" id="iosTip" hidden>
       <b>На весь экран</b> — нажмите <span class="share">⬆︎</span> «Поделиться» → «На экран „Домой“» и запускайте игру с иконки.
       <button id="iosTipClose" aria-label="Закрыть">✕</button>

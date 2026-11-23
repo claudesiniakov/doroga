@@ -188,14 +188,8 @@ function buildSedan(): TrafficTemplate {
     planFront: 5, planRear: 10, axles: [1.4, -1.38], wheelR: 0.31, archR: 0.355,
   });
   const b = new Builder();
-  const body = loft(sh.body(84, 22), (p) => {
-    const ax = Math.abs(p.x), bot = sh.bottom(p.z);
-    if (p.z > 2.0 && p.y > 0.3 && p.y < 0.5 && ax < 0.55) return 1;
-    if (p.z < -2.15 && p.y < 0.38) return 1;
-    if (p.y < sh.base(p.z) + 0.07 && p.y < bot + 0.07 && ax > 0.55) return 1;
-    return 0;
-  }, true, true);
-  b.addGroups(body, ['paint', 'black']);
+  const body = loft(sh.body(84, 22), () => 0, true, true);
+  b.add(body, 'paint');
 
   // «аквариум» седана: лобовое, крыша, задняя стойка, багажник отдельно
   const zA = 1.0, zC = -1.42;
@@ -228,29 +222,43 @@ function buildSedan(): TrafficTemplate {
   b.addGroups(gh, ['paint', 'glass', 'black']);
   b.box(1.16, 0.44, 3.5, 'black', { x: 0, y: 0.47, z: 0 });
 
-  // фары и решётка
+  // Накладки повторяют поверхность кузова, включая закругления к крыльям.
+  const projectionMaterial = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+  const shell = new THREE.Mesh(body, projectionMaterial);
+  const ray = new THREE.Raycaster();
+  const panel = (w: number, h: number, x: number, y: number, end: 1 | -1, offset: number) => {
+    const geometry = new THREE.PlaneGeometry(w, h, Math.ceil(w / 0.02), Math.ceil(h / 0.02));
+    if (end < 0) geometry.rotateY(Math.PI);
+    const points = geometry.getAttribute('position');
+    ray.ray.direction.set(0, 0, -end);
+    for (let i = 0; i < points.count; i++) {
+      const px = x + points.getX(i), py = y + points.getY(i);
+      ray.ray.origin.set(px, py, end * 3);
+      const hit = ray.intersectObject(shell, false)[0];
+      const z = hit?.point.z ?? sh.surfaceZ(px, py, end);
+      points.setXYZ(i, px, py, z + end * offset);
+    }
+    geometry.computeVertexNormals();
+    return geometry;
+  };
+
+  b.add(panel(0.98, 0.10, 0, 0.43, 1, 0.014), 'black');
+  b.add(panel(0.82, 0.018, 0, 0.448, 1, 0.024), 'chrome');
+  const tail = new Builder(), bl = new Builder(), br = new Builder();
   for (const side of [-1, 1]) {
-    const y = 0.66, x = 0.6;
-    const z = sh.surfaceZ(x, y, 1);
-    b.box(0.34, 0.11, 0.12, 'glass', { x: side * x, y, z: z - 0.03 }, 0.03, new THREE.Euler(0, side * -0.35, 0));
-    b.box(0.2, 0.03, 0.06, 'head', { x: side * (x - 0.02), y: y + 0.015, z: z + 0.0 }, 0.012, new THREE.Euler(0, side * -0.35, 0));
-    // зеркала
+    b.add(panel(0.30, 0.085, side * 0.56, 0.64, 1, 0.014), 'black');
+    b.add(panel(0.22, 0.025, side * 0.56, 0.644, 1, 0.024), 'head');
+
+    b.add(panel(0.30, 0.09, side * 0.55, 0.81, -1, 0.014), 'black');
+    tail.add(panel(0.18, 0.038, side * 0.515, 0.812, -1, 0.024), 'head');
+    (side > 0 ? bl : br).add(panel(0.05, 0.038, side * 0.66, 0.812, -1, 0.024), 'head');
+
     const mz = 0.82, my = sh.top(mz) + 0.08, mx = sh.xAt(mz, sh.top(mz) - 0.05) + 0.05;
     b.box(0.12, 0.09, 0.06, 'paint', { x: side * mx, y: my, z: mz }, 0.02);
     b.box(0.09, 0.07, 0.01, 'chrome', { x: side * mx, y: my, z: mz - 0.035 });
   }
-  b.box(0.95, 0.03, 0.04, 'chrome', { x: 0, y: 0.47, z: sh.surfaceZ(0.45, 0.47, 1) + 0.01 });
-  // задние фонари: красный блок + поворотник — отдельные меши (меняют материал)
-  const tail = new Builder(), bl = new Builder(), br = new Builder();
-  for (const side of [-1, 1]) {
-    const y = 0.86, x = 0.6, z = sh.surfaceZ(x, y, -1);
-    b.box(0.42, 0.14, 0.08, 'glass', { x: side * x, y, z: z + 0.02 }, 0.02);
-    tail.box(0.3, 0.07, 0.04, 'head', { x: side * (x - 0.03), y: y + 0.01, z: z - 0.012 }, 0.01);
-    (side > 0 ? bl : br).box(0.09, 0.05, 0.04, 'head', { x: side * (x + 0.15), y: y - 0.02, z: z - 0.01 }, 0.01);
-  }
-  // номер и бампер
-  const pz = sh.surfaceZ(0.27, 0.55, -1);
-  b.box(0.52, 0.112, 0.012, 'plate', { x: 0, y: 0.55, z: pz - 0.008 }, 0, new THREE.Euler(0, Math.PI, 0));
+  b.add(panel(0.52, 0.112, 0, 0.55, -1, 0.016), 'plate');
+  projectionMaterial.dispose();
   const axles = [1.4, -1.38].map((z) => ({ z, y: 0.31, ...axleGeometry(0.31, 0.2, 0.22, 0.76, false) }));
   return {
     kind: 'sedan', length: 4.6, width: 1.8, parts: b.build(), wheelR: 0.31, axles,

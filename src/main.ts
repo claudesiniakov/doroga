@@ -39,7 +39,8 @@ async function main() {
   await nextFrame();
 
   const configs = cars as CarConfig[];
-  const models = configs.map(buildPlayerCar);
+  const models: (CarModel | undefined)[] = [];
+  const modelAt = (i: number) => models[i] ??= buildPlayerCar(configs[i]);
   let sel = 0;
   try {
     const saved = localStorage.getItem('doroga.car');
@@ -49,17 +50,23 @@ async function main() {
   const qCar = params.get('car');
   if (qCar) sel = Math.max(0, configs.findIndex((c) => c.id === qCar));
   let cfg = configs[sel];
-  let car: CarModel = models[sel];
+  let car = modelAt(sel);
   const garage = new GarageScene(pmrem, document.body);
   garage.attachCar(car);
   loadBar(0.35, 'Прокладываем трассу…');
   await nextFrame();
 
-  const drive = new DriveScene(pmrem, renderer.quality.textureSize, renderer.anisotropy, Number(params.get('seed') || 1337));
-  drive.setSnow(!SHOT || params.get('snow') !== '0');
-  drive.setShadowMapSize(renderer.quality.shadowMap);
-  loadBar(0.8, 'Прогреваем шейдеры…');
-  await nextFrame();
+  let drive: DriveScene;
+  const prepareDrive = () => {
+    if (drive) return drive;
+    const scene = new DriveScene(pmrem, renderer.quality.textureSize, renderer.anisotropy, Number(params.get('seed') || 1337));
+    scene.setSnow(!SHOT || params.get('snow') !== '0');
+    scene.setShadowMapSize(renderer.quality.shadowMap);
+    scene.resize(innerWidth / innerHeight);
+    Object.assign(scene, { onStation, onPolice, onDamage, onEmpty, onCrash });
+    drive = scene;
+    return scene;
+  };
 
   // UI гаража
   const statNames: [keyof CarConfig['stats'], string][] = [['speed', 'Скорость'], ['accel', 'Разгон'], ['handling', 'Управление'], ['brakes', 'Тормоза']];
@@ -78,8 +85,9 @@ async function main() {
   };
   const selectCar = (i: number) => {
     i = (i + configs.length) % configs.length;
-    if (i === sel && car === models[i]) return;
-    sel = i; cfg = configs[i]; car = models[i];
+    if (i === sel) return;
+    sel = i; cfg = configs[i]; car = modelAt(i);
+    applyLivery();
     try { localStorage.setItem('doroga.car', cfg.id); } catch { /* нет хранилища */ }
     garage.attachCar(car);
     renderCard();
@@ -174,7 +182,7 @@ async function main() {
   const resize = () => {
     renderer.resize();
     garage.resize(innerWidth / innerHeight);
-    drive.resize(innerWidth / innerHeight);
+    drive?.resize(innerWidth / innerHeight);
     $('rotate').classList.toggle('show', state === 'drive' && innerHeight > innerWidth);
   };
   addEventListener('resize', resize);
@@ -196,28 +204,49 @@ async function main() {
     show('garage');
   };
 
+  let startingDrive = false;
   const startDrive = async (skipIntro = false, startS = 30) => {
+    if (startingDrive) return;
+    startingDrive = true;
     input.enabled = false;
-    await fade(true);
-    drive.attachCar(car, cfg);
-    // страховки оплачиваются из кошелька, остальное — на поездку
-    const cost = insCost();
-    wallet = Math.max(0, wallet - cost);
-    lsSet('doroga.wallet', wallet);
-    drive.insurance = { ...ins, osagoPrice: osagoPrice(kbm) };
-    drive.tripKm = tripKm(trip);
-    drive.startCoins = wallet;
-    runClosed = false;
-    drive.reset(skipIntro, startS);
-    renderer.setExposure(0.6);
-    renderer.setBloom(0.18, 4.5, 0.35);
-    renderer.setVignette(0.3);
-    state = 'drive';
-    show('hud');
-    $('ctrlHint').classList.remove('hide');
-    hintTimer = 0;
-    clock.update();
-    await fade(false);
+    try {
+      if (!drive && !SHOT) {
+        loadBar(0.35, 'Прокладываем трассу…');
+        show('loading');
+        await nextFrame();
+        await nextFrame();
+      } else {
+        await fade(true);
+      }
+      prepareDrive();
+      drive.attachCar(car, cfg);
+      // Страховки оплачиваются только после успешной подготовки поездки.
+      const startCoins = Math.max(0, wallet - insCost());
+      drive.insurance = { ...ins, osagoPrice: osagoPrice(kbm) };
+      drive.tripKm = tripKm(trip);
+      drive.startCoins = startCoins;
+      drive.reset(skipIntro, startS);
+      wallet = startCoins;
+      lsSet('doroga.wallet', wallet);
+      runClosed = false;
+      renderer.setExposure(0.6);
+      renderer.setBloom(0.18, 4.5, 0.35);
+      renderer.setVignette(0.3);
+      state = 'drive';
+      show('hud');
+      $('ctrlHint').classList.remove('hide');
+      hintTimer = 0;
+      clock.update();
+      await fade(false);
+    } catch (error) {
+      if (SHOT) throw error;
+      console.error(error);
+      enterGarage();
+      $('go').textContent = 'Не удалось выехать · повторить';
+      await fade(false);
+    } finally {
+      startingDrive = false;
+    }
   };
 
   // каждый заезд — год: с ОСАГО класс КБМ меняется по числу ДТП (страховых случаев)
@@ -274,7 +303,7 @@ async function main() {
   try { Object.assign(ins, JSON.parse(localStorage.getItem('doroga.ins') || '{}')); } catch { /* нет хранилища */ }
   function insCost() { return (ins.kasko ? kaskoPrice : 0) + (ins.osago ? osagoPrice(kbm) : 0); }
   // ливрея страховщика — при любой купленной страховке (видна сразу в гараже и в поездке)
-  function applyLivery() { const on = ins.kasko || ins.osago; for (const m of models) m.setLivery?.(on); }
+  function applyLivery() { car.setLivery?.(ins.kasko || ins.osago); }
   function renderIns() {
     // не дороже кошелька: лишнее снимается
     if (insCost() > wallet && ins.kasko) ins.kasko = false;
@@ -356,7 +385,7 @@ async function main() {
       ten.style.display = need > 10 && canPct > 0 ? '' : 'none';
     }
   };
-  drive.onStation = () => {
+  const onStation: NonNullable<DriveScene['onStation']> = () => {
     state = 'station';
     input.enabled = false;
     updateStation();
@@ -371,7 +400,7 @@ async function main() {
     updateStation();
   });
   // ——— ДПС: протокол за езду без ОСАГО ———
-  drive.onPolice = () => {
+  const onPolice: NonNullable<DriveScene['onPolice']> = () => {
     state = 'protocol';
     input.enabled = false;
     const n = String(Math.floor(1000000 + Math.random() * 8999999));
@@ -393,7 +422,7 @@ async function main() {
   });
   // ——— удары: здоровье и ОСАГО ———
   let toastTimer = 0;
-  drive.onDamage = ({ damage, fine, covered }) => {
+  const onDamage: NonNullable<DriveScene['onDamage']> = ({ damage, fine, covered }) => {
     const t = $('toast');
     t.innerHTML = `−${damage} % здоровья` + (covered ? ' · ущерб покрыло ОСАГО' : fine > 0 ? ` · ущерб другой машине <span class="coin"></span>−${fine}` : '');
     t.classList.toggle('ok', covered);
@@ -411,7 +440,7 @@ async function main() {
     show('hud');
   });
   // ——— бак пуст ———
-  drive.onEmpty = () => {
+  const onEmpty: NonNullable<DriveScene['onEmpty']> = () => {
     finishRun();
     state = 'over';
     input.enabled = false;
@@ -437,7 +466,7 @@ async function main() {
     enterGarage();
     await fade(false);
   });
-  drive.onCrash = (e) => {
+  const onCrash: NonNullable<DriveScene['onCrash']> = (e) => {
     const hit = $('hit');
     hit.style.setProperty('--k', String(e.severity));
     hit.classList.add('on');
@@ -523,19 +552,6 @@ async function main() {
     drive.setShadowMapSize(renderer.quality.shadowMap);
     markQuality();
   });
-
-  // прогрев: компиляция шейдеров обеих сцен до показа
-  for (let i = 0; i < models.length; i++) {
-    drive.attachCar(models[i], configs[i]);
-    renderer.gl.compile(drive.scene, drive.camera);
-  }
-  drive.attachCar(car, cfg);
-  drive.reset(true);
-  renderer.gl.compile(drive.scene, drive.camera);
-  renderer.render(drive.scene, drive.camera, 0);
-  garage.attachCar(car);
-  loadBar(1, 'Готово');
-  await sleep(SHOT ? 0 : 250);
 
   const SPEEDO_LEN = 252;
   const speedEl = $('speed'), arcEl = $('speedArc'), odoEl = $('odo');
@@ -644,7 +660,11 @@ async function main() {
   };
 
   if (SHOT) {
-    await runShot(SHOT, { renderer, garage, drive, frame, startDrive, enterGarage, setState: (s: State) => (state = s) });
+    const scene = prepareDrive();
+    scene.attachCar(car, cfg);
+    scene.reset(true);
+    garage.attachCar(car);
+    await runShot(SHOT, { renderer, garage, drive: scene, frame, startDrive, enterGarage, setState: (s: State) => (state = s) });
     return;
   }
 

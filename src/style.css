@@ -30,7 +30,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .screen.show > .hud-top, .screen.show > .banner, .screen.show > .toast { pointer-events: none; }
 .hud-left { pointer-events: none; }
 .hud-right { pointer-events: none; }
-#hud.show #pauseBtn { pointer-events: auto; }
+#hud.show #pauseBtn, #garage.show .prototypes-link { pointer-events: auto; }
 
 .panel {
   background: var(--glass);

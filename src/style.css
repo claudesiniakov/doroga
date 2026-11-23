@@ -373,7 +373,7 @@ kbd {
 .p-line { border-bottom: 1px solid #1d2228; height: 22px; }
 .paper .go { height: 50px; font-family: inherit; }
 
-/* ——— гараж: слайды (на большом экране — столбиком, иначе — карусель) ——— */
+/* ——— гараж: вкладки и сенсорная карусель ——— */
 .wallet-top { display: flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 12px; background: var(--glass); border: 1px solid var(--line); font-variant-numeric: tabular-nums; }
 .wallet-top .coin { margin-right: 0; }
 .tabs { display: none; }
@@ -390,10 +390,11 @@ kbd {
 .tripbar { position: absolute; left: 14px; right: 14px; bottom: 7px; height: 3px; border-radius: 3px; background: rgba(255,255,255,.14); overflow: hidden; }
 .tripbar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
 #odoGoal { color: var(--ink-2); font-size: 12px; }
+.tabs { gap: 4px; padding: 3px; margin: -4px 0 12px; border-radius: 11px; background: rgba(255,255,255,.05); }
+.tabs button { flex: 1; height: 30px; border: 0; border-radius: 8px; background: none; color: var(--ink-2); font-size: 12.5px; font-weight: 600; }
+.tabs button.on { background: rgba(255,255,255,.12); color: var(--ink); }
 @media (max-height: 820px), (max-width: 720px) {
-  .tabs { display: flex; gap: 4px; padding: 3px; margin: -4px 0 12px; border-radius: 11px; background: rgba(255,255,255,.05); }
-  .tabs button { flex: 1; height: 30px; border: 0; border-radius: 8px; background: none; color: var(--ink-2); font-size: 12.5px; font-weight: 600; }
-  .tabs button.on { background: rgba(255,255,255,.12); color: var(--ink); }
+  .tabs { display: flex; }
   .slides { display: flex; gap: 0; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain; touch-action: pan-x; }
   .slides::-webkit-scrollbar { display: none; }
   .slide { flex: 0 0 100%; scroll-snap-align: start; scroll-snap-stop: always; padding: 0 2px; }
@@ -438,4 +439,32 @@ html, body { height: 100dvh; }
   .car-card h1 { font-size: 26px; margin: 4px 0 2px; }
   .tankline { margin: 0 0 12px; }
   .car-card { padding: 14px 16px; }
+}
+
+/* В десктопном гараже по высоте учитывается только открытая вкладка. */
+@media (pointer: fine) {
+  .car-card { max-height: none; overflow: visible; }
+  .car-card .tabs { display: flex; }
+  .car-card .slides { display: block; overflow: visible; }
+  .car-card .slide { border: 0; padding: 0; }
+  .car-card .slide:not(.active) { display: none; }
+  .car-card .slots, .car-card .startcoins { margin-bottom: 0; }
+  .car-card .tankline { margin-top: 0; }
+  .car-card .ins-opt small { display: block; }
+}
+@media (pointer: fine) and (min-height: 521px) and (min-width: 1100px) {
+  .car-card { width: clamp(380px, calc(17vw + 190px), 460px); }
+}
+@media (pointer: fine) and (min-height: 521px) and (min-width: 721px) {
+  .car-card .stats { display: grid; }
+}
+@media (pointer: fine) and (max-height: 520px) {
+  .car-card .startcoins { display: block; font-size: 11px; }
+  .car-card .ins { gap: 5px; margin-bottom: 6px; }
+}
+@media (pointer: fine) and (max-height: 410px) {
+  #garage .top { top: calc(10px + var(--safe-t)); }
+  .car-card .tabs { margin-bottom: 5px; }
+  .car-card .go { margin-top: 7px; height: 38px; }
+  .car-card .gstats { gap: 5px 10px; }
 }

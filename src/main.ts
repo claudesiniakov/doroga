@@ -134,19 +134,34 @@ async function main() {
     });
   }
 
-  // ——— карусель карточки гаража (вкладки + свайп) ———
+  // На десктопе вкладки переключают панели, на сенсорном экране доступен свайп.
   {
     const slidesEl = $('slides');
     const slides = [...slidesEl.querySelectorAll<HTMLElement>('.slide')];
-    $('tabs').innerHTML = slides.map((s, i) => `<button data-i="${i}" class="${i ? '' : 'on'}">${s.dataset.name}</button>`).join('');
-    const tabs = [...$('tabs').querySelectorAll('button')];
-    $('tabs').addEventListener('click', (e) => {
-      const b = (e.target as HTMLElement).closest('button');
-      if (b) slidesEl.scrollTo({ left: Number(b.dataset.i) * slidesEl.clientWidth, behavior: 'smooth' });
+    const tabsEl = $('tabs');
+    const desktop = matchMedia('(pointer: fine)');
+    tabsEl.innerHTML = slides.map((slide, i) =>
+      `<button type="button" data-i="${i}" aria-pressed="false">${slide.dataset.name}</button>`).join('');
+    const tabs = [...tabsEl.querySelectorAll('button')];
+    const markSlide = (index: number) => {
+      tabs.forEach((tab, i) => {
+        tab.classList.toggle('on', i === index);
+        tab.setAttribute('aria-pressed', String(i === index));
+        slides[i].classList.toggle('active', i === index);
+      });
+    };
+    markSlide(0);
+    tabsEl.addEventListener('click', (e) => {
+      const button = (e.target as HTMLElement).closest('button');
+      if (!button) return;
+      const index = Number(button.dataset.i);
+      if (desktop.matches) markSlide(index);
+      else slidesEl.scrollTo({ left: index * slidesEl.clientWidth, behavior: SHOT ? 'instant' : 'smooth' });
     });
     slidesEl.addEventListener('scroll', () => {
-      const i = Math.round(slidesEl.scrollLeft / Math.max(1, slidesEl.clientWidth));
-      tabs.forEach((t, k) => t.classList.toggle('on', k === i));
+      if (desktop.matches) return;
+      const index = Math.round(slidesEl.scrollLeft / Math.max(1, slidesEl.clientWidth));
+      markSlide(index);
     }, { passive: true });
   }
 
@@ -447,8 +462,11 @@ async function main() {
     }
     if (state === 'over' && e.code === 'Enter') $('ovAgain').click();
     if (state === 'protocol' && (e.code === 'Enter' || e.code === 'Space')) $('prSign').click();
-    if (state === 'garage' && (e.code === 'Enter' || e.code === 'Space')) $('go').click();
-    if (state === 'garage' && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) selectCar(sel + (e.code === 'ArrowLeft' ? -1 : 1));
+    if (state === 'garage') {
+      if (e.target instanceof Element && e.target.closest('button, a, input, select, textarea, [contenteditable]')) return;
+      if (e.code === 'Enter' || e.code === 'Space') $('go').click();
+      if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') selectCar(sel + (e.code === 'ArrowLeft' ? -1 : 1));
+    }
   });
   document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
 
@@ -1060,7 +1078,8 @@ async function runShot(kind: string, ctx: {
     }
     if (p.get('yaw')) ctx.garage.yaw = Number(p.get('yaw'));
     if (p.get('click')) document.getElementById(p.get('click')!)?.click();
-    if (p.get('slide')) { const el = document.getElementById('slides')!; el.style.scrollBehavior = 'auto'; el.scrollLeft = Number(p.get('slide')) * el.clientWidth; el.dispatchEvent(new Event('scroll')); }
+    const slide = p.get('slide');
+    if (slide !== null) document.querySelectorAll<HTMLButtonElement>('#tabs button')[Number(slide)]?.click();
     if (p.get('dbg') === 'gh') {
       // отладка: «аквариум» — красный кузов / зелёное стекло / синий пластик, обе стороны; задние грани — жёлтые
       ctx.garage.scene.traverse((o) => {

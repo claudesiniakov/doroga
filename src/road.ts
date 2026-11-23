@@ -557,7 +557,7 @@ export class RoadWorld {
       c.group.add(grm);
 
       // 4) отбойник (на обеих сторонах, непрерывный)
-      const railO = half + 0.55;
+      const railO = half + 1.1;
       const NP = RAIL_PROFILE.length;
       // у заправки справа отбойника нет — строим его отрезками
       const railHere = (i: number) => side < 0 || p.stationFlat(i * STEP) < 0.02;

@@ -20,6 +20,10 @@ const SUN_ELEVATION = 6.5;   // градусы — «золотой час»
 const SUN_AZIMUTH = 62;
 const CRUISE = 25;           // м/с = 90 км/ч
 const MIN_SPEED = 11;
+const LEFT_SHOULDER = -2;
+const RIGHT_SHOULDER = 4;
+const SHOULDER_OFFSET = ROAD.half - 0.35;
+const SHOULDER_SPEED = 15; // м/с = 54 км/ч
 
 export class DriveScene {
   readonly scene = new THREE.Scene();
@@ -29,6 +33,7 @@ export class DriveScene {
   crashes = 0;
   onCrash?: (e: CrashEvent) => void;
   private shakeAmp = 0;
+  private shoulderRoughness = 0;
   private camLift = 0;
   private mountains = new THREE.Group();
   private sea: THREE.Mesh;
@@ -44,7 +49,7 @@ export class DriveScene {
   // состояние машины
   s = 30;
   v = 0;
-  lane = 1;            // -1 левая, 0 средняя, 1 правая
+  lane = 1;            // -1 левая, 0 средняя, 1 правая, 2 съезд
   d = ROAD.half - 0.9; // поперечное смещение (вправо +), старт — с обочины
   private dv = 0;
   private roll = 0; private rollV = 0;
@@ -234,12 +239,12 @@ export class DriveScene {
     this.kaskoRepairUsed = false;
     this.pitExit = null;
     this.policeFine = 0;
-    this.schedulePolice();
     this.placeCar(0);
     this.world.planTrip(startS, startS + this.tripKm * 1000);
+    this.schedulePolice();
     this.world.prime(this.s, this.car.root.position);
     this.crashes = 0;
-    this.shakeAmp = 0;
+    this.shakeAmp = this.shoulderRoughness = 0;
     this.traffic.populate(this.playerState(), 0);
     this.placeCar(0);
     this.updateSun();
@@ -309,9 +314,7 @@ export class DriveScene {
       }
     } else {
       const path = this.world.path;
-      // полоса 2 — съезд: доступна, только пока он открыт впереди
-      const exitOpen = this.exitOpen;
-      if (input.laneShift && this.phase === 'drive') this.lane = clamp(this.lane + input.laneShift, -1, exitOpen ? 2 : 1);
+      if (input.laneShift && this.phase === 'drive') this.shiftLane(Math.sign(input.laneShift));
       // съезд кончается — вливаемся обратно
       if (this.lane === 2 && path.extraAt(this.s + 35) < EXIT_W * 0.7) this.lane = 1;
       if (this.phase === 'pitOut' && this.lane !== 2) this.phase = 'drive';
@@ -321,7 +324,7 @@ export class DriveScene {
       const policeLead = 60 + (this.v * this.v) / (2 * 4);
       if (this.phase === 'drive' && this.policeS !== null && this.policeFine === 0 && this.s > this.policeS - policeLead && this.s < this.policeS - 12) {
         this.phase = 'policeIn';
-        this.lane = 3;
+        this.lane = RIGHT_SHOULDER;
       }
       // в полосе съезда перед колонкой — заезд на заправку
       const ex = path.exitNear(this.s, 0);
@@ -338,6 +341,12 @@ export class DriveScene {
       }
       else if (input.brake > 0) { a = -cfg.brake * input.brake; brake = input.brake; }
       else a = clamp((CRUISE - this.v) * 0.35, this.phase === 'pitOut' ? -2.2 : -2.2, this.phase === 'pitOut' ? 3.2 : 1.8);
+    }
+    this.shoulderRoughness = this.phase === 'drive' && this.lane !== 2
+      ? smoothstep(ROAD.half - ROAD.shoulder, SHOULDER_OFFSET, Math.abs(this.d)) : 0;
+    if (this.shoulderRoughness > 0) {
+      const shoulderAccel = Math.min(a, Math.max(-5, (SHOULDER_SPEED - this.v) * 0.85));
+      a = lerp(a, shoulderAccel, this.shoulderRoughness);
     }
     // тормозом ниже MIN_SPEED не сбросить, но после удара/заправки скорость может быть меньше — машина разгонится сама
     const floor = this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'policeOut' ? Math.min(MIN_SPEED, this.v) : 0;
@@ -357,8 +366,7 @@ export class DriveScene {
     }
 
     // смена полосы: пружина с критическим демпфированием
-    // полоса 2 — съезд, 3 — правая обочина (остановка ДПС)
-    const target = this.lane === 2 ? ROAD.half + EXIT_W / 2 : this.lane === 3 ? ROAD.half - 1.0 : this.lane * ROAD.laneWidth;
+    const target = this.laneOffset();
     const w = (this.phase === 'intro' ? 2.2 : 4.6 / cfg.laneChangeTime) ;
     const acc = w * w * (target - this.d) - 2 * w * this.dv;
     this.dv += acc * dt;
@@ -378,7 +386,9 @@ export class DriveScene {
     this.pitch += this.pitchV * dt;
     this.car.body.rotation.set(this.pitch, 0, this.roll);
     // лёгкая вибрация дороги на скорости
-    this.car.body.position.y = Math.sin(time * 37) * 0.0015 * (this.v / 50) + Math.sin(time * 13.3) * 0.002 * (this.v / 50);
+    const bounce = this.shoulderRoughness * smoothstep(0, SHOULDER_SPEED, this.v) * 0.020;
+    this.car.body.position.y = Math.sin(time * 37) * (0.0015 * (this.v / 50) + bounce)
+      + Math.sin(time * 13.3) * (0.002 * (this.v / 50) + bounce * 0.35);
 
     this.spin += ds / this.car.wheelR;
     const steer = clamp(this.yawOff * 2.4 + this.frame.curvature * 2.7, -0.4, 0.4);
@@ -397,6 +407,29 @@ export class DriveScene {
     this.sky.material.uniforms.time.value = time;
     this.updateCamera(dt, time);
     this.updateFar(time);
+  }
+
+  private shiftLane(direction: number) {
+    if (this.lane === RIGHT_SHOULDER) {
+      if (direction < 0) this.lane = 1;
+      else if (this.exitOpen) this.lane = 2;
+      return;
+    }
+    if (this.lane === 2) {
+      if (direction < 0) this.lane = 1;
+      return;
+    }
+    const next = clamp(this.lane + direction, LEFT_SHOULDER, 2);
+    this.lane = next === 2 && !this.exitOpen ? RIGHT_SHOULDER : next;
+  }
+
+  private laneOffset() {
+    switch (this.lane) {
+      case LEFT_SHOULDER: return -SHOULDER_OFFSET;
+      case RIGHT_SHOULDER: return SHOULDER_OFFSET;
+      case 2: return ROAD.half + EXIT_W / 2;
+      default: return this.lane * ROAD.laneWidth;
+    }
   }
 
   private _q = new THREE.Quaternion();
@@ -583,7 +616,8 @@ export class DriveScene {
     root.visible = ps !== null && ps - this.s < 1100 && ps - this.s > -200;
     if (!root.visible) return;
     const f = this.world.path.frame(ps!);
-    root.position.copy(f.pos).addScaledVector(f.right, ROAD.half - 1.0);
+    const crown = 0.07 * (1 - (SHOULDER_OFFSET / ROAD.half) ** 2);
+    root.position.copy(f.pos).addScaledVector(f.right, SHOULDER_OFFSET).addScaledVector(f.up, crown);
     this._x.crossVectors(f.up, f.fwd).normalize();
     this._m.makeBasis(this._x, f.up, f.fwd);
     root.quaternion.setFromRotationMatrix(this._m);
@@ -670,7 +704,8 @@ export class DriveScene {
     const p = this.car.root.position;
     // камера немного отстаёт по поперечному смещению машины
     this.camera.position.copy(p).add(this.camOffset);
-    const shake = smoothstep(35, 58, this.v) * 0.012 + this.shakeAmp * 0.08;
+    const shake = smoothstep(35, 58, this.v) * 0.012 + this.shakeAmp * 0.08
+      + this.shoulderRoughness * smoothstep(0, SHOULDER_SPEED, this.v) * 0.014;
     this.camera.position.y += Math.sin(time * 23.1) * shake + Math.sin(time * 31.7) * shake * 0.6;
     this.camera.position.x += Math.sin(time * 19.3) * shake * 0.5;
     this.camera.lookAt(this._look.copy(p).add(this.camLook));

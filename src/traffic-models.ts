@@ -767,7 +767,7 @@ export class TrafficAssets {
       l.position.set(x, 1.55, -0.15);
       vis.body.add(l);
     }
-    // инспектор в светоотражающем жилете — сбоку от машины, со стороны дороги
+    // Инспектор находится за машиной, в пределах ширины обочины.
     const man = new THREE.Group();
     const dark = new THREE.MeshStandardMaterial({ color: 0x1f2630, roughness: 0.8 });
     const vest = new THREE.MeshStandardMaterial({ color: 0xc8f03a, emissive: 0x4a6a00, emissiveIntensity: 0.4, roughness: 0.6 });
@@ -782,7 +782,7 @@ export class TrafficAssets {
     part(new THREE.CylinderGeometry(0.022, 0.022, 0.45, 8), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x880000, emissiveIntensity: 0.6 }), 0.62, 1.5, 0.1, -0.9);
     part(new THREE.SphereGeometry(0.12, 14, 10), skin, 0, 1.58, 0);
     part(new THREE.CylinderGeometry(0.15, 0.13, 0.08, 16), dark, 0, 1.7, 0.02);       // фуражка
-    man.position.set(1.3, 0, 2.2);   // слева от машины (к дороге), у переднего колеса
+    man.position.set(0.28, 0, -3.5);
     man.rotation.y = -0.6;
     vis.root.add(man);
     return { vis, red, blue };

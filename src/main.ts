@@ -734,7 +734,7 @@ async function runShot(kind: string, ctx: {
       const A = d.traffic.assets as any;
       const zc = (g: THREE.BufferGeometry) => { const n = g.getAttribute('normal'); let z = 0; for (let k = 0; k < n.count; k++) if (n.getX(k) ** 2 + n.getY(k) ** 2 + n.getZ(k) ** 2 < 1e-10) z++; return z; };
       const out: string[] = [];
-      for (const k of ['sedan', 'truck', 'moto', 'van', 'tow']) {
+      for (const k of ['sedan', 'truck', 'moto', 'van', 'tow', 'limo', 'classic']) {
         const t = A[k];
         for (const [key, g] of t.parts) { const z = zc(g); if (z) out.push(`${k}.${key}:${z}/${g.getAttribute('normal').count}`); }
         for (const key of ['tail', 'blinkL', 'blinkR']) { const z = zc(t[key]); if (z) out.push(`${k}.${key}:${z}`); }
@@ -928,7 +928,7 @@ async function runShot(kind: string, ctx: {
     const tr = d.traffic;
     tr.clear();
     const out: string[] = [];
-    for (const k of ['sedan', 'truck', 'moto', 'van', 'tiller', 'tow'] as const) {
+    for (const k of ['sedan', 'truck', 'moto', 'van', 'tiller', 'tow', 'limo', 'classic'] as const) {
       tr.debugPlace(k, d.s + 30, 0, 90);
       const vis = (tr.group.children[tr.group.children.length - 1]) as THREE.Group;
       vis.updateMatrixWorld(true);
@@ -1051,7 +1051,7 @@ async function runShot(kind: string, ctx: {
     const secs = Number(p.get('secs') || 120);
     let overlaps = 0, walls = 0, maxCount = 0, minV = 1e9, laneShift = 0, nextShift = 2;
     let tSim = 0;
-    const stats = { sedan: 0, truck: 0, moto: 0, van: 0, tiller: 0, tow: 0 };
+    const stats = { sedan: 0, truck: 0, moto: 0, van: 0, tiller: 0, tow: 0, limo: 0, classic: 0 };
     for (let i = 0; i < secs * 60; i++) {
       tSim += 1 / 60;
       if (tSim > nextShift) { laneShift = Math.random() < 0.5 ? -1 : 1; nextShift = tSim + 1 + Math.random() * 3; }
@@ -1087,7 +1087,7 @@ async function runShot(kind: string, ctx: {
   } else if (kind === 'garage') {
     ctx.enterGarage();
     const tm = p.get('tm');
-    if (tm === 'sedan' || tm === 'truck' || tm === 'moto' || tm === 'van' || tm === 'tow') {
+    if (tm === 'sedan' || tm === 'truck' || tm === 'moto' || tm === 'van' || tm === 'tow' || tm === 'limo' || tm === 'classic') {
       const vis = new TrafficAssets().create(tm);
       const car = ctx.garage.scene.getObjectByName('car');
       if (car) car.visible = false;
@@ -1135,7 +1135,7 @@ async function runShot(kind: string, ctx: {
       const nearS = Number(p.get('near'));
       ctx.drive.traffic.debugPlace('truck', s0 + 40, lane + (lane < 1 ? 1 : -1) * 1, 90);
       const requested = p.get('mk');
-      const mk = requested === 'moto' || requested === 'tiller' || requested === 'tow' ? requested : 'sedan';
+      const mk = requested === 'moto' || requested === 'tiller' || requested === 'tow' || requested === 'limo' || requested === 'classic' ? requested : 'sedan';
       ctx.drive.traffic.debugPlace(mk, s0 + nearS, p.get('same') ? lane : lane + (lane < 1 ? 1 : -1) * 1, mk === 'tiller' ? 25 : Number(p.get('mkv') || 88));
       ctx.drive.traffic.debugPlace('sedan', s0 + 60, lane === -1 ? 1 : -1, 90);
     }

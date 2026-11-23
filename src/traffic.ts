@@ -38,7 +38,7 @@ export interface CrashEvent { severity: number; side: boolean; }
 export class Traffic {
   readonly group = new THREE.Group();
   private list: Vehicle[] = [];
-  private pool: Record<TrafficKind, TrafficVisual[]> = { sedan: [], truck: [], moto: [], van: [], tiller: [], tow: [] };
+  private pool: Record<TrafficKind, TrafficVisual[]> = { sedan: [], truck: [], moto: [], van: [], tiller: [], tow: [], limo: [], classic: [] };
   /** Сбитые мотоциклы: летят по баллистике с кувырком в сторону от трассы, потом исчезают. */
   private flying: { v: Vehicle; s: number; d: number; h: number; vs: number; vd: number; vh: number; t: number; rot: THREE.Euler; w: THREE.Vector3 }[] = [];
   private rnd = mulberry32(4242);
@@ -124,28 +124,26 @@ export class Traffic {
 
   private trySpawn(p: PlayerState, s: number) {
     const r = this.rnd();
-    // мотоблок с повозкой — редкость, только впереди и только в правой полосе
-    const tiller = s > p.s && this.rnd() < 0.03 && !this.list.some((o) => o.kind === 'tiller');
-    // Эвакуатор занимает небольшую долю появлений грузовиков впереди.
-    const tow = !tiller && s > p.s && r < 0.015 && !this.list.some((o) => o.kind === 'tow');
-    const kind: TrafficKind = tiller ? 'tiller' : tow ? 'tow' : r < 0.22 ? 'truck' : r < 0.34 ? 'moto' : r < 0.48 ? 'van' : 'sedan';
-    const truck = kind === 'truck' || tow, moto = kind === 'moto';
-    // мото быстрее потока: если игрок едет медленнее, чаще появляются сзади и обгоняют
-    if (moto && p.v < 28 && s > p.s && this.rnd() < 0.6) s = p.s - 110 - this.rnd() * 40;
-    // грузовики — только в правой и средней полосе, чаще в правой; мото — чаще левее
-    const lanes = tiller ? [1] : truck ? [1, 1, 0] : moto ? [-1, -1, 0, 0, 1] : [-1, 0, 0, 1, 1];
+    const ahead = s > p.s;
+    const tow = ahead && r < 0.015 && !this.list.some((o) => o.kind === 'tow');
+    const limo = ahead && r >= 0.36 && r < 0.39 && !this.list.some((o) => o.kind === 'limo');
+    const kind: TrafficKind = tow ? 'tow' : limo ? 'limo' : r < 0.22 ? 'truck' : r < 0.36 ? 'van' : r >= 0.39 && r < 0.51 ? 'classic' : 'sedan';
+    // Крупные машины появляются в правой и средней полосах, легковые — по всей трассе.
+    const truck = kind === 'truck' || tow;
+    const lanes = truck || limo ? [1, 1, 0] : [-1, 0, 0, 1, 1];
     const lane = lanes[Math.floor(this.rnd() * lanes.length)];
-    if (!this.laneFree(lane, s, tiller ? 80 : 45, tiller ? 80 : 45, p)) return false;
+    const gap = limo ? 55 : 45;
+    if (!this.laneFree(lane, s, gap, gap, p)) return false;
     if (this.wouldBlockAll(lane, s, 40)) return false;
     const v = new Vehicle(kind, this.acquire(kind));
     v.s = s;
     v.lane = v.targetLane = lane;
     v.d = lane * LANE;
     // желаемая скорость: левее — быстрее; грузовики медленнее
-    const base = tiller ? 20 + this.rnd() * 10 : truck ? (tow ? 65 : 72) + this.rnd() * 14 : moto ? 100 + this.rnd() * 32 : [102, 88, 76][lane + 1] + (this.rnd() - 0.5) * 18 - (kind === 'van' ? 5 : 0);
-    v.v0 = base / 3.6;
-    v.v = v.v0;
-    v.cooldown = tiller ? Infinity : 3 + this.rnd() * 5;   // мотоблок не перестраивается
+    const base = truck ? (tow ? 65 : 72) + this.rnd() * 14
+      : [102, 88, 76][lane + 1] + (this.rnd() - 0.5) * 18 - (kind === 'classic' ? 9 : kind === 'van' || limo ? 5 : 0);
+    v.v0 = v.v = base / 3.6;
+    v.cooldown = 3 + this.rnd() * 5;
     this.list.push(v);
     this.place(v, 0, 0);
     return true;
@@ -192,8 +190,9 @@ export class Traffic {
   private drive(v: Vehicle, dt: number, p: PlayerState) {
     const truck = v.kind === 'truck' || v.kind === 'tow', moto = v.kind === 'moto';
     const tiller = v.kind === 'tiller';
+    const long = truck || v.kind === 'limo';
     const aMax = tiller ? 0.4 : truck ? 0.9 : moto ? 2.6 : 1.6, bComf = truck || tiller ? 1.8 : moto ? 3.2 : 2.6;
-    const s0 = truck ? 9 : moto ? 4 : 6, T = truck ? 1.8 : moto ? 0.9 : 1.3;
+    const s0 = long ? 9 : moto ? 4 : 6, T = long ? 1.8 : moto ? 0.9 : 1.3;
     const idm = (gap: number, lv: number) => {
       const dvl = v.v - lv;
       const sStar = s0 + Math.max(0, v.v * T + (v.v * dvl) / (2 * Math.sqrt(aMax * bComf)));
@@ -252,7 +251,7 @@ export class Traffic {
       }
     }
     // плавное смещение к полосе (перестроение ~3 c у легковых, ~4.5 c у грузовиков)
-    const w = truck ? 1.0 : moto ? 2.1 : 1.4;
+    const w = long ? 1.0 : moto ? 2.1 : 1.4;
     const target = v.targetLane * LANE;
     const acc = w * w * (target - v.d) - 2 * w * v.dv;
     v.dv += acc * dt;

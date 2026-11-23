@@ -7,13 +7,13 @@ import { buildRoofRail } from './roof-rail';
 
 /**
  * «Кедр 4×4» — компактный трёхдверный внедорожник (оригинальный дизайн, без марок и логотипов):
- * рубленый кузов, вертикальная пятая дверь, круглые фары, чёрные расширители арок, рейлинги, штампованные диски.
+ * рубленый кузов, вертикальная пятая дверь, круглые фары, прямые бамперы и штампованные диски.
  */
 export function buildKedr(cfg: CarConfig, envIntensity = 1): CarModel {
   const R = 0.36, axF = 1.12, axR = -1.08, track = 0.7;
   const sh = new Shape({
     halfLen: 1.875,
-    top: [[-1.875, 0.95], [-1.86, 1.045], [-1.2, 1.058], [0, 1.055], [0.75, 1.045], [1.55, 1.02], [1.82, 0.995], [1.875, 0.9]],
+    top: [[-1.875, 0.95], [-1.86, 1.045], [-1.2, 1.058], [0, 1.055], [0.75, 1.055], [1.55, 1.045], [1.82, 1.025], [1.875, 0.97]],
     bottom: [[-1.875, 0.52], [-1.78, 0.45], [-1.4, 0.43], [1.4, 0.43], [1.78, 0.46], [1.875, 0.52]],
     width: [[-1.875, 0.8], [-1.6, 0.83], [0, 0.835], [1.6, 0.83], [1.875, 0.79]],
     planFront: 14, planRear: 18, axles: [axF, axR], wheelR: R, archR: 0.42, archBlend: 0.055,
@@ -51,7 +51,7 @@ export function buildKedr(cfg: CarConfig, envIntensity = 1): CarModel {
 
   // ——— «аквариум»: раскосое лобовое, плоская крыша, вертикальная пятая дверь ———
   const zA = 0.72, zC = -1.865;
-  const roof = spline([[zC, sh.top(zC)], [-1.845, 1.56], [-1.79, 1.628], [0.2, 1.645], [0.36, 1.605], [zA, sh.top(zA)]]);
+  const roof = spline([[zC, sh.top(zC)], [-1.845, 1.53], [-1.77, 1.65], [-0.8, 1.68], [0.17, 1.67], [0.34, 1.59], [zA, sh.top(zA)]]);
   const GR = 90, GK = 30;
   const angles = [0, 0.012, ...Array.from({ length: GK - 1 }, (_, k) => Math.PI * (k + 1) / GK), Math.PI - 0.012, Math.PI];
   const rows: THREE.Vector3[][] = [];
@@ -76,9 +76,8 @@ export function buildKedr(cfg: CarConfig, envIntensity = 1): CarModel {
     if (z > 0.36) return s > 0.6 && s < 0.8 ? 0 : 1;                  // A-стойка
     if (z < -1.82) return s > 0.14 ? 1 : 0;                         // стекло пятой двери (на изломе)
     if (s > 0.86) return 0;                                          // крыша
-    if (Math.abs(z + 0.32) < 0.06) return 2;                          // B-стойка
-    if (Math.abs(z + 1.18) < 0.08) return 0;                          // C-стойка
-    if (z < -1.7) return 0;                                          // D-стойка
+    if (Math.abs(z + 0.57) < 0.061) return 0;                         // широкая стойка за дверью
+    if (z < -1.58) return 0;                                        // задняя стойка
     return 1;
   }, false, false);
   const ghm = new THREE.Mesh(gh, [paint, glass, plastic]);
@@ -87,55 +86,65 @@ export function buildKedr(cfg: CarConfig, envIntensity = 1): CarModel {
 
   add(new THREE.BoxGeometry(1.3, 0.5, 2.9), under, 0, 0.66, 0, false);
 
-  // ——— перед: решётка, круглые фары в хромовых ободках, поворотники, бампер ———
-  const zf = (x: number, y: number) => sh.surfaceZ(x, y, 1);
-  add(new RoundedBoxGeometry(0.88, 0.2, 0.05, 2, 0.02), plastic, 0, 0.89, zf(0.44, 0.89) + 0.005);
-  for (let i = 0; i < 3; i++) add(new THREE.BoxGeometry(0.82, 0.018, 0.02), chrome, 0, 0.83 + i * 0.06, zf(0.4, 0.89) + 0.035);
-  for (const side of [-1, 1]) {
-    const x = side * 0.6, y = 0.885, z = zf(0.6, y);
-    const ring = new THREE.TorusGeometry(0.1, 0.016, 10, 32);
-    add(ring, chrome, x, y, z + 0.012);
-    const lens = new THREE.CylinderGeometry(0.096, 0.096, 0.03, 32).rotateX(Math.PI / 2);
-    add(lens, glass, x, y, z + 0.0);
-    add(new THREE.TorusGeometry(0.055, 0.011, 8, 28), headMat, x, y, z + 0.02, false);
-    add(new THREE.CircleGeometry(0.022, 20), headMat, x, y, z + 0.022, false);
-    add(new RoundedBoxGeometry(0.16, 0.05, 0.03, 2, 0.01), amber, x, 0.745, zf(0.6, 0.745) + 0.01, false);
-  }
-  const frontBumper = zf(0, 0.6) + 0.04;
-  add(new RoundedBoxGeometry(1.74, 0.21, 0.24, 3, 0.06), plastic, 0, 0.6, frontBumper);
-  add(new RoundedBoxGeometry(0.70, 0.075, 0.04, 2, 0.017), satin, 0, 0.55, frontBumper + 0.116);
-  for (const side of [-1, 1]) {
-    const fogX = side * 0.60, fogY = 0.605, fogZ = frontBumper + 0.119;
-    add(new THREE.TorusGeometry(0.045, 0.008, 8, 20), satin, fogX, fogY, fogZ, false);
-    add(new THREE.CircleGeometry(0.038, 24), glass, fogX, fogY, fogZ + 0.002, false);
-    add(new THREE.CircleGeometry(0.025, 20), headMat, fogX, fogY, fogZ + 0.004, false);
-    add(new THREE.CylinderGeometry(0.011, 0.011, 0.008, 6).rotateX(Math.PI / 2),
-      plastic, side * 0.27, 0.55, frontBumper + 0.137, false);
-  }
-  add(new THREE.TorusGeometry(0.035, 0.01, 6, 16).rotateY(Math.PI / 2), chrome, 0.45, 0.52, zf(0.45, 0.52) + 0.14);
-
-  // ——— зад: фонари по углам, номер на пятой двери, ручка, бампер ———
-  const zr = (x: number, y: number) => sh.surfaceZ(x, y, -1);
-  for (const side of [-1, 1]) {
-    const y = 0.84;
-    add(new RoundedBoxGeometry(0.46, 0.15, 0.05, 2, 0.02), glass, side * 0.57, y, zr(0.6, y) - 0.01);
-    add(new RoundedBoxGeometry(0.22, 0.1, 0.03, 2, 0.01), tailMat, side * 0.67, y, zr(0.6, y) - 0.03, false);
-    add(new RoundedBoxGeometry(0.12, 0.1, 0.03, 2, 0.01), amber, side * 0.49, y, zr(0.6, y) - 0.03, false);
-  }
-  {
-    const y = 0.86, z = zr(0.27, y) - 0.01;
-    const plate = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.112),
-      new THREE.MeshStandardMaterial({ map: makePlateTexture(cfg.plate), roughness: 0.4, metalness: 0.2 }));
-    plate.position.set(0, y, z);
-    plate.rotation.y = Math.PI;
-    body.add(plate);
-    add(new RoundedBoxGeometry(0.22, 0.03, 0.03, 2, 0.01), chrome, 0, 0.98, zr(0.11, 0.98) - 0.015, false);
-  }
-  const rearBumper = zr(0, 0.58) - 0.03;
-  add(new RoundedBoxGeometry(1.72, 0.2, 0.22, 3, 0.06), plastic, 0, 0.58, rearBumper);
-  add(new RoundedBoxGeometry(0.66, 0.065, 0.038, 2, 0.016), satin, 0, 0.53, rearBumper - 0.101);
-
   const ray = new THREE.Raycaster();
+  const endDetail = (geometry: THREE.BufferGeometry, material: THREE.Material, x: number, y: number,
+    end: 1 | -1, lift: number) => {
+    if (end < 0) geometry.rotateY(Math.PI);
+    const positions = geometry.getAttribute('position');
+    ray.ray.direction.set(0, 0, -end);
+    for (let i = 0; i < positions.count; i++) {
+      const px = x + positions.getX(i), py = y + positions.getY(i);
+      ray.ray.origin.set(px, py, end * 3);
+      const z = ray.intersectObject(bm, false)[0]?.point.z ?? sh.surfaceZ(px, py, end);
+      positions.setXYZ(i, px, py, z + end * lift);
+    }
+    geometry.computeVertexNormals();
+    add(geometry, material, 0, 0, 0, false);
+  };
+  const endStrip = (w: number, h: number, material: THREE.Material, x: number, y: number, end: 1 | -1, lift: number) =>
+    endDetail(new THREE.PlaneGeometry(w, h, Math.ceil(w / 0.024), Math.ceil(h / 0.024)), material, x, y, end, lift);
+
+  // Единая тёмная решётка с круглыми фарами и верхними указателями поворота.
+  endStrip(1.48, 0.245, plastic, 0, 0.819, 1, 0.013);
+  for (const y of [0.748, 0.784, 0.820, 0.856, 0.892]) {
+    endStrip(0.82, 0.009, satin, 0, y, 1, 0.021);
+  }
+  for (const side of [-1, 1]) {
+    const x = side * 0.578, y = 0.817;
+    endDetail(new THREE.RingGeometry(0.089, 0.106, 38, 3), chrome, x, y, 1, 0.024);
+    endDetail(new THREE.CircleGeometry(0.089, 40), glass, x, y, 1, 0.027);
+    endDetail(new THREE.CircleGeometry(0.075, 40), headMat, x, y, 1, 0.030);
+    for (const offset of [-0.035, 0, 0.035]) {
+      endStrip(0.006, 0.112, satin, x + offset, y, 1, 0.034);
+    }
+    endStrip(0.265, 0.057, plastic, side * 0.60, 0.976, 1, 0.012);
+    endStrip(0.18, 0.042, amber, side * 0.647, 0.976, 1, 0.023);
+    endStrip(0.07, 0.042, satin, side * 0.518, 0.976, 1, 0.023);
+  }
+
+  // Прямые металлические бамперы с чёрными торцами.
+  for (const end of [-1, 1] as const) {
+    const y = end > 0 ? 0.594 : 0.565;
+    const z = sh.surfaceZ(0, y, end) + end * 0.039;
+    add(new RoundedBoxGeometry(1.61, 0.105, 0.17, 3, 0.022), satin, 0, y, z);
+    add(new RoundedBoxGeometry(1.43, 0.036, 0.034, 2, 0.01), plastic, 0, y + 0.003, z + end * 0.078);
+    for (const side of [-1, 1]) {
+      add(new RoundedBoxGeometry(0.14, 0.113, 0.185, 3, 0.028), plastic, side * 0.77, y, z);
+    }
+  }
+
+  // Вертикальные трёхсекционные фонари по краям пятой двери.
+  for (const side of [-1, 1]) {
+    const x = side * 0.635;
+    endStrip(0.165, 0.285, plastic, x, 0.823, -1, 0.012);
+    endStrip(0.133, 0.10, tailMat, x, 0.896, -1, 0.022);
+    endStrip(0.133, 0.061, amber, x, 0.802, -1, 0.022);
+    endStrip(0.133, 0.061, satin, x, 0.731, -1, 0.022);
+  }
+  const plate = new THREE.MeshStandardMaterial({ map: makePlateTexture(cfg.plate), roughness: 0.4 });
+  endStrip(0.46, 0.10, plate, 0, 0.803, -1, 0.014);
+  endStrip(0.24, 0.029, plastic, 0, 0.925, -1, 0.017);
+
   const seamMaterial = new THREE.MeshStandardMaterial({ color: 0x232a22, roughness: 0.85 });
   // ——— рейлинги, антенна, зеркала, ручки ———
   for (const side of [-1, 1]) {
@@ -179,7 +188,7 @@ export function buildKedr(cfg: CarConfig, envIntensity = 1): CarModel {
   for (const az of [axF, axR]) {
     for (const side of [-1, 1]) {
       const x = side * (sh.halfW(az) + 0.0);
-      const flare = new THREE.TorusGeometry(0.44, 0.05, 8, 28, Math.PI * 1.12).rotateZ(-Math.PI * 0.06);
+      const flare = new THREE.TorusGeometry(0.435, 0.025, 8, 28, Math.PI * 1.04).rotateZ(-Math.PI * 0.02);
       flare.scale(1, 1, 0.55);
       flare.rotateY(Math.PI / 2);
       add(flare, plastic, x, R, az);

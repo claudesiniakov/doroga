@@ -205,7 +205,8 @@ function buildSedan(): TrafficTemplate {
   const gRows: THREE.Vector3[][] = [];
   for (let r = 0; r < GR; r++) {
     const z = zC + ((zA - zC) * r) / (GR - 1);
-    const yb = sh.top(z) - 0.012, H = Math.max(0, roof(z) - yb);
+    // Ниже линия стыка с кузовом шире, а профиль крыши остаётся прежним.
+    const yb = sh.top(z) - 0.03, H = Math.max(0, roof(z) - yb);
     const wb = sh.xAt(z, yb) - 0.03, wr = Math.min(wb, 0.7);
     const ring: THREE.Vector3[] = [];
     for (let k = 0; k <= GK; k++) {

@@ -34,7 +34,16 @@ class Vehicle {
   }
 }
 
-export interface CrashEvent { severity: number; side: boolean; }
+export interface CrashEvent { severity: number; side: boolean; knockedMoto?: true; }
+
+interface FallenMoto {
+  v: Vehicle;
+  s: number; d: number; h: number;
+  vs: number; vd: number; vh: number;
+  t: number;
+  rot: THREE.Euler;
+  w: THREE.Vector3;
+}
 
 export class Traffic {
   readonly group = new THREE.Group();
@@ -43,6 +52,8 @@ export class Traffic {
     sedan: [], truck: [], van: [], tow: [], limo: [], classic: [], kedr: [], moto: [], tiller: [],
   };
   summer = false;
+  motoSeason = false;
+  private readonly flying: FallenMoto[] = [];
   private seasonal?: typeof import('./seasonal-vehicles');
   private preparingSeasonal = false;
 
@@ -79,6 +90,8 @@ export class Traffic {
   clear() {
     for (const v of this.list) this.release(v);
     this.list = [];
+    for (const moto of this.flying) this.release(moto.v);
+    this.flying.length = 0;
   }
 
   /** Плотность растёт с пройденным расстоянием: от ~11 до ~22 машин в зоне. */
@@ -145,9 +158,8 @@ export class Traffic {
     const r = this.rnd();
     const ahead = s > p.s;
     const tow = ahead && r < 0.015 && !this.list.some((o) => o.kind === 'tow');
-    const summer = this.summer && this.seasonal;
-    const kind: RoadTrafficKind = summer && r >= 0.63 && r < 0.70 ? 'moto'
-      : summer && r >= 0.70 && r < 0.73 ? 'tiller'
+    const kind: RoadTrafficKind = this.seasonal && this.motoSeason && r >= 0.63 && r < 0.70 ? 'moto'
+      : this.seasonal && this.summer && r >= 0.70 && r < 0.73 ? 'tiller'
       : tow ? 'tow' : r < 0.22 ? 'truck' : r < 0.36 ? 'van' : r >= 0.39 && r < 0.51 ? 'classic' : r >= 0.51 && r < 0.63 ? 'kedr' : 'sedan';
     // Крупные машины появляются в правой и средней полосах, легковые — по всей трассе.
     const truck = kind === 'truck' || tow;
@@ -170,13 +182,13 @@ export class Traffic {
     return true;
   }
 
-  update(dt: number, p: PlayerState, odo: number, time: number) {
+  update(dt: number, p: PlayerState, odo: number, time: number, playerCanCrash = true) {
     this.crashCooldown = Math.max(0, this.crashCooldown - dt);
     // выгрузка далёких
     for (let i = this.list.length - 1; i >= 0; i--) {
       const v = this.list[i];
-      const outOfSeason = !this.summer && (v.kind === 'moto' || v.kind === 'tiller')
-        && (v.s < p.s - 40 || v.s > p.s + 270);
+      const seasonalVehicle = v.kind === 'moto' ? !this.motoSeason : v.kind === 'tiller' && !this.summer;
+      const outOfSeason = seasonalVehicle && (v.s < p.s - 40 || v.s > p.s + 270);
       if (outOfSeason || v.s < p.s - DESPAWN_BEHIND || v.s > p.s + DESPAWN_AHEAD) { this.release(v); this.list.splice(i, 1); }
     }
     // появление новых впереди (и изредка сзади, если игрок медленный)
@@ -190,7 +202,8 @@ export class Traffic {
     this.list.sort((a, b) => a.s - b.s);
     for (const v of this.list) this.drive(v, dt, p);
     for (const v of this.list) this.place(v, dt, time);
-    this.collide(p);
+    this.updateFlying(dt, p);
+    if (playerCanCrash) this.collide(p);
   }
 
   /** Ближайший впереди в полосе lane: дистанция (между бамперами) и скорость. */
@@ -313,12 +326,59 @@ export class Traffic {
       const oy = (v.width + p.width) / 2 - 0.12 - Math.abs(dd);
       if (ox <= 0 || oy <= 0) continue;
       const side = oy < ox * 0.6;
+      if (v.kind === 'moto') {
+        this.knockOff(v, p);
+        this.crashCooldown = 0.6;
+        this.onCrash?.({ severity: 0.2, side, knockedMoto: true });
+        return;
+      }
       const severity = side ? 0.35 : clamp(Math.abs(p.v - v.v) / 15, 0.25, 1);
       this.crashCooldown = 1.0;
       // удар передаёт немного скорости машине трафика
       if (!side && ds > 0) v.v = Math.min(v.v0 + 3, v.v + (p.v - v.v) * 0.35);
       this.onCrash?.({ severity, side });
       return;
+    }
+  }
+
+  /** Сбить мотоцикл: снять с потока и отправить в полёт с кувырком прочь от трассы. */
+  private knockOff(v: Vehicle, p: PlayerState) {
+    this.list.splice(this.list.indexOf(v), 1);
+    const away = Math.abs(v.d - p.d) > 0.3 ? Math.sign(v.d - p.d) : v.d >= 0 ? 1 : -1;   // в сторону ближайшей обочины
+    const push = Math.max(6, Math.abs(p.v - v.v));
+    const r = () => this.rnd() - 0.5;
+    this.flying.push({
+      v, s: v.s, d: v.d, h: 0,
+      // вперёд — быстрее машины игрока (летит перед капотом, его видно), вбок — ровно за обочину
+      vs: p.v + 3 + push * 0.3, vd: away * (ROAD.half + 3 + this.rnd() * 4 - away * v.d) / 1.7, vh: 6 + this.rnd() * 1.5,
+      t: 0, rot: new THREE.Euler(0, 0, v.roll, 'YXZ'),
+      w: new THREE.Vector3(r() * 9 - 3, r() * 6, away * (5 + this.rnd() * 5)),
+    });
+  }
+
+  private _q = new THREE.Quaternion();
+  private updateFlying(dt: number, p: PlayerState) {
+    for (let i = this.flying.length - 1; i >= 0; i--) {
+      const f = this.flying[i];
+      f.t += dt;
+      f.vh -= 9.81 * dt;
+      f.s += f.vs * dt; f.d += f.vd * dt; f.h += f.vh * dt;
+      if (f.h <= 0) {                                  // удар о землю: отскок и трение, кувырок затухает
+        f.h = 0;
+        if (f.vh < -2) { f.vh *= -0.32; f.w.multiplyScalar(0.55); } else { f.vh = 0; f.w.multiplyScalar(Math.max(0, 1 - dt * 5)); }
+        const k = Math.max(0, 1 - dt * 2.5);
+        f.vs *= k; f.vd *= k;
+      }
+      f.rot.x += f.w.x * dt; f.rot.y += f.w.y * dt; f.rot.z += f.w.z * dt;
+      const fr = this.path.frame(f.s, this.frame);
+      const root = f.v.vis.root;
+      root.position.copy(fr.pos).addScaledVector(fr.right, f.d).addScaledVector(fr.up, f.h);
+      this._x.crossVectors(fr.up, fr.fwd).normalize();
+      this._m.makeBasis(this._x, fr.up, fr.fwd);
+      root.quaternion.setFromRotationMatrix(this._m).multiply(this._q.setFromEuler(f.rot));
+      f.v.vis.body.rotation.set(0, 0, 0);
+      f.v.vis.blinkL.material = f.v.vis.blinkR.material = this.assets.blinkOff;
+      if (f.t > 9 || f.s < p.s - DESPAWN_BEHIND) { this.release(f.v); this.flying.splice(i, 1); }
     }
   }
 

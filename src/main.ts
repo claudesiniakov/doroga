@@ -264,8 +264,8 @@ async function main() {
     $('insuranceHeading').textContent = 'Страховка на год';
     if (SHOT) openInsuranceTab();
     else openHomeTab();
-    renderer.setExposure(garage ? 1.0 : 0.6);
-    renderer.setBloom(0.22, 3.0, 0.4);
+    renderer.setExposure(garage ? 1.0 : 0.85);
+    renderer.setBloom(garage ? 0.22 : 0.34, 3.0, 0.4);
     renderer.setVignette(0.45);
     input.enabled = false;
     state = 'garage';

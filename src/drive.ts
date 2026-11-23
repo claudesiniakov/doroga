@@ -44,6 +44,7 @@ export class DriveScene {
   private player: PlayerState = { s: 0, v: 0, d: 0, lane: 0, length: 4.5, width: 1.9 };
   private sky: Sky;
   private sun = new THREE.DirectionalLight(0xffd2a0, 5.2);
+  private readonly previewLights = new THREE.Group();
   private sunDir = new THREE.Vector3();
   private car!: CarModel;
   private cfg!: CarConfig;
@@ -189,6 +190,13 @@ export class DriveScene {
     this.scene.add(this.sun, this.sun.target);
     // голубоватая подсветка теней от неба
     this.scene.add(new THREE.HemisphereLight(0x9fb4d0, 0x3a3326, 0.5));
+    this.previewLights.visible = false;
+    this.previewLights.add(
+      new THREE.PointLight(0x79dfff, 108, 26),
+      new THREE.PointLight(0xff419e, 100, 22),
+      new THREE.PointLight(0xffefae, 72, 20),
+    );
+    this.scene.add(this.previewLights);
 
     const mats = makeRoadMaterials(makeRoadTextures(textureSize), makeGroundTextures(textureSize >= 1024 ? 512 : 256),
       makeGravelTextures(256), anisotropy, makeSandTextures(textureSize >= 1024 ? 512 : 256));
@@ -267,8 +275,14 @@ export class DriveScene {
       spin.rotation.x = 0;
       steer.rotation.y = 0;
     }
-    car.setBrake(0);
+    car.setBrake(0.25);
     this.placeCar(0);
+    this.previewLights.position.copy(car.root.position);
+    this.previewLights.quaternion.copy(car.root.quaternion);
+    this.previewLights.children[0].position.set(-3.6, 2.5, 2.4);
+    this.previewLights.children[1].position.set(2.2, 1.1, -3.7);
+    this.previewLights.children[2].position.set(-0.3, 3, -3.2);
+    this.setPreviewLighting(true);
     if (this.police) this.police.vis.root.visible = false;
     if (this.finishGate) this.finishGate.visible = false;
     this.traffic.group.visible = false;
@@ -279,20 +293,31 @@ export class DriveScene {
     this.updateFar(0, f.pos.y);
   }
 
+  private setPreviewLighting(on: boolean) {
+    this.previewLights.visible = on;
+    this.sky.visible = this.sun.visible = this.mountains.visible = !on;
+    this.scene.background = on ? new THREE.Color(0x10142d) : null;
+    this.scene.environmentIntensity = on ? 0.32 : 0.75;
+    const fog = this.scene.fog as THREE.FogExp2;
+    fog.color.setHex(on ? 0x10142d : 0xbfae9c);
+    fog.density = on ? 0.009 : 0.0017;
+  }
+
   private frameRoadPreview() {
     const narrow = Math.max(0, 1.15 - this.camera.aspect);
     const wide = smoothstep(1.15, 1.45, this.camera.aspect);
-    const view = this.world.path.frame(this.s - lerp(12, 8, wide));
-    this.camera.position.copy(view.pos).addScaledVector(view.up, 3.2 - narrow * 1.7 - wide * 0.65)
+    const view = this.world.path.frame(this.s - lerp(12, 7.6, wide));
+    this.camera.position.copy(view.pos).addScaledVector(view.up, 3.2 - narrow * 1.7 - wide * 1.12)
       .addScaledVector(view.right, 1.7);
     const target = this.world.path.frame(this.s + 10);
     this.camera.lookAt(target.pos.clone()
-      .addScaledVector(target.right, 4.1 + narrow * 9 + wide * 4.3)
+      .addScaledVector(target.right, 4.1 + narrow * 9 + wide * 1.8)
       .addScaledVector(target.up, 1.5 - narrow * 5.4));
   }
 
   /** Новый заезд: машина стоит на обочине, начинается заставка выезда. */
   reset(skipIntro = false, startS = 30) {
+    if (this.previewing) this.setPreviewLighting(false);
     this.previewing = false;
     this.s = startS;
     this.v = skipIntro ? CRUISE : 0;
@@ -320,6 +345,7 @@ export class DriveScene {
     this.coinsCollected = 0;
     this.month = this.monthTime = 0;
     this.traffic.summer = false;
+    this.traffic.motoSeason = false;
     if (this.endless) {
       this.setSnow(this.winterForMonth());
       this.traffic.prepareSeasonal();
@@ -357,6 +383,7 @@ export class DriveScene {
           this.world.setSnow(winter);
           this.snowTarget = Number(winter);
         }
+        this.traffic.motoSeason = !winter;
         this.traffic.summer = this.month >= 5 && this.month <= 7;
         if (this.month === 0) this.phase = 'finish';
       }
@@ -505,7 +532,8 @@ export class DriveScene {
 
     this.updateSun();
     this.world.update(this.s, this.car.root.position);
-    this.traffic.update(dt, this.playerState(), this.odometer, time);
+    const canCrash = this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'policeOut';
+    this.traffic.update(dt, this.playerState(), this.odometer, time, canCrash);
     this.updatePolice(time);
     if (this.endless) {
       const coins = this.roadCoins.update(fromS, this.s, this.d, time, this.phase === 'drive');
@@ -814,10 +842,12 @@ export class DriveScene {
   private crash(e: CrashEvent) {
     if (this.phase !== 'drive' && this.phase !== 'pitOut' && this.phase !== 'policeOut') return;
     this.crashes++;
-    const r = this.traffic.resolve(this.playerState());
-    this.s += r.ds;
-    if (r.v !== null) this.v = r.v;
-    if (r.lane !== null) { this.lane = r.lane; this.dv *= -0.4; }
+    if (!e.knockedMoto) {
+      const r = this.traffic.resolve(this.playerState());
+      this.s += r.ds;
+      if (r.v !== null) this.v = r.v;
+      if (r.lane !== null) { this.lane = r.lane; this.dv *= -0.4; }
+    }
     this.shakeAmp = 0.35 + e.severity * 0.65;
     this.pitchV += (e.side ? 0 : 0.5) * e.severity;
     this.rollV += (e.side ? 0.9 : 0.25) * (Math.random() - 0.5) * 2;

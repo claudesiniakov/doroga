@@ -1,7 +1,7 @@
 #garage {
-  --home-line: rgba(214, 231, 225, .2);
-  --home-muted: #b9c7c5;
-  --home-accent: #c8f0c1;
+  --home-line: rgba(210, 215, 255, .2);
+  --home-muted: #b9bfd5;
+  --home-accent: #f1ff62;
   --home-gutter: clamp(22px, 4vw, 76px);
   isolation: isolate;
 }
@@ -11,8 +11,8 @@
   inset: 0;
   z-index: -1;
   background:
-    linear-gradient(180deg, rgba(8, 17, 19, .94), rgba(8, 17, 19, .2) 23%, transparent 48%, rgba(8, 17, 19, .88) 100%),
-    linear-gradient(90deg, rgba(8, 17, 19, .65), transparent 45%, rgba(8, 17, 19, .32));
+    linear-gradient(180deg, rgba(10, 10, 25, .94), rgba(10, 10, 25, .2) 23%, transparent 48%, rgba(10, 10, 25, .88) 100%),
+    linear-gradient(108deg, rgba(13, 9, 31, .86) 3%, rgba(14, 14, 39, .35) 43%, transparent 66%);
 }
 #garage .home-nav {
   top: 0;
@@ -23,20 +23,21 @@
   gap: clamp(16px, 3vw, 46px);
   justify-content: flex-start;
   border-bottom: 1px solid var(--home-line);
-  background: rgba(8, 17, 19, .83);
+  background: rgba(10, 10, 25, .83);
 }
 #homeTitle {
   margin: 0;
   font: 900 clamp(23px, 2.5vw, 37px)/1 "Arial Black", "Segoe UI", sans-serif;
-  letter-spacing: -.05em;
+  letter-spacing: -.06em;
   text-transform: uppercase;
+  font-style: italic;
 }
 #garage .top-right { margin-left: auto; gap: 8px; }
 #garage.show .top-right > *, #garage.show #tabs { pointer-events: auto; }
 #garage .prototypes-link, #garage .wallet-top, #garage .fs-btn {
   border: 1px solid var(--home-line);
   border-radius: 5px;
-  background: rgba(212, 235, 224, .07);
+  background: rgba(212, 211, 246, .07);
   color: #eaf2ef;
 }
 #garage .prototypes-link, #garage .wallet-top {
@@ -71,17 +72,17 @@
 #garage #tabs button:hover { color: #fff; background: rgba(255, 255, 255, .05); }
 #garage #tabs button.on {
   border-bottom-color: var(--home-accent);
-  background: rgba(200, 240, 193, .09);
-  color: #f6fff5;
+  background: rgba(241, 255, 98, .09);
+  color: #fcffe5;
 }
 .home-content {
   position: absolute;
   top: calc(clamp(100px, 16vh, 158px) + var(--safe-t));
-  right: calc(var(--home-gutter) + var(--safe-r));
-  width: clamp(268px, 27vw, 400px);
+  left: calc(var(--home-gutter) + var(--safe-l));
+  width: clamp(268px, 27vw, 386px);
   --line: var(--home-line);
-  --ink: #eef6f1;
-  --ink-2: #c4d1cb;
+  --ink: #f2f2ff;
+  --ink-2: #c2c5db;
   --ink-3: var(--home-muted);
 }
 #garage .slides {
@@ -89,7 +90,8 @@
   overflow: visible;
   border: 1px solid var(--home-line);
   border-radius: 2px;
-  background: rgba(11, 24, 25, .9);
+  border-left: 2px solid #bb83ff;
+  background: rgba(19, 18, 39, .91);
   box-shadow: 0 16px 48px rgba(0, 0, 0, .2);
 }
 #garage .slide { padding: clamp(13px, 1.5vw, 22px); border: 0; }
@@ -114,20 +116,20 @@
 .home-policies b.on { color: var(--home-accent); }
 .home-secondary {
   width: 100%;
-  background: rgba(200, 240, 193, .11);
+  background: rgba(241, 255, 98, .11);
   color: var(--home-accent);
   text-align: left;
 }
-.home-secondary:hover { background: rgba(200, 240, 193, .18); }
+.home-secondary:hover { background: rgba(241, 255, 98, .18); }
 #garage .ins { margin: 0; gap: 7px; }
 #garage .ins-opt {
   padding: 9px;
   border: 1px solid var(--home-line);
   border-radius: 2px;
-  background: rgba(225, 244, 234, .05);
+  background: rgba(225, 229, 255, .05);
 }
 #garage .ins-opt:hover, #garage .ins-opt.on { border-color: var(--home-accent); }
-#garage .ins-opt.on { background: rgba(200, 240, 193, .1); }
+#garage .ins-opt.on { background: rgba(241, 255, 98, .1); }
 #garage .ins-opt small { font-size: 12px; line-height: 1.35; }
 #garage .kbm-link { margin: 2px 0 0; }
 #garage .startcoins { margin: 10px 0 0; font-size: 12px; }
@@ -152,7 +154,7 @@
 }
 #homeMode {
   margin: 0 0 16px;
-  font: 850 clamp(32px, 4.3vw, 66px)/.93 "Arial Black", "Segoe UI", sans-serif;
+  font: italic 900 clamp(32px, 4.7vw, 72px)/.9 "Arial Black", "Segoe UI", sans-serif;
   letter-spacing: -.045em;
   text-transform: uppercase;
 }
@@ -165,8 +167,9 @@
   padding: 0 16px;
   border-radius: 3px;
   background: var(--home-accent);
-  color: #112019;
-  box-shadow: none;
+  color: #181b0c;
+  box-shadow: 0 0 26px rgba(241, 255, 98, .17);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%);
   font-size: 16px;
   font-weight: 800;
   text-transform: uppercase;
@@ -178,7 +181,7 @@
 @media (max-width: 850px) and (orientation: portrait), (max-width: 700px) {
   #garage { --home-gutter: 14px; }
   #garage::before {
-    background: linear-gradient(180deg, rgba(8, 17, 19, .92), rgba(8, 17, 19, .1) 29%, transparent 47%, rgba(8, 17, 19, .78) 67%, #081113);
+    background: linear-gradient(180deg, rgba(10, 10, 25, .92), rgba(10, 10, 25, .1) 29%, transparent 47%, rgba(10, 10, 25, .78) 67%, #0a0a19);
   }
   #garage .home-nav {
     flex-wrap: wrap;
@@ -196,6 +199,7 @@
     top: auto;
     bottom: calc(138px + var(--safe-b));
     left: calc(var(--home-gutter) + var(--safe-l));
+    right: calc(var(--home-gutter) + var(--safe-r));
     width: auto;
   }
   .home-content .slide { max-height: 32dvh; overflow-y: auto; touch-action: pan-y; }
@@ -211,9 +215,16 @@
   #garage .startcoins { display: block; }
 }
 
+@media (min-height: 561px) and (max-height: 700px) and (orientation: landscape) {
+  .home-content { top: calc(88px + var(--safe-t)); }
+  .home-content .slide { max-height: calc(100dvh - 282px); overflow-y: auto; }
+  .home-launch { bottom: calc(23px + var(--safe-b)); }
+  #homeMode { font-size: clamp(30px, 6vh, 42px); }
+}
+
 @media (max-height: 560px) and (orientation: landscape) {
   #garage .home-nav { min-height: calc(52px + var(--safe-t)); }
-  .home-content { top: calc(65px + var(--safe-t)); }
+  .home-content { top: calc(65px + var(--safe-t)); left: auto; right: calc(var(--home-gutter) + var(--safe-r)); }
   .home-content .slide { max-height: calc(100dvh - 80px); overflow-y: auto; touch-action: pan-y; }
   .home-launch { bottom: calc(14px + var(--safe-b)); }
   #homeMode { font-size: clamp(25px, 5vh, 36px); }

@@ -420,6 +420,7 @@ kbd {
 
 /* ——— полный экран и веб-приложение ——— */
 html, body { height: 100dvh; }
+.prototypes-link { color: inherit; padding: 7px 4px; font-size: 13px; }
 .top-right { display: flex; align-items: center; gap: 8px; }
 .fs-btn svg { fill: none; color: var(--ink); stroke: currentColor; }
 .ios-tip {

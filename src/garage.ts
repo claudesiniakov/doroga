@@ -10,7 +10,7 @@ export class GarageScene {
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.PerspectiveCamera(34, 1, 0.1, 200);
   private turntable = new THREE.Group();
-  private car?: CarModel;
+  private vehicle?: THREE.Object3D;
   yaw = -0.65;
   private yawVel = 0.12;
   private dragging = false;
@@ -75,7 +75,7 @@ export class GarageScene {
   private bindDrag() {
     const el = this.dom;
     el.addEventListener('pointerdown', (e) => {
-      if ((e.target as HTMLElement).closest('button, .panel')) return;
+      if (e.button !== 0 || (e.target as HTMLElement).closest('button, a, .panel')) return;
       this.dragging = true;
       this.lastX = e.clientX;
       this.idle = 0;
@@ -87,24 +87,30 @@ export class GarageScene {
       this.yawVel = dx * 0.35;
       this.yaw += dx * 0.006;
     });
-    addEventListener('pointerup', () => { this.dragging = false; });
+    const stopDragging = () => { this.dragging = false; };
+    addEventListener('pointerup', stopDragging);
+    addEventListener('pointercancel', stopDragging);
   }
 
   attachCar(car: CarModel) {
-    if (this.car && this.car !== car) this.car.root.removeFromParent();
-    this.car = car;
-    car.root.position.set(0, GarageScene.PLATE_H, 0); // на верх подиума, а не в его толщу
     car.root.quaternion.identity();
     car.body.rotation.set(0, 0, 0);
     car.body.position.set(0, 0, 0);
     for (const w of car.wheels) { w.spin.rotation.x = 0; w.steer.rotation.y = w.front ? 0.28 : 0; }
     car.setBrake(0);
-    this.turntable.add(car.root);
+    this.attachVehicle(car.root);
   }
 
-  update(dt: number) {
+  attachVehicle(root: THREE.Object3D) {
+    this.vehicle?.removeFromParent();
+    this.vehicle = root;
+    root.position.set(0, GarageScene.PLATE_H, 0);
+    this.turntable.add(root);
+  }
+
+  update(dt: number, autoRotate = true) {
     this.idle += dt;
-    if (!this.dragging) {
+    if (!this.dragging && autoRotate) {
       const target = this.idle > 2 ? 0.12 : 0;
       this.yawVel = damp(this.yawVel, target, 2, dt);
       this.yaw += this.yawVel * dt;
@@ -129,5 +135,5 @@ export class GarageScene {
     this.camera.updateProjectionMatrix();
   }
 
-  get hasCar() { return !!this.car; }
+  get hasCar() { return !!this.vehicle; }
 }

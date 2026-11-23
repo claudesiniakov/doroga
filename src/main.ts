@@ -2,10 +2,8 @@ import * as THREE from 'three';
 import './style.css';
 import cars from './cars.json';
 import { Renderer, detectQuality, QualityName } from './render';
-import { buildCar, CarConfig, CarModel } from './car';
-import { buildKedr } from './car-kedr';
-import { buildVan } from './car-van';
-import { buildVette } from './car-vette';
+import type { CarConfig, CarModel } from './car';
+import { buildPlayerCar } from './player-car';
 import { TrafficAssets } from './traffic-models';
 import { KBM, loadKbm, saveKbm, osagoPrice, kbmNext, fmtK } from './kbm';
 import { GarageScene } from './garage';
@@ -41,8 +39,7 @@ async function main() {
   await nextFrame();
 
   const configs = cars as CarConfig[];
-  const models: CarModel[] = configs.map((c) => (c.body === 'suv' ? buildKedr(c) : c.body === 'van' ? buildVan(c)
-    : c.body === 'vette' ? buildVette({ ...c, sponsor: 'absolutins.ru' }) : buildCar(c)));
+  const models = configs.map(buildPlayerCar);
   let sel = 0;
   try {
     const saved = localStorage.getItem('doroga.car');

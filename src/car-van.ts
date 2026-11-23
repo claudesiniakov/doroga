@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { loft, CarConfig, CarModel } from './car';
 import { makePlateTexture } from './textures';
+import { buildRoofRail } from './roof-rail';
 import { VAN, vanShape, vanGreenhouse, vanBodyClassify } from './van-shape';
 
 /** «Простор 7» — семиместный минивэн (оригинальный дизайн): однообъёмный кузов, сдвижная дверь, вертикальные фонари. */
@@ -127,11 +128,10 @@ export function buildVan(cfg: CarConfig, envIntensity = 1): CarModel {
     face.position.set(mx, my, mz - 0.058);
     face.rotation.y = Math.PI;
     body.add(face);
-    // рейлинг
-    // рейлинг — только над плоской частью крыши, концы опущены к ней
-    const x = side * 0.64, y = 1.82;
-    tube([new THREE.Vector3(x, y - 0.045, 0.3), new THREE.Vector3(x, y, 0.18), new THREE.Vector3(x, y, -1.75), new THREE.Vector3(x, y - 0.045, -1.88)], 0.016, chrome, true);
-    for (const z of [0.26, -0.75, -1.84]) add(new RoundedBoxGeometry(0.05, 0.07, 0.1, 2, 0.015), plastic, x, y - 0.045, z, false);
+    body.add(buildRoofRail(ghm, side * 0.33, [
+      [0.50, 0.027], [0.41, 0.060], [0.22, 0.075],
+      [-0.60, 0.075], [-1.50, 0.075], [-1.74, 0.060], [-1.84, 0.027],
+    ], chrome, plastic));
   }
 
   // ——— подкрылки ———

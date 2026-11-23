@@ -3,6 +3,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { Shape } from './traffic-models';
 import { loft, spline, CarConfig, CarModel } from './car';
 import { makePlateTexture } from './textures';
+import { buildRoofRail } from './roof-rail';
 
 /**
  * «Кедр 4×4» — компактный трёхдверный внедорожник (оригинальный дизайн, без марок и логотипов):
@@ -15,7 +16,7 @@ export function buildKedr(cfg: CarConfig, envIntensity = 1): CarModel {
     top: [[-1.875, 0.95], [-1.86, 1.045], [-1.2, 1.058], [0, 1.055], [0.75, 1.045], [1.55, 1.02], [1.82, 0.995], [1.875, 0.9]],
     bottom: [[-1.875, 0.52], [-1.78, 0.45], [-1.4, 0.43], [1.4, 0.43], [1.78, 0.46], [1.875, 0.52]],
     width: [[-1.875, 0.8], [-1.6, 0.83], [0, 0.835], [1.6, 0.83], [1.875, 0.79]],
-    planFront: 14, planRear: 18, axles: [axF, axR], wheelR: R, archR: 0.42,
+    planFront: 14, planRear: 18, axles: [axF, axR], wheelR: R, archR: 0.42, archBlend: 0.055,
     seLow: 10, seHigh: 6, tumble: 0.035,
   });
 
@@ -30,6 +31,7 @@ export function buildKedr(cfg: CarConfig, envIntensity = 1): CarModel {
   const plastic = new THREE.MeshStandardMaterial({ color: 0x151617, roughness: 0.78, metalness: 0 });
   const glass = new THREE.MeshPhysicalMaterial({ color: 0x0d141b, roughness: 0.03, metalness: 0.1, clearcoat: 1, envMapIntensity: 1.5 * envIntensity });
   const chrome = new THREE.MeshStandardMaterial({ color: 0xe6e8ec, metalness: 1, roughness: 0.14, envMapIntensity: envIntensity });
+  const satin = new THREE.MeshStandardMaterial({ color: 0x9ba4a8, metalness: 0.65, roughness: 0.36, envMapIntensity: envIntensity });
   const under = new THREE.MeshStandardMaterial({ color: 0x0e0e0f, roughness: 0.9 });
   const headMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff6e2, emissiveIntensity: 3.0, roughness: 0.2 });
   const tailMat = new THREE.MeshStandardMaterial({ color: 0x400000, emissive: 0xff1a12, emissiveIntensity: 2.0, roughness: 0.3 });
@@ -42,24 +44,16 @@ export function buildKedr(cfg: CarConfig, envIntensity = 1): CarModel {
     return mesh;
   };
 
-  // ——— кузов: бамперы, пороги и молдинг — чёрный пластик ———
-  const bodyGeo = loft(sh.body(110, 26), (p) => {
-    const ax = Math.abs(p.x), bot = sh.bottom(p.z);
-    if (p.z > 1.72 && p.y < 0.76) return 1;
-    if (p.z < -1.74 && p.y < 0.7) return 1;
-    if (p.y < sh.base(p.z) + 0.09 && p.y < bot + 0.09 && ax > 0.5) return 1;
-    if (p.y > 0.6 && p.y < 0.665 && ax > 0.72 && Math.abs(p.z) < 1.62) return 1;
-    return 0;
-  }, true, true);
-  const bm = new THREE.Mesh(bodyGeo, [paint, plastic]);
+  // Кузов окрашен сплошь, накладные бамперы и расширители сделаны отдельными деталями.
+  const bm = new THREE.Mesh(loft(sh.body(110, 26), () => 0, true, true), paint);
   bm.castShadow = bm.receiveShadow = true;
   body.add(bm);
 
   // ——— «аквариум»: раскосое лобовое, плоская крыша, вертикальная пятая дверь ———
   const zA = 0.72, zC = -1.865;
   const roof = spline([[zC, sh.top(zC)], [-1.845, 1.56], [-1.79, 1.628], [0.2, 1.645], [0.36, 1.605], [zA, sh.top(zA)]]);
-  const GR = 90, GK = 30, sOf: number[] = [];
-  for (let k = 0; k <= GK; k++) sOf.push(Math.sin((Math.PI * k) / GK));
+  const GR = 90, GK = 30;
+  const angles = [0, 0.012, ...Array.from({ length: GK - 1 }, (_, k) => Math.PI * (k + 1) / GK), Math.PI - 0.012, Math.PI];
   const rows: THREE.Vector3[][] = [];
   for (let r = 0; r < GR; r++) {
     const t = r / (GR - 1);
@@ -68,8 +62,8 @@ export function buildKedr(cfg: CarConfig, envIntensity = 1): CarModel {
     const yb = sh.top(z) - 0.01, H = Math.max(0, roof(z) - yb);
     const wb = sh.xAt(z, yb) - 0.025, wr = Math.min(wb, 0.765);
     const ring: THREE.Vector3[] = [];
-    for (let k = 0; k <= GK; k++) {
-      const phi = Math.PI - (Math.PI * k) / GK;
+    for (const angle of angles) {
+      const phi = Math.PI - angle;
       const s = Math.sin(phi), c = Math.cos(phi);
       const a = wb + (wr - wb) * Math.min(1, s * 1.05);
       ring.push(new THREE.Vector3(Math.sign(c) * a * Math.pow(Math.abs(c), 2 / 7), yb + H * Math.pow(s, 2 / 7), z));
@@ -77,8 +71,8 @@ export function buildKedr(cfg: CarConfig, envIntensity = 1): CarModel {
     rows.push(ring);
   }
   const gh = loft(rows, (p, _r, c) => {
-    const s = (sOf[c] + sOf[c + 1]) / 2, z = p.z;
-    if (s < 0.06) return 2;                                          // уплотнитель
+    const s = (Math.sin(angles[c]) + Math.sin(angles[c + 1])) / 2, z = p.z;
+    if (s < 0.03) return 0;                                          // пояс под окнами
     if (z > 0.36) return s > 0.6 && s < 0.8 ? 0 : 1;                  // A-стойка
     if (z < -1.82) return s > 0.14 ? 1 : 0;                         // стекло пятой двери (на изломе)
     if (s > 0.86) return 0;                                          // крыша
@@ -107,7 +101,17 @@ export function buildKedr(cfg: CarConfig, envIntensity = 1): CarModel {
     add(new THREE.CircleGeometry(0.022, 20), headMat, x, y, z + 0.022, false);
     add(new RoundedBoxGeometry(0.16, 0.05, 0.03, 2, 0.01), amber, x, 0.745, zf(0.6, 0.745) + 0.01, false);
   }
-  add(new RoundedBoxGeometry(1.74, 0.21, 0.24, 3, 0.06), plastic, 0, 0.6, zf(0, 0.6) + 0.04);
+  const frontBumper = zf(0, 0.6) + 0.04;
+  add(new RoundedBoxGeometry(1.74, 0.21, 0.24, 3, 0.06), plastic, 0, 0.6, frontBumper);
+  add(new RoundedBoxGeometry(0.70, 0.075, 0.04, 2, 0.017), satin, 0, 0.55, frontBumper + 0.116);
+  for (const side of [-1, 1]) {
+    const fogX = side * 0.60, fogY = 0.605, fogZ = frontBumper + 0.119;
+    add(new THREE.TorusGeometry(0.045, 0.008, 8, 20), satin, fogX, fogY, fogZ, false);
+    add(new THREE.CircleGeometry(0.038, 24), glass, fogX, fogY, fogZ + 0.002, false);
+    add(new THREE.CircleGeometry(0.025, 20), headMat, fogX, fogY, fogZ + 0.004, false);
+    add(new THREE.CylinderGeometry(0.011, 0.011, 0.008, 6).rotateX(Math.PI / 2),
+      plastic, side * 0.27, 0.55, frontBumper + 0.137, false);
+  }
   add(new THREE.TorusGeometry(0.035, 0.01, 6, 16).rotateY(Math.PI / 2), chrome, 0.45, 0.52, zf(0.45, 0.52) + 0.14);
 
   // ——— зад: фонари по углам, номер на пятой двери, ручка, бампер ———
@@ -127,23 +131,49 @@ export function buildKedr(cfg: CarConfig, envIntensity = 1): CarModel {
     body.add(plate);
     add(new RoundedBoxGeometry(0.22, 0.03, 0.03, 2, 0.01), chrome, 0, 0.98, zr(0.11, 0.98) - 0.015, false);
   }
-  add(new RoundedBoxGeometry(1.72, 0.2, 0.22, 3, 0.06), plastic, 0, 0.58, zr(0, 0.58) - 0.03);
+  const rearBumper = zr(0, 0.58) - 0.03;
+  add(new RoundedBoxGeometry(1.72, 0.2, 0.22, 3, 0.06), plastic, 0, 0.58, rearBumper);
+  add(new RoundedBoxGeometry(0.66, 0.065, 0.038, 2, 0.016), satin, 0, 0.53, rearBumper - 0.101);
 
+  const ray = new THREE.Raycaster();
+  const seamMaterial = new THREE.MeshStandardMaterial({ color: 0x232a22, roughness: 0.85 });
   // ——— рейлинги, антенна, зеркала, ручки ———
   for (const side of [-1, 1]) {
-    const x = side * 0.62, y = 1.7;
-    const pts = [new THREE.Vector3(x, y - 0.04, 0.12), new THREE.Vector3(x, y, 0.0), new THREE.Vector3(x, y, -1.5), new THREE.Vector3(x, y - 0.04, -1.62)];
-    add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.018, 8, false), plastic, 0, 0, 0);
-    for (const z of [0.08, -0.75, -1.58]) add(new RoundedBoxGeometry(0.05, 0.07, 0.09, 2, 0.015), plastic, x, y - 0.045, z);
+    body.add(buildRoofRail(ghm, side * 0.34, [
+      [0.15, 0.027], [0.06, 0.055], [-0.12, 0.07],
+      [-0.74, 0.07], [-1.36, 0.07], [-1.52, 0.055], [-1.62, 0.027],
+    ], plastic, plastic));
     // зеркала на ножке
     const mz = 0.62, my = 1.2, mx = side * (sh.xAt(mz, 1.04) + 0.09);
     add(new RoundedBoxGeometry(0.06, 0.15, 0.2, 2, 0.02), plastic, mx, my, mz);
     add(new THREE.PlaneGeometry(0.16, 0.12).rotateY(Math.PI), chrome, mx, my, mz - 0.032, false);
     add(new THREE.BoxGeometry(0.1, 0.03, 0.04), plastic, side * (sh.xAt(mz, 1.04) + 0.03), 1.12, mz);
-    // ручка двери
-    add(new RoundedBoxGeometry(0.03, 0.035, 0.15, 2, 0.01), plastic, side * (sh.xAt(-0.12, 0.98) + 0.012), 0.98, -0.12, false);
+    // Шов двери и ручка повторяют боковину кузова.
+    const doorPoint = (y: number, z: number, offset: number) => {
+      ray.ray.set(new THREE.Vector3(side * 2, y, z), new THREE.Vector3(-side, 0, 0));
+      const surface = ray.intersectObject(bm, false)[0]?.point;
+      return new THREE.Vector3((surface?.x ?? side * sh.xAt(z, y)) + side * offset, y, z);
+    };
+    const seam: THREE.Vector3[] = [];
+    for (let i = 0; i <= 10; i++) seam.push(doorPoint(1.035 - 0.485 * i / 10, 0.64, 0.004));
+    for (let i = 1; i <= 18; i++) seam.push(doorPoint(0.55, 0.64 - 1.22 * i / 18, 0.004));
+    for (let i = 1; i <= 10; i++) seam.push(doorPoint(0.55 + 0.485 * i / 10, -0.58, 0.004));
+    add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(seam), 72, 0.004, 6, false), seamMaterial, 0, 0, 0, false);
+    const trim = Array.from({ length: 13 }, (_, i) => doorPoint(0.68, 0.50 - i * 0.077, 0.008));
+    add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(trim), 32, 0.012, 8, false), plastic, 0, 0, 0, false);
+    const accent = trim.map((point) => new THREE.Vector3(point.x + side * 0.010, point.y + 0.003, point.z));
+    add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(accent), 32, 0.003, 6, false), satin, 0, 0, 0, false);
+    const handle = doorPoint(0.97, -0.44, 0.009);
+    add(new RoundedBoxGeometry(0.03, 0.035, 0.15, 2, 0.01), plastic, handle.x, handle.y, handle.z, false);
   }
-  add(new THREE.CylinderGeometry(0.005, 0.008, 0.7, 6).rotateX(-0.25), plastic, 0.66, 1.88, 0.3, false);
+  const aerialX = 0.62, aerialZ = 0.89;
+  ray.ray.set(new THREE.Vector3(aerialX, 2, aerialZ), new THREE.Vector3(0, -1, 0));
+  const aerialBase = ray.intersectObject(bm, false)[0]?.point.y;
+  if (aerialBase !== undefined) {
+    add(new THREE.CylinderGeometry(0.025, 0.035, 0.027, 12), plastic, aerialX, aerialBase + 0.006, aerialZ);
+    const mast = new THREE.CylinderGeometry(0.004, 0.007, 0.45, 8).translate(0, 0.225, 0).rotateX(-0.22);
+    add(mast, plastic, aerialX, aerialBase + 0.016, aerialZ, false);
+  }
 
   // ——— чёрные расширители арок и брызговики ———
   for (const az of [axF, axR]) {

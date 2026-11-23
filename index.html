@@ -56,6 +56,16 @@
           </div>
           <button class="reset-all" id="resetAll">Начать сначала</button>
         </section>
+        <section class="slide" data-name="Рекорды">
+          <div class="eyebrow" id="recordsTitle">Топ-100 по пробегу</div>
+          <p id="recordsEmpty">Здесь будут результаты завершённых заездов.</p>
+          <div class="records-scroll" id="recordsScroll" hidden>
+            <table class="records-table" aria-labelledby="recordsTitle">
+              <thead><tr><th scope="col">Место</th><th scope="col">Ник</th><th scope="col">Пробег</th></tr></thead>
+              <tbody id="recordsBody"></tbody>
+            </table>
+          </div>
+        </section>
       </div>
       <button id="go" class="go">Поехать</button>
     </div>
@@ -110,7 +120,7 @@
       <h2>Пауза</h2>
       <button id="resume" class="go">Продолжить</button>
       <button id="restart" class="ghost">Заново</button>
-      <button id="toGarage" class="ghost">На главную</button>
+      <button id="toGarage" class="ghost">Закончить заезд</button>
       <div class="quality">
         <span>Графика</span>
         <div class="seg" id="qualitySeg">
@@ -158,6 +168,14 @@
       <div class="st-row"><span>Столкновений</span><b id="ovCrashes">0</b></div>
       <div class="st-row"><span>В кошельке</span><b><span class="coin"></span><span id="ovCoins">0</span></b></div>
             <div class="st-row" id="ovKbmRow"><span>КБМ на следующий год</span><b id="ovKbm"></b></div>
+      <form id="recordForm" class="record-form" hidden>
+        <label for="recordNickname">Ник для таблицы рекордов</label>
+        <div class="record-fields">
+          <input id="recordNickname" type="text" placeholder="Ваш ник" required>
+          <button id="recordSave" type="submit">Сохранить</button>
+        </div>
+        <p id="recordStatus" role="status" hidden></p>
+      </form>
       <button id="ovAgain" class="go">Ещё раз</button>
       <button id="ovGarage" class="ghost">На главную</button>
     </div>

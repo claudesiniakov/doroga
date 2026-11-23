@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
+    "records": "node server/records.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host",
     "shot": "node scripts/shot.mjs"

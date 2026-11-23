@@ -1,0 +1,17 @@
+[Unit]
+Description=Doroga shared leaderboard
+
+[Service]
+Type=simple
+DynamicUser=yes
+StateDirectory=doroga-records
+Environment=DOROGA_RECORDS_DB=/var/lib/doroga-records/records.sqlite
+ExecStart=/usr/bin/node /usr/local/libexec/doroga-records.mjs
+Restart=on-failure
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

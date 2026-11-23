@@ -393,7 +393,7 @@ kbd {
 .tabs { gap: 4px; padding: 3px; margin: -4px 0 12px; border-radius: 11px; background: rgba(255,255,255,.05); }
 .tabs button { flex: 1; height: 30px; border: 0; border-radius: 8px; background: none; color: var(--ink-2); font-size: 12.5px; font-weight: 600; }
 .tabs button.on { background: rgba(255,255,255,.12); color: var(--ink); }
-@media (max-height: 820px), (max-width: 720px) {
+@media (max-height: 820px), (max-width: 720px), (pointer: coarse) {
   .tabs { display: flex; }
   .slides { display: flex; gap: 0; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain; touch-action: pan-x; }
   .slides::-webkit-scrollbar { display: none; }
@@ -483,3 +483,22 @@ html, body { height: 100dvh; }
   overflow-y: auto;
 }
 #stEnd[hidden] { display: none; }
+
+#garage .tabs { display: flex; }
+#recordsEmpty { color: var(--ink-2); font-size: 13px; }
+.records-scroll { max-height: min(200px, 30dvh); overflow: auto; touch-action: pan-y; }
+.records-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.records-table th, .records-table td { padding: 6px; text-align: left; border-bottom: 1px solid var(--line); }
+.records-table th { color: var(--ink-2); font-weight: 600; }
+.records-table td:nth-child(2) { overflow-wrap: anywhere; }
+.records-table td:last-child, .records-table th:last-child { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#over .menu { max-height: calc(100dvh - 20px - var(--safe-t) - var(--safe-b)); overflow: auto; touch-action: pan-y; }
+.record-form:not([hidden]) { display: grid; gap: 6px; }
+.record-form label, #recordStatus { color: var(--ink-2); font-size: 13px; margin: 0; }
+.record-fields { display: flex; gap: 6px; }
+.record-fields input, .record-fields button {
+  min-height: 36px; border: 1px solid var(--line); border-radius: 8px;
+  background: rgba(255,255,255,.08); color: var(--ink); font: inherit; padding: 4px 8px;
+}
+.record-fields input { min-width: 0; flex: 1; user-select: text; font-size: 16px; }
+.record-fields button:disabled { opacity: .5; }

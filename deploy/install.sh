@@ -12,6 +12,7 @@ fi
 
 install -D -m 755 "$deploy_dir/publish.sh" /usr/local/libexec/doroga-publish
 install -m 644 "$deploy_dir"/systemd/doroga-deploy.* /etc/systemd/system/
+"$deploy_dir/install-records.sh"
 systemctl daemon-reload
 
 # Отключаем старую выкладку после первой успешной проверки новой службы.

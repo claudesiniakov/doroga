@@ -9,6 +9,7 @@ import { GarageScene } from './garage';
 import type { DriveScene } from './drive';
 import { START_COINS, LITERS_PER_KM, FUEL_PRICE, KASKO, REPAIR_PRICE, POLICE_FINE } from './drive-rules';
 import { Input } from './input';
+import { formatRecordDistance, loadRecords, MAX_NICKNAME_LENGTH, newRecordSubmission, saveRecord } from './records';
 
 type State = 'loading' | 'garage' | 'drive' | 'pause' | 'station' | 'over' | 'protocol' | 'renewal' | 'breakdown';
 
@@ -92,6 +93,69 @@ async function main() {
       ? (ins.osago || ins.kasko ? 'Продолжить путь' : 'Продолжить без страховки') : 'Поехать';
   };
 
+  let recordMeters = 0;
+  let recordSaved = false;
+  let recordSubmission = '';
+  let submittedNickname: string | undefined;
+  let recordLoad = 0;
+  const recordForm = $<HTMLFormElement>('recordForm');
+  const recordNickname = $<HTMLInputElement>('recordNickname');
+  const recordSave = $<HTMLButtonElement>('recordSave');
+  const recordStatus = $('recordStatus');
+  recordNickname.maxLength = MAX_NICKNAME_LENGTH;
+  const renderRecords = async () => {
+    const request = ++recordLoad;
+    const status = $('recordsEmpty');
+    status.textContent = 'Загружаем общие рекорды…';
+    status.hidden = false;
+    const scroll = $('recordsScroll');
+    scroll.hidden = true;
+    try {
+      const records = await loadRecords();
+      if (request !== recordLoad) return;
+      status.textContent = 'Здесь будут результаты завершённых заездов.';
+      status.hidden = records.length > 0;
+      scroll.hidden = records.length === 0;
+      const rows = records.map(({ nickname, meters }, index) => {
+        const row = document.createElement('tr');
+        for (const cell of [String(index + 1), nickname, formatRecordDistance(meters)]) {
+          row.insertCell().textContent = cell;
+        }
+        return row;
+      });
+      $('recordsBody').replaceChildren(...rows);
+    } catch {
+      if (request === recordLoad) status.textContent = 'Общие рекорды пока недоступны.';
+    }
+  };
+  recordForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (state !== 'over' || recordMeters <= 0 || recordSaved || recordSave.disabled) return;
+    const nickname = recordNickname.value.trim();
+    recordStatus.hidden = false;
+    if (!nickname || nickname.length > MAX_NICKNAME_LENGTH || /[\u0000-\u001f\u007f]/u.test(nickname)) {
+      recordStatus.textContent = `Введите ник длиной до ${MAX_NICKNAME_LENGTH} символов.`;
+      recordNickname.focus();
+      return;
+    }
+    const submission = recordSubmission;
+    submittedNickname ??= nickname;
+    recordNickname.disabled = recordSave.disabled = true;
+    recordStatus.textContent = 'Сохраняем результат…';
+    try {
+      const place = await saveRecord(submittedNickname, recordMeters, submission);
+      if (submission !== recordSubmission || state !== 'over') return;
+      recordSaved = true;
+      recordStatus.textContent = place <= 100 ? `Результат сохранён. Место №${place}.`
+        : `Результат сохранён. Место №${place} в общем рейтинге.`;
+      $('ovGarage').textContent = 'К таблице рекордов';
+    } catch {
+      if (submission !== recordSubmission || state !== 'over') return;
+      recordSave.disabled = false;
+      recordStatus.textContent = 'Не удалось сохранить результат. Попробуйте ещё раз.';
+    }
+  });
+
   // ——— начать сначала: полный сброс прогресса (в два нажатия) ———
   {
     const btn = $('resetAll');
@@ -112,6 +176,7 @@ async function main() {
   }
 
   let openInsuranceTab = () => {};
+  let openRecordsTab = () => {};
   // На десктопе вкладки переключают панели, на сенсорном экране доступен свайп.
   {
     const slidesEl = $('slides');
@@ -129,16 +194,19 @@ async function main() {
       });
     };
     markSlide(0);
-    openInsuranceTab = () => {
-      slidesEl.scrollLeft = 0;
-      markSlide(0);
+    const openTab = (index: number, behavior: ScrollBehavior = 'instant') => {
+      if (!desktop.matches) slidesEl.scrollTo({ left: index * slidesEl.clientWidth, behavior });
+      if (desktop.matches || behavior === 'instant') markSlide(index);
     };
+    openInsuranceTab = () => openTab(0);
+    const recordsIndex = slides.findIndex((slide) => slide.dataset.name === 'Рекорды');
+    openRecordsTab = () => openTab(recordsIndex);
     tabsEl.addEventListener('click', (e) => {
       const button = (e.target as HTMLElement).closest('button');
       if (!button) return;
       const index = Number(button.dataset.i);
-      if (desktop.matches) markSlide(index);
-      else slidesEl.scrollTo({ left: index * slidesEl.clientWidth, behavior: SHOT ? 'instant' : 'smooth' });
+      openTab(index, SHOT ? 'instant' : 'smooth');
+      if (index === recordsIndex) void renderRecords();
     });
     slidesEl.addEventListener('scroll', () => {
       if (desktop.matches) return;
@@ -169,6 +237,7 @@ async function main() {
   };
 
   const enterGarage = () => {
+    void renderRecords();
     if (garage) garage.attachCar(car);
     else drive.previewRoad(car, cfg);
     $('insuranceHeading').textContent = 'Страховка на год';
@@ -435,8 +504,18 @@ async function main() {
     input.enabled = false;
     const t = lastTrip;
     $('ovEyebrow').textContent = SHOT ? `Поездка №${t.num} · ${tripKm(t.num)} км` : 'Бесконечная дорога';
-    $('ovTitle').textContent = t.finished ? 'Поездка завершена' : drive.endReason === 'wreck' ? 'Машина разбита' : 'Топливо кончилось';
-    $('ovKm').textContent = fmtKm(t.km);
+    $('ovTitle').textContent = drive.endReason === 'wreck' ? 'Машина разбита'
+      : drive.endReason === 'fuel' ? 'Топливо кончилось' : 'Заезд завершён';
+    recordMeters = drive.endless ? Math.max(0, Math.round(drive.odometer)) : 0;
+    recordSaved = false;
+    recordSubmission = newRecordSubmission();
+    submittedNickname = undefined;
+    recordForm.reset();
+    recordNickname.disabled = recordSave.disabled = false;
+    recordForm.hidden = recordMeters <= 0;
+    recordStatus.hidden = true;
+    $('ovGarage').textContent = 'На главную';
+    $('ovKm').textContent = drive.endless ? formatRecordDistance(recordMeters) : fmtKm(t.km);
     $('ovRewardRow').style.display = t.finished ? '' : 'none';
     $('ovReward').textContent = String(t.reward);
     $('ovCrashes').textContent = String(t.crashes);
@@ -507,6 +586,7 @@ async function main() {
     if (state !== 'over') return;
     await fade(true);
     enterGarage();
+    if (recordSaved) openRecordsTab();
     await fade(false);
   });
   const onCrash: NonNullable<DriveScene['onCrash']> = (e) => {
@@ -529,7 +609,9 @@ async function main() {
       if (e.code === 'Enter') $('stFull').click();
       if (e.code === 'Escape' || e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') $('stLeave').click();
     }
-    if (state === 'over' && e.code === 'Enter') $('ovAgain').click();
+    if (state === 'over' && e.code === 'Enter' && !(e.target instanceof Element && e.target.closest('input, button'))) {
+      $('ovAgain').click();
+    }
     if (state === 'protocol' && (e.code === 'Enter' || e.code === 'Space')) $('prSign').click();
     if (state === 'garage' || state === 'renewal') {
       if (e.target instanceof Element && e.target.closest('button, a, input, select, textarea, [contenteditable]')) return;
@@ -587,11 +669,11 @@ async function main() {
   $('pauseBtn').addEventListener('click', pause);
   $('resume').addEventListener('click', resume);
   $('restart').addEventListener('click', async () => { finishRun(); await startDrive(); });
-  $('toGarage').addEventListener('click', async () => {
-    finishRun();
-    await fade(true);
-    enterGarage();
-    await fade(false);
+  $('toGarage').addEventListener('click', () => {
+    if (state !== 'pause') return;
+    drive.v = 0;
+    drive.phase = 'stopped';
+    showRunSummary();
   });
 
   const markQuality = () => {

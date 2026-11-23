@@ -13,7 +13,7 @@ export class Input {
 
   constructor(touchLayer: HTMLElement, gas: HTMLElement, brake: HTMLElement) {
     addEventListener('keydown', (e) => {
-      if (e.repeat) { if (this.isDriveKey(e.code)) e.preventDefault(); return; }
+      if (e.repeat) { if (this.enabled && this.isDriveKey(e.code)) e.preventDefault(); return; }
       this.keys.add(e.code);
       if (!this.enabled) return;
       if (e.code === 'ArrowLeft' || e.code === 'KeyA') this.shift -= 1;

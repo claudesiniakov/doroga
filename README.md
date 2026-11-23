@@ -41,6 +41,8 @@ npm run dev
 
 Откройте адрес из вывода Vite. Главная страница запускает игру, `/proto.html` открывает просмотр моделей.
 
+Для общей таблицы рекордов запустите `npm run records` во втором терминале на Node.js 22.13+ (или 24). Vite проксирует `/api/records` к локальному серверу. По умолчанию результаты хранятся в `.doroga-records.sqlite`.
+
 ```bash
 npm run build    # проверка TypeScript и сборка в dist/
 npm run preview  # просмотр готовой сборки
@@ -70,3 +72,5 @@ sudo bash /root/doroga/deploy/install.sh
 ```
 
 Для следующих релизов используйте `git push deploy main`. Если выкладка прервётся, таймер повторит попытку. Служба записывает SHA в `/var/lib/doroga-deploy/revision` после того, как проверит ответ Nginx для `proto.html`. Журнал доступен через `journalctl -u doroga-deploy.service`.
+
+При первом релизе с общей таблицей на уже настроенном сервере выполните `sudo bash deploy/install-records.sh` перед публикацией сайта. Установщик поднимает `doroga-records.service` и подключает `/api/records` через Nginx. Для обновления серверного кода таблицы запустите установщик снова. SQLite хранит результаты в `/var/lib/doroga-records/records.sqlite` между релизами.

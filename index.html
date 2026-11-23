@@ -24,21 +24,25 @@
   </section>
 
   <section id="garage" class="screen" aria-labelledby="homeTitle" inert>
-    <header class="top">
+    <header class="top home-nav">
+      <h1 id="homeTitle">Дорога</h1>
+      <div class="tabs" id="tabs" role="tablist" aria-label="Меню игры"></div>
       <div class="top-right">
         <a class="prototypes-link" href="./proto.html">Прототипы</a>
         <button class="icon-btn fs-btn" id="fsBtn" aria-label="На весь экран" hidden><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
         <div class="wallet-top" aria-label="Монеты"><span class="coin" aria-hidden="true"></span><b id="walletTop">100</b></div>
       </div>
     </header>
-    <div class="home-shell">
-      <div class="home-heading">
-        <span id="homeMode">Бесконечный заезд</span>
-        <h1 id="homeTitle">Дорога</h1>
-      </div>
-      <div class="car-card home-card">
-        <div class="tabs" id="tabs" role="tablist" aria-label="Меню игры"></div>
-        <div class="slides" id="slides">
+    <div class="home-content">
+      <div class="slides" id="slides">
+          <section class="slide" data-name="Заезд">
+            <h2 class="home-section-title">Перед выездом</h2>
+            <div class="home-policies">
+              <div><span>ОСАГО</span><b id="homeOsago">Без полиса</b></div>
+              <div><span>КАСКО</span><b id="homeKasko">Без полиса</b></div>
+            </div>
+            <button class="home-secondary" id="homeInsurance" type="button">Выбрать страховку <span aria-hidden="true">→</span></button>
+          </section>
           <section class="slide" data-name="Страховка">
             <h2 class="home-section-title" id="insuranceHeading">Страховка на год</h2>
             <div class="ins">
@@ -70,11 +74,13 @@
               </table>
             </div>
           </section>
-        </div>
-        <button id="go" class="go">Поехать</button>
       </div>
     </div>
-    <div class="home-vehicle" aria-hidden="true">Комета GT</div>
+    <div class="home-launch">
+      <div class="home-vehicle">Комета GT</div>
+      <h2 id="homeMode">Бесконечный заезд</h2>
+      <button id="go" class="go">Поехать</button>
+    </div>
     <div class="ios-tip" id="iosTip" hidden>
       <b>На весь экран</b> — нажмите <span class="share">⬆︎</span> «Поделиться» → «На экран „Домой“» и запускайте игру с иконки.
       <button id="iosTipClose" aria-label="Закрыть">✕</button>

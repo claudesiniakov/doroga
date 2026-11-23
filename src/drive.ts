@@ -287,7 +287,7 @@ export class DriveScene {
       .addScaledVector(view.right, 1.7);
     const target = this.world.path.frame(this.s + 10);
     this.camera.lookAt(target.pos.clone()
-      .addScaledVector(target.right, 4.1 + narrow * 9 + wide * 1.2)
+      .addScaledVector(target.right, 4.1 + narrow * 9 + wide * 4.3)
       .addScaledVector(target.up, 1.5 - narrow * 5.4));
   }
 

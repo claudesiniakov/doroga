@@ -178,13 +178,13 @@ async function main() {
   }
 
   let openInsuranceTab = () => {};
+  let openHomeTab = () => {};
   let openRecordsTab = () => {};
   // На десктопе вкладки переключают панели, на сенсорном экране доступен свайп.
   {
     const slidesEl = $('slides');
     const slides = [...slidesEl.querySelectorAll<HTMLElement>('.slide')];
     const tabsEl = $('tabs');
-    const desktop = matchMedia('(pointer: fine)');
     tabsEl.innerHTML = slides.map((slide, i) =>
       `<button type="button" id="home-tab-${i}" data-i="${i}" role="tab" aria-controls="home-slide-${i}">${slide.dataset.name}</button>`).join('');
     const tabs = [...tabsEl.querySelectorAll('button')];
@@ -203,18 +203,20 @@ async function main() {
       });
     };
     markSlide(0);
-    const openTab = (index: number, behavior: ScrollBehavior = 'instant') => {
-      if (!desktop.matches) slidesEl.scrollTo({ left: index * slidesEl.clientWidth, behavior });
-      if (desktop.matches || behavior === 'instant') markSlide(index);
-    };
-    openInsuranceTab = () => openTab(0);
+    const insuranceIndex = slides.findIndex((slide) => slide.dataset.name === 'Страховка');
+    openInsuranceTab = () => markSlide(insuranceIndex);
+    openHomeTab = () => markSlide(0);
+    $('homeInsurance').addEventListener('click', () => {
+      openInsuranceTab();
+      tabs[insuranceIndex].focus();
+    });
     const recordsIndex = slides.findIndex((slide) => slide.dataset.name === 'Рекорды');
-    openRecordsTab = () => openTab(recordsIndex);
+    openRecordsTab = () => markSlide(recordsIndex);
     tabsEl.addEventListener('click', (e) => {
       const button = (e.target as HTMLElement).closest('button');
       if (!button) return;
       const index = Number(button.dataset.i);
-      openTab(index, SHOT ? 'instant' : 'smooth');
+      markSlide(index);
       if (index === recordsIndex) void renderRecords();
     });
     tabsEl.addEventListener('keydown', (event) => {
@@ -226,15 +228,10 @@ async function main() {
           : event.key === 'ArrowRight' ? (current + 1) % tabs.length : current;
       if (current === index) return;
       event.preventDefault();
-      openTab(index);
+      markSlide(index);
       tabs[index].focus();
       if (index === recordsIndex) void renderRecords();
     });
-    slidesEl.addEventListener('scroll', () => {
-      if (desktop.matches) return;
-      const index = Math.round(slidesEl.scrollLeft / Math.max(1, slidesEl.clientWidth));
-      markSlide(index);
-    }, { passive: true });
   }
 
   const input = new Input($('touch'), $('pedGas'), $('pedBrake'));
@@ -265,7 +262,8 @@ async function main() {
     $('garage').classList.remove('is-renewal');
     $('homeMode').textContent = 'Бесконечный заезд';
     $('insuranceHeading').textContent = 'Страховка на год';
-    openInsuranceTab();
+    if (SHOT) openInsuranceTab();
+    else openHomeTab();
     renderer.setExposure(garage ? 1.0 : 0.6);
     renderer.setBloom(0.22, 3.0, 0.4);
     renderer.setVignette(0.45);
@@ -384,6 +382,10 @@ async function main() {
     $('kaskoPrice').textContent = String(kaskoPrice);
     $('insKasko').classList.toggle('on', ins.kasko);
     $('insOsago').classList.toggle('on', ins.osago);
+    for (const [id, on] of [['homeOsago', ins.osago], ['homeKasko', ins.kasko]] as const) {
+      $(id).textContent = on ? 'Выбрано' : 'Без полиса';
+      $(id).classList.toggle('on', on);
+    }
     $('insKasko').setAttribute('aria-pressed', String(ins.kasko));
     $('insOsago').setAttribute('aria-pressed', String(ins.osago));
     $('osagoPrice').textContent = String(osagoPrice(kbm));

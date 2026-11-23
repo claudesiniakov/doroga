@@ -97,6 +97,7 @@ export class DriveScene {
     this.kaskoRepairUsed = false;
     this.policeFine = 0;
     this.schedulePolice();
+    this.updatePolice(0);
     this.phase = 'drive';
   }
   startCoins = 100;
@@ -327,6 +328,7 @@ export class DriveScene {
     this.shakeAmp = this.shoulderRoughness = 0;
     this.traffic.populate(this.playerState(), 0);
     this.placeCar(0);
+    this.updatePolice(0);
     this.updateSun();
     this.snapCamera();
     this.updateFar(0);
@@ -711,12 +713,13 @@ export class DriveScene {
 
   /** Патрульная машина стоит на обочине, мигалка мигает. */
   private updatePolice(time: number) {
+    const ps = this.policeS;
     if (!this.police) {
+      if (ps === null) return;
       this.police = this.traffic.assets.createPolice() as typeof this.police;
       this.scene.add(this.police.vis.root);
     }
     const root = this.police.vis.root;
-    const ps = this.policeS;
     root.visible = ps !== null && ps - this.s < 1100 && ps - this.s > -200;
     if (!root.visible) return;
     const f = this.world.path.frame(ps!);

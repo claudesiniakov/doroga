@@ -502,3 +502,82 @@ html, body { height: 100dvh; }
 }
 .record-fields input { min-width: 0; flex: 1; user-select: text; font-size: 16px; }
 .record-fields button:disabled { opacity: .5; }
+
+@media (pointer: fine) and (min-width: 1000px) and (min-height: 600px) {
+  .car-card {
+    left: calc(clamp(28px, 3vw, 64px) + var(--safe-l));
+    bottom: calc(clamp(24px, 4.5vh, 58px) + var(--safe-b));
+    width: clamp(420px, 36vw, 560px);
+    padding: clamp(22px, 3.1vh, 34px);
+  }
+  .car-card, .menu {
+    --glass: rgba(16, 19, 25, .84);
+    --ink-2: #c9cdd5;
+    --ink-3: #a5adba;
+    border-color: rgba(255, 255, 255, .16);
+    box-shadow: 0 20px 64px rgba(0, 0, 0, .34);
+  }
+
+  .car-card .eyebrow, .menu .eyebrow { font-size: 12px; letter-spacing: .12em; }
+  .car-card .tabs, .service-tabs { padding: 4px; gap: 6px; }
+  .car-card .tabs { margin: 0 0 clamp(12px, 2vh, 22px); }
+  .car-card .tabs button, .service-tabs button { height: 42px; font-size: 15px; }
+  .car-card .tabs button.on, .service-tabs button.on {
+    background: rgba(255, 175, 102, .15);
+    color: #ffe5ca;
+  }
+  .car-card .ins { margin-top: 10px; gap: 8px; }
+  .car-card .ins-opt { padding: clamp(10px, 1.5vh, 16px); }
+  .car-card .ins-opt b { font-size: 16px; }
+  .car-card .ins-opt small { font-size: 14px; line-height: 1.42; }
+  .car-card .kbm-link, .car-card .startcoins { font-size: 14px; }
+  .car-card .startcoins { display: block; }
+  .gstats span { font-size: 12px; }
+  .gstats b { font-size: 18px; }
+  .records-table { font-size: 15px; }
+  .records-table th, .records-table td { padding: 9px 8px; }
+  .records-scroll { max-height: min(255px, 32dvh); }
+  .car-card .go { margin-top: 18px; }
+
+  .menu {
+    width: min(500px, calc(100vw - 72px));
+    max-height: calc(100dvh - 48px);
+    overflow: auto;
+    padding: clamp(22px, 3.5vh, 36px);
+    gap: clamp(8px, 1.35vh, 14px);
+  }
+  .menu h2 { font-size: clamp(27px, 3.6vh, 36px); margin-bottom: 2px; }
+  .menu .st-row, .menu .tank-nums { font-size: 16px; }
+  .menu .st-row > b { text-align: right; }
+  .menu .quality > span, .record-form label, #recordStatus { font-size: 14px; }
+  .record-fields input, .record-fields button { min-height: 44px; }
+  .car-card .go, .menu .go, .menu .ghost { height: 52px; font-size: 17px; }
+  .kbm-panel { width: min(680px, calc(100vw - 72px)); }
+  .kbm-note, .kbm-table { font-size: 15px; }
+  .kbm-table th { font-size: 12px; }
+  .paper { width: min(550px, calc(100vw - 72px)); padding: 28px 32px; }
+  .p-title { font-size: 23px; }
+  .p-fields dd { font-size: 16px; }
+
+  .banner, .toast {
+    max-width: min(520px, 50vw);
+    padding: 12px 20px;
+    font-size: 17px;
+    line-height: 1.3;
+    white-space: normal;
+  }
+  .banner { background: rgba(16, 19, 25, .87); }
+  .banner small { color: #d2d6df; font-size: 14px; margin-top: 4px; }
+  .toast { top: calc(112px + var(--safe-t)); }
+  .controls-hint {
+    gap: clamp(10px, 1.4vw, 22px);
+    padding: 10px 14px;
+    border: 1px solid rgba(255, 255, 255, .14);
+    border-radius: 12px;
+    background: rgba(16, 19, 25, .88);
+    color: #e9eaf0;
+    font-size: 15px;
+  }
+  .controls-hint span { display: inline-flex; align-items: center; gap: 4px; }
+  .controls-hint kbd { min-width: 26px; height: 26px; margin: 0; }
+}

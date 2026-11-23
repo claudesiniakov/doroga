@@ -460,16 +460,28 @@ export class RoadWorld {
     for (const [k, c] of this.chunks) {
       if (k < first || k > last) { c.dispose(); this.chunks.delete(k); }
     }
-    // за кадр — один шаг постройки (земля/дорога или обочина), без рывков
+    // Подгрузка ближнего чанка и пересчёт дальнего рельефа делят время кадра.
+    const stats = RoadWorld.stats;
+    let preparedChunk = false;
     for (let k = first; k <= last; k++) {
       const c = this.chunks.get(k);
-      const t0 = performance.now();
-      if (!c) { this.chunks.set(k, this.buildChunk(k)); RoadWorld.stats?.base.push(performance.now() - t0); break; }
-      if (!c.scattered) { this.scatter(c); RoadWorld.stats?.scatter.push(performance.now() - t0); break; }
+      if (c?.scattered) continue;
+      const t0 = stats ? performance.now() : 0;
+      if (!c) {
+        this.chunks.set(k, this.buildChunk(k));
+        stats?.base.push(performance.now() - t0);
+      } else {
+        this.scatter(c);
+        stats?.scatter.push(performance.now() - t0);
+      }
+      preparedChunk = true;
+      break;
     }
-    const tf = performance.now();
-    this.far.update(carPos, this.priming);
-    RoadWorld.stats?.far.push(performance.now() - tf);
+    if (!preparedChunk || this.priming) {
+      const tf = stats ? performance.now() : 0;
+      this.far.update(carPos, this.priming);
+      stats?.far.push(performance.now() - tf);
+    }
   }
   private priming = false;
   /** Замеры стадий постройки (включаются только в режиме проверки). */
@@ -687,6 +699,13 @@ export class FarTerrain {
   private center = new THREE.Vector2(Infinity, Infinity);
   private readonly size = 2400;
   private readonly segs = 160;
+  private readonly sampleCount = (this.segs + 1) ** 2;
+  private readonly staging = {
+    P: new Float32Array(this.sampleCount * 3),
+    C: new Float32Array(this.sampleCount * 4),
+    U: new Float32Array(this.sampleCount * 2),
+    M: new Uint8Array(this.sampleCount * 4),
+  };
 
   constructor(private path: RoadPath, mat: THREE.MeshStandardMaterial) {
     this.geo = new THREE.PlaneGeometry(this.size, this.size, this.segs, this.segs);
@@ -719,47 +738,45 @@ export class FarTerrain {
     const cx = Math.round(car.x / snap) * snap, cz = Math.round(car.z / snap) * snap;
     if (!this.job) {
       if (cx === this.center.x && cz === this.center.y) return;
-      const n = (this.segs + 1) ** 2;
       const pi = this.path.indexAtZ(car.z);
       const level = this.path.seaLevelNear(pi * 2, 1300);
-      this.job = { cx, cz, row: 0, P: new Float32Array(n * 3), C: new Float32Array(n * 4), U: new Float32Array(n * 2),
-        M: new Uint8Array(n * 4), level: level ?? NaN };
+      this.job = { cx, cz, row: 0, ...this.staging, level: level ?? NaN };
     }
     const job = this.job;
     const half = this.size / 2;
     const step = this.size / this.segs;
     const p = this.path;
-    const rowsPerFrame = full ? this.segs + 1 : 12;
-    const rEnd = Math.min(this.segs + 1, job.row + rowsPerFrame);
-    for (let r = job.row; r < rEnd; r++) {
+    const deadline = full ? Infinity : performance.now() + 2.5;
+    const rEnd = full ? this.segs + 1 : Math.min(this.segs + 1, job.row + 12);
+    do {
+      const r = job.row++;
+      const lz = -half + r * step, wz = job.cz + lz;
+      const i = p.indexAtZ(wz);
+      const weights = p.weightsAt(i);
+      const coastSide = weights.coast > 0 ? p.biomes.coastNear(i * STEP)?.seaSide ?? 0 : 0;
+      const rightX = -Math.cos(p.h[i]), rightZ = Math.sin(p.h[i]);
+      const roadHeight = p.y[i], roadX = p.x[i], roadZ = p.z[i];
+      const inRoadRange = wz >= p.z[0] - 50 && wz <= p.z[p.z.length - 1];
+      const nearWater = !Number.isNaN(job.level) && Math.abs(p.sea[i] - job.level) < 0.6 && weights.coast > 0.02;
       for (let c = 0; c <= this.segs; c++) {
         const k = r * (this.segs + 1) + c;
-        const lx = -half + c * step, lz = -half + r * step;
-        const wx = job.cx + lx, wz = job.cz + lz;
-        const i = p.indexAtZ(wz);
-        // смещение от оси со знаком (вправо +)
-        const so = ((wx - p.x[i]) * -Math.cos(p.h[i]) + (wz - p.z[i]) * Math.sin(p.h[i]));
-        let y = biomeTerrain(p, i, wx, wz, so);
+        const lx = -half + c * step, wx = job.cx + lx;
+        const so = (wx - roadX) * rightX + (wz - roadZ) * rightZ;
+        let y = biomeTerrain(p, i, wx, wz, so, weights, coastSide);
         const d = Math.abs(so);
-        if (wz >= p.z[0] - 50 && wz <= p.z[p.z.length - 1]) {
-          if (d < GROUND_FAR - 30) y = Math.min(y, p.y[i]) - 25;
+        if (inRoadRange) {
+          if (d < GROUND_FAR - 30) y = Math.min(y, roadHeight) - 25;
           else y -= 1.2 * (1 - smoothstep(GROUND_FAR, GROUND_FAR + 120, d));
         }
         job.P[k * 3] = lx; job.P[k * 3 + 1] = y; job.P[k * 3 + 2] = lz;
         job.U[k * 2] = wx / 6; job.U[k * 2 + 1] = wz / 6;
-        const rgba = groundRGBA(p, i, wx, wz, so);
-        job.C.set(rgba, k * 4);
-        // маска моря: строка текстуры снизу вверх (v = 1 - r/segs)
-        let water = 0;
-        if (!Number.isNaN(job.level) && Math.abs(p.sea[i] - job.level) < 0.6 && p.weightsAt(i).coast > 0.02) {
-          const seg = p.biomes.coastNear(i * 2);
-          if (seg && so * seg.seaSide > 10) water = 255;
-        }
+        job.C.set(groundRGBA(p, i, wx, wz, so, weights, coastSide), k * 4);
+        // Маска моря: строка текстуры снизу вверх.
+        const water = nearWater && so * coastSide > 10 ? 255 : 0;
         const mk = ((this.segs - r) * (this.segs + 1) + c) * 4;
         job.M[mk] = job.M[mk + 1] = job.M[mk + 2] = water; job.M[mk + 3] = 255;
       }
-    }
-    job.row = rEnd;
+    } while (job.row < rEnd && performance.now() < deadline);
     if (job.row <= this.segs) return;
     // готово — подменяем данные сетки разом
     (this.geo.getAttribute('position') as THREE.BufferAttribute).copyArray(job.P).needsUpdate = true;
@@ -777,8 +794,8 @@ export class FarTerrain {
 }
 
 /** Рельеф с учётом района: лес холмистее, в пустыне дюны, город и пригород выровнены, у моря — пляж и спуск под воду. */
-export function biomeTerrain(p: RoadPath, i: number, x: number, z: number, so: number): number {
-  const w = p.weightsAt(i);
+export function biomeTerrain(p: RoadPath, i: number, x: number, z: number, so: number,
+  w = p.weightsAt(i), coastSide?: number): number {
   const seed = p.seed;
   let h = terrainHeight(x, z, seed);
   if (w.forest > 0) h += w.forest * (fbm2(x / 260, z / 260, 3, seed + 404) - 0.35) * 26;
@@ -791,8 +808,8 @@ export function biomeTerrain(p: RoadPath, i: number, x: number, z: number, so: n
   if (flat > 0) h = lerp(h, p.y[i] - 0.4 + (fbm2(x / 80, z / 80, 2, seed + 6) - 0.5) * 2.4, flat);
   const sea = p.sea[i];
   if (w.coast > 0 && !Number.isNaN(sea)) {
-    const seg = p.biomes.coastNear(i * STEP);
-    if (seg && Math.sign(so) === seg.seaSide) {
+    const side = coastSide ?? p.biomes.coastNear(i * STEP)?.seaSide ?? 0;
+    if (side && Math.sign(so) === side) {
       const beach = Math.max(sea - 16, sea + 1.3 - (ao - 20) * 0.075);
       h = lerp(h, beach, w.coast * smoothstep(12, 36, ao));
     }
@@ -801,10 +818,10 @@ export function biomeTerrain(p: RoadPath, i: number, x: number, z: number, so: n
 }
 
 /** Цвет земли (RGB — оттенок травы, A — доля песка). */
-export function groundRGBA(p: RoadPath, i: number, x: number, z: number, so: number): [number, number, number, number] {
+export function groundRGBA(p: RoadPath, i: number, x: number, z: number, so: number,
+  w = p.weightsAt(i), coastSide?: number): [number, number, number, number] {
   const seed = p.seed;
   const ao = Math.abs(so);
-  const w = p.weightsAt(i);
   const dry = fbm2(x / 70, z / 70, 3, seed + 7);
   const lush = fbm2(x / 23, z / 23, 3, seed + 8);
   const dust = 1 - smoothstep(ROAD.half + 1, ROAD.half + 9, ao);
@@ -817,8 +834,8 @@ export function groundRGBA(p: RoadPath, i: number, x: number, z: number, so: num
   const tb = w.forest * 0.8 + w.city * 0.92 + w.suburb * 0.95 + w.desert * 0.85 + w.coast * 0.82;
   let sand = w.desert * clamp(0.75 + (dry - 0.5) * 0.8, 0, 1);
   if (w.coast > 0) {
-    const seg = p.biomes.coastNear(i * STEP);
-    if (seg && Math.sign(so) === seg.seaSide) sand = Math.max(sand, w.coast * smoothstep(9, 22, ao));
+    const side = coastSide ?? p.biomes.coastNear(i * STEP)?.seaSide ?? 0;
+    if (side && Math.sign(so) === side) sand = Math.max(sand, w.coast * smoothstep(9, 22, ao));
     else sand = Math.max(sand, w.coast * 0.25 * smoothstep(0.55, 0.8, dry));
   }
   return [r * tr, g * tg, b * tb, sand];

@@ -8,6 +8,7 @@ import { TrafficAssets } from './traffic-models';
 import { mountainRing } from './props';
 import { makeWaterNormal } from './textures';
 import { clamp, damp, lerp, smoothstep } from './noise';
+import { RoadCoins } from './road-coins';
 import { START_COINS, LITERS_PER_KM, FUEL_PRICE, REPAIR_PRICE, POLICE_FINE } from './drive-rules';
 
 export interface DriveInput {
@@ -72,6 +73,26 @@ export class DriveScene {
   phase: 'intro' | 'drive' | 'pitIn' | 'refuel' | 'pitOut' | 'policeIn' | 'protocol' | 'policeOut' | 'empty' | 'wrecked' | 'finish' | 'stopped' = 'intro';
   // поездка: длина задаётся снаружи, финиш — на startS + tripKm
   tripKm = 4;
+  endless = false;
+  month = 0;
+  monthTime = 0;
+  coinsCollected = 0;
+  private readonly roadCoins: RoadCoins;
+  private previewing = false;
+  private winterForMonth() { return this.month <= 2 || this.month >= 10; }
+
+  renewInsurance(insurance: DriveScene['insurance'], coins: number) {
+    this.insurance = insurance;
+    this.coins = coins;
+    this.startS = this.s;
+    this.endReason = null;
+    this.crashes = 0;
+    this.coinsCollected = 0;
+    this.kaskoRepairUsed = false;
+    this.policeFine = 0;
+    this.schedulePolice();
+    this.phase = 'drive';
+  }
   startCoins = 100;
   startS = 30;
   get finishS() { return this.startS + this.tripKm * 1000; }
@@ -168,6 +189,8 @@ export class DriveScene {
     this.traffic = new Traffic(this.world.path, new TrafficAssets());
     this.traffic.onCrash = (e) => this.crash(e);
     this.scene.add(this.traffic.group);
+    this.roadCoins = new RoadCoins(this.world.path, seed);
+    this.scene.add(this.roadCoins.group);
 
     // море: на сетке дальнего рельефа, видно только по маске (сторона моря у побережья)
     this.waterNormal = makeWaterNormal(512);
@@ -184,7 +207,7 @@ export class DriveScene {
   }
 
   setSnow(on: boolean) {
-    this.world.snow = on;
+    this.world.setSnow(on);
     this.world.mats.setSnow(on);
     this.sun.color.setHex(on ? 0xe4efff : 0xffd2a0);
     this.sun.intensity = on ? 4.2 : 5.2;
@@ -213,8 +236,47 @@ export class DriveScene {
     this.scene.add(car.root);
   }
 
+  /** Комета припаркована на обочине главного экрана. */
+  previewRoad(car: CarModel, config: CarConfig) {
+    this.previewing = true;
+    const s = 30;
+    const f = this.world.path.frame(s);
+    this.attachCar(car, config);
+    this.s = s;
+    this.d = SHOULDER_OFFSET;
+    this.v = this.dv = 0;
+    car.root.visible = true;
+    car.body.position.set(0, 0, 0);
+    car.body.rotation.set(0, 0, 0);
+    for (const { spin, steer } of car.wheels) {
+      spin.rotation.x = 0;
+      steer.rotation.y = 0;
+    }
+    car.setBrake(0);
+    this.placeCar(0);
+    if (this.police) this.police.vis.root.visible = false;
+    if (this.finishGate) this.finishGate.visible = false;
+    this.traffic.group.visible = false;
+    this.roadCoins.group.visible = false;
+    this.world.prime(s, f.pos);
+    this.frameRoadPreview();
+    this.updateSun(f.pos);
+    this.updateFar(0, f.pos.y);
+  }
+
+  private frameRoadPreview() {
+    const view = this.world.path.frame(this.s - 12);
+    const narrow = Math.max(0, 1.15 - this.camera.aspect);
+    this.camera.position.copy(view.pos).addScaledVector(view.up, 3.2 - narrow * 1.7).addScaledVector(view.right, 1.7);
+    const target = this.world.path.frame(this.s + 10);
+    this.camera.lookAt(target.pos.clone()
+      .addScaledVector(target.right, 4.1 + narrow * 9)
+      .addScaledVector(target.up, 1.5 - narrow * 3.6));
+  }
+
   /** Новый заезд: машина стоит на обочине, начинается заставка выезда. */
   reset(skipIntro = false, startS = 30) {
+    this.previewing = false;
     this.s = startS;
     this.v = skipIntro ? CRUISE : 0;
     this.lane = 1;
@@ -235,7 +297,13 @@ export class DriveScene {
     this.pitExit = null;
     this.policeFine = 0;
     this.placeCar(0);
-    this.world.planTrip(startS, startS + this.tripKm * 1000);
+    this.car.root.visible = true;
+    this.traffic.group.visible = true;
+    this.roadCoins.reset(startS);
+    this.coinsCollected = 0;
+    this.month = this.monthTime = 0;
+    if (this.endless) this.setSnow(this.winterForMonth());
+    else this.world.planTrip(startS, startS + this.tripKm * 1000);
     this.schedulePolice();
     this.world.prime(this.s, this.car.root.position);
     this.crashes = 0;
@@ -253,8 +321,20 @@ export class DriveScene {
   get braking() { return this.lastBrake; }
   private lastBrake = 0;
 
-  update(dt: number, input: DriveInput, time: number) {
+  update(dt: number, input: DriveInput, time: number, elapsed = dt) {
     dt = Math.min(dt, 1 / 20);
+    const fromS = this.s;
+    if (this.endless && (this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'policeOut' ||
+      this.phase === 'pitIn' || this.phase === 'policeIn')) {
+      this.monthTime += elapsed;
+      // Въезд на АЗС или остановка ДПС завершаются перед обновлением полиса.
+      if (this.monthTime >= 30 && this.phase === 'drive') {
+        this.monthTime %= 30;
+        this.month = (this.month + 1) % 12;
+        this.setSnow(this.winterForMonth());
+        if (this.month === 0) this.phase = 'finish';
+      }
+    }
     const cfg = this.cfg;
     const vmax = cfg.maxSpeedKmh / 3.6;
     let a = 0;
@@ -357,7 +437,7 @@ export class DriveScene {
       if (this.fuel <= 0 && (this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'policeOut' || this.phase === 'policeIn')) this.phase = 'empty';
       if (this.health <= 0 && (this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'empty')) this.phase = 'wrecked';
       // финиш поездки
-      if (this.s >= this.finishS && (this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'policeOut' || this.phase === 'empty')) this.phase = 'finish';
+      if (!this.endless && this.s >= this.finishS && (this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'policeOut' || this.phase === 'empty')) this.phase = 'finish';
     }
 
     // смена полосы: пружина с критическим демпфированием
@@ -397,7 +477,11 @@ export class DriveScene {
     this.world.update(this.s, this.car.root.position);
     this.traffic.update(dt, this.playerState(), this.odometer, time);
     this.updatePolice(time);
-    this.updateFinishGate();
+    if (this.endless) {
+      const coins = this.roadCoins.update(fromS, this.s, this.d, time, this.phase === 'drive');
+      this.coins += coins;
+      if (coins) this.coinsCollected++;
+    } else this.updateFinishGate();
     this.shakeAmp = Math.max(0, this.shakeAmp - dt * 1.6);
     this.sky.material.uniforms.time.value = time;
     this.updateCamera(dt, time);
@@ -446,8 +530,7 @@ export class DriveScene {
     this.car.root.quaternion.copy(this._q);
   }
 
-  private updateSun() {
-    const p = this.car.root.position;
+  private updateSun(p = this.car.root.position) {
     this.sun.position.copy(p).addScaledVector(this.sunDir, 200);
     this.sun.target.position.copy(p);
     // привязка к текселям теневой карты — без «дрожания» теней
@@ -522,10 +605,10 @@ export class DriveScene {
   }
 
   /** Небо, горы и море следуют за камерой. */
-  private updateFar(time: number) {
+  private updateFar(time: number, groundY = this.car.root.position.y) {
     const c = this.camera.position;
     this.sky.position.copy(c);
-    this.mountains.position.set(c.x, this.car.root.position.y - 30, c.z);
+    this.mountains.position.set(c.x, groundY - 30, c.z);
     const far = this.world.far;
     this.sea.visible = !Number.isNaN(far.seaLevel);
     if (this.sea.visible) {
@@ -593,7 +676,7 @@ export class DriveScene {
     const path = this.world.path;
     for (let tries = 0; tries < 20; tries++) {
       // в пределах поездки: не раньше 1 км и не позже 800 м до финиша
-      const span = this.finishS - 800 - (this.s + 1000);
+      const span = this.endless ? 2700 : this.finishS - 800 - (this.s + 1000);
       if (span <= 0) return;
       const s = this.s + 1000 + Math.random() * span;
       if (!path.exitNear(s + 300, 900)) { this.policeS = s; return; }
@@ -709,5 +792,6 @@ export class DriveScene {
   resize(aspect: number) {
     this.camera.aspect = aspect;
     this.camera.updateProjectionMatrix();
+    if (this.previewing) this.frameRoadPreview();
   }
 }

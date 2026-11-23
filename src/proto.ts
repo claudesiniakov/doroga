@@ -27,7 +27,8 @@ const trafficNames: Record<TrafficKind, string> = {
   limo: 'Лимузин',
   truck: 'Грузовик',
   tow: 'Эвакуатор',
-  van: 'Минивэн',
+  van: 'Простор 7 (трафик)',
+  kedr: 'Кедр 4×4 (трафик)',
 };
 
 let traffic: TrafficAssets | undefined;
@@ -47,7 +48,7 @@ for (const config of cars as CarConfig[]) {
 }
 const trafficGroup = document.querySelector<HTMLOptGroupElement>('#traffic')!;
 for (const kind of Object.keys(trafficNames) as TrafficKind[]) {
-  addOption(trafficGroup, kind, trafficNames[kind], () => getTraffic().create(kind));
+  addOption(trafficGroup, kind === 'kedr' ? 'traffic-kedr' : kind, trafficNames[kind], () => getTraffic().create(kind));
 }
 addOption(trafficGroup, 'moto', 'Мотоцикл', () => createMotoPreview(getTraffic()));
 addOption(trafficGroup, 'tiller', 'Мотоблок с повозкой', () => createTillerPreview(getTraffic()));

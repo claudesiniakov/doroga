@@ -412,6 +412,16 @@ export class RoadWorld {
   readonly far: FarTerrain;
   snow = false;
 
+  setSnow(on: boolean) {
+    if (this.snow === on) return;
+    this.snow = on;
+    for (const chunk of this.chunks.values()) {
+      for (const object of chunk.group.children) {
+        if (object.userData.winterOnly) object.visible = on;
+      }
+    }
+  }
+
   readonly kit: PropKit;
 
   constructor(seed: number, readonly mats: RoadMaterials) {

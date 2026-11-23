@@ -366,7 +366,7 @@ export async function runShot(kind: string, ctx: {
     const secs = Number(p.get('secs') || 120);
     let overlaps = 0, walls = 0, maxCount = 0, minV = 1e9, laneShift = 0, nextShift = 2;
     let tSim = 0;
-    const stats = { sedan: 0, truck: 0, van: 0, tow: 0, limo: 0, classic: 0 };
+    const stats = { sedan: 0, truck: 0, van: 0, tow: 0, limo: 0, classic: 0, kedr: 0 };
     for (let i = 0; i < secs * 60; i++) {
       tSim += 1 / 60;
       if (tSim > nextShift) { laneShift = Math.random() < 0.5 ? -1 : 1; nextShift = tSim + 1 + Math.random() * 3; }

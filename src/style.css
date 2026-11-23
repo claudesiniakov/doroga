@@ -468,3 +468,11 @@ html, body { height: 100dvh; }
   .car-card .go { margin-top: 7px; height: 38px; }
   .car-card .gstats { gap: 5px 10px; }
 }
+
+.calendar-month {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.calendar-month:empty { display: none; }

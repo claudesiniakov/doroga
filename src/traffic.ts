@@ -36,7 +36,7 @@ export interface CrashEvent { severity: number; side: boolean; }
 export class Traffic {
   readonly group = new THREE.Group();
   private list: Vehicle[] = [];
-  private pool: Record<TrafficKind, TrafficVisual[]> = { sedan: [], truck: [], van: [], tow: [], limo: [], classic: [] };
+  private pool: Record<TrafficKind, TrafficVisual[]> = { sedan: [], truck: [], van: [], tow: [], limo: [], classic: [], kedr: [] };
   private rnd = mulberry32(4242);
   private frame: RoadFrame;
   private spawnTimer = 0;
@@ -121,7 +121,7 @@ export class Traffic {
     const ahead = s > p.s;
     const tow = ahead && r < 0.015 && !this.list.some((o) => o.kind === 'tow');
     const limo = ahead && r >= 0.36 && r < 0.39 && !this.list.some((o) => o.kind === 'limo');
-    const kind: TrafficKind = tow ? 'tow' : limo ? 'limo' : r < 0.22 ? 'truck' : r < 0.36 ? 'van' : r >= 0.39 && r < 0.51 ? 'classic' : 'sedan';
+    const kind: TrafficKind = tow ? 'tow' : limo ? 'limo' : r < 0.22 ? 'truck' : r < 0.36 ? 'van' : r >= 0.39 && r < 0.51 ? 'classic' : r >= 0.51 && r < 0.63 ? 'kedr' : 'sedan';
     // Крупные машины появляются в правой и средней полосах, легковые — по всей трассе.
     const truck = kind === 'truck' || tow;
     const lanes = truck || limo ? [1, 1, 0] : [-1, 0, 0, 1, 1];
@@ -135,7 +135,7 @@ export class Traffic {
     v.d = lane * LANE;
     // желаемая скорость: левее — быстрее; грузовики медленнее
     const base = truck ? (tow ? 65 : 72) + this.rnd() * 14
-      : [102, 88, 76][lane + 1] + (this.rnd() - 0.5) * 18 - (kind === 'classic' ? 9 : kind === 'van' || limo ? 5 : 0);
+      : [102, 88, 76][lane + 1] + (this.rnd() - 0.5) * 18 - (kind === 'classic' ? 9 : kind === 'van' || kind === 'kedr' || limo ? 5 : 0);
     v.v0 = v.v = base / 3.6;
     v.cooldown = 3 + this.rnd() * 5;
     this.list.push(v);

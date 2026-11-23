@@ -298,7 +298,7 @@ export function scatterChunk(world: RoadWorld, k: number, i0: number, i1: number
     }
   }
 
-  if (world.snow) {
+  {
     // Одна подходящая площадка на группу чанков. Посев не зависит от порядка их загрузки.
     const blockSize = 20;
     const block = Math.floor(k / blockSize);
@@ -361,6 +361,10 @@ export function scatterChunk(world: RoadWorld, k: number, i0: number, i1: number
     const im = new THREE.InstancedMesh(kit.geo[id], material, e.m.length);
     for (let n = 0; n < e.m.length; n++) { im.setMatrixAt(n, e.m[n]); im.setColorAt(n, e.c[n]); }
     im.userData.sharedGeo = true;
+    if (id === 'festiveLights') {
+      im.userData.winterOnly = true;
+      im.visible = world.snow;
+    }
     im.castShadow = !NO_SHADOW.has(id);
     im.receiveShadow = !TREES.has(id);
     im.computeBoundingSphere();

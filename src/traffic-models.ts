@@ -5,6 +5,8 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { spline, loft, bodyStations, type CarConfig, type CarModel } from './car';
 import { clamp, mulberry32, smoothstep } from './noise';
 import { makePlateTexture } from './textures';
+import { buildKedr } from './car-kedr';
+import cars from './cars.json';
 import { VAN, vanShape, vanGreenhouse, vanBodyClassify } from './van-shape';
 import { applyInsuranceStripes, brandTextures } from './brand/insurance-livery';
 
@@ -173,13 +175,14 @@ export class Shape {
   }
 }
 
-export type TrafficKind = 'sedan' | 'truck' | 'van' | 'tow' | 'limo' | 'classic';
+export type TrafficKind = 'sedan' | 'truck' | 'van' | 'tow' | 'limo' | 'classic' | 'kedr';
 
 export interface TrafficTemplate<K extends string = TrafficKind> {
   kind: K;
   length: number;
   width: number;
   parts: Map<MatKey, THREE.BufferGeometry>;
+  details?: { geometry: THREE.BufferGeometry; material: THREE.Material }[];
   tail: THREE.BufferGeometry;         // задние фонари (меняют материал при торможении)
   blinkL: THREE.BufferGeometry;
   blinkR: THREE.BufferGeometry;
@@ -418,6 +421,45 @@ function buildSedan(variant: 'sedan' | 'police' | 'limo' | 'classic' = 'sedan'):
   };
 }
 
+function buildKedrTraffic(): TrafficTemplate {
+  const config = (cars as CarConfig[]).find((car) => car.id === 'kedr')!;
+  const car = buildKedr(config);
+  const body = new Map<THREE.Material, Builder>();
+  car.root.updateMatrixWorld(true);
+  car.body.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    const geometry = object.geometry.clone() as THREE.BufferGeometry;
+    geometry.applyMatrix4(object.matrixWorld);
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    const add = (part: THREE.BufferGeometry, material: THREE.Material) => {
+      let builder = body.get(material);
+      if (!builder) { builder = new Builder(); body.set(material, builder); }
+      builder.add(part, 'plate');
+    };
+    if (!Array.isArray(object.material)) add(geometry, materials[0]);
+    else {
+      for (const group of geometry.groups) {
+        const part = geometry.clone();
+        part.setIndex(Array.from(geometry.index!.array.slice(group.start, group.start + group.count)));
+        add(part, materials[group.materialIndex ?? 0]);
+      }
+    }
+  });
+  const details = [...body].filter(([material]) => material !== car.tailMat).map(([material, builder]) => ({
+    material, geometry: builder.build().get('plate')!,
+  }));
+  const tail = body.get(car.tailMat)!.build().get('plate')!;
+  const noBlink = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute([], 3));
+  const axles = car.wheels.filter((wheel) => wheel.steer.position.x > 0).map(({ steer }) => ({
+    z: steer.position.z, y: steer.position.y,
+    ...axleGeometry(car.wheelR, 0.21, 0.19, steer.position.x, false),
+  }));
+  return {
+    kind: 'kedr', length: car.length, width: car.width, wheelR: car.wheelR, axles,
+    parts: new Map(), details, tail, blinkL: noBlink, blinkR: noBlink,
+  };
+}
+
 /** Минивэн в трафике: та же форма, что у «Простора 7», но проще — без рейлингов и спойлера, фонари горизонтальные. */
 function buildVanTraffic(): TrafficTemplate {
   const sh = vanShape();
@@ -648,6 +690,8 @@ export class TrafficAssets {
   private truckTemplate?: TrafficTemplate;
   private vanTemplate?: TrafficTemplate;
   private towTemplate?: TrafficTemplate;
+  private kedrTemplate?: TrafficTemplate;
+  get kedr() { return this.kedrTemplate ??= buildKedrTraffic(); }
   get sedan() { return this.sedanTemplate ??= buildSedan(); }
   get classic() { return classicTemplate ??= buildSedan('classic'); }
   get limo() { return this.limoTemplate ??= buildSedan('limo'); }
@@ -818,6 +862,11 @@ export class TrafficAssets {
       m.castShadow = k !== 'logo' && k !== 'plate' && k !== 'head' && k !== 'beacon' && k !== 'chevron';
       m.receiveShadow = k === 'paint' || k === 'paint2';
       body.add(m);
+    }
+    for (const detail of t.details ?? []) {
+      const mesh = new THREE.Mesh(detail.geometry, detail.material);
+      mesh.castShadow = mesh.receiveShadow = true;
+      body.add(mesh);
     }
     const tail = new THREE.Mesh(t.tail, this.tailOff);
     const bl = new THREE.Mesh(t.blinkL, this.blinkOff);

@@ -6,6 +6,7 @@ import { spline, loft, bodyStations, type CarConfig, type CarModel } from './car
 import { clamp, mulberry32, smoothstep } from './noise';
 import { makePlateTexture } from './textures';
 import { VAN, vanShape, vanGreenhouse, vanBodyClassify } from './van-shape';
+import { applyInsuranceStripes, brandTextures } from './brand/insurance-livery';
 
 // Оси моделей трафика: +Z — вперёд, +Y — вверх, +X — ЛЕВЫЙ борт (базис «вверх × вперёд»).
 /** Ключи материалов: детали модели склеиваются по ним — несколько draw call на машину. */
@@ -190,13 +191,14 @@ function buildSedan(variant: 'sedan' | 'police' | 'limo' | 'classic' = 'sedan'):
   const police = variant === 'police';
   const limo = variant === 'limo';
   const classic = variant === 'classic';
+  const cabinShift = classic ? 0.17 : 0;
   const rearDoor = -0.98, middleDoor = -0.20, frontDoor = 0.63;
   const sh = new Shape(classic ? {
     halfLen: 2.075,
-    top: [[-2.075, 0.925], [-2.02, 0.98], [-1.24, 0.99], [-0.45, 1.01], [0.58, 1.01], [0.96, 0.955], [1.78, 0.94], [2.02, 0.927], [2.075, 0.87]],
+    top: [[-2.075, 0.925], [-2.02, 0.98], [-1.24, 0.99], [-0.45, 1.01], [0.75, 1.01], [1.13, 0.955], [1.78, 0.94], [2.02, 0.927], [2.075, 0.87]],
     bottom: [[-2.075, 0.43], [-1.88, 0.35], [-1.5, 0.26], [1.44, 0.26], [1.89, 0.32], [2.075, 0.42]],
     width: [[-2.075, 0.77], [-1.75, 0.80], [-0.5, 0.81], [0.85, 0.81], [1.75, 0.79], [2.075, 0.75]],
-    planFront: 44, planRear: 40, axles: [1.24, -1.19], wheelR: 0.30, archR: 0.345, archBlend: 0.043,
+    planFront: 44, planRear: 40, axles: [1.410, -1.014], wheelR: 0.30, archR: 0.345, archBlend: 0.043,
     seLow: 10, seHigh: 14, tumble: 0.028,
   } : {
     halfLen: 2.3,
@@ -209,7 +211,7 @@ function buildSedan(variant: 'sedan' | 'police' | 'limo' | 'classic' = 'sedan'):
   const bodyRows = sh.body(84, 22);
   if (classic) {
     for (const row of bodyRows) for (const point of row) {
-      const alongHood = smoothstep(0.84, 1.31, point.z) * (1 - smoothstep(2.00, 2.075, point.z));
+      const alongHood = smoothstep(1.01, 1.48, point.z) * (1 - smoothstep(2.00, 2.075, point.z));
       const crest = 1 - smoothstep(0.22, 0.37, Math.abs(point.x));
       point.y += 0.041 * alongHood * crest * smoothstep(sh.top(point.z) - 0.09, sh.top(point.z), point.y);
     }
@@ -218,9 +220,9 @@ function buildSedan(variant: 'sedan' | 'police' | 'limo' | 'classic' = 'sedan'):
   b.add(body, 'paint');
 
   // «аквариум» седана: лобовое, крыша, задняя стойка, багажник отдельно
-  const zA = classic ? 0.89 : 1.0, zC = classic ? -1.33 : -1.42;
+  const zA = classic ? 0.89 + cabinShift : 1.0, zC = classic ? -1.33 + cabinShift : -1.42;
   const roof = classic
-    ? spline([[zC, sh.top(zC)], [-0.87, 1.42], [-0.76, 1.45], [0.28, 1.45], [0.38, 1.42], [zA, sh.top(zA)]])
+    ? spline([[zC, sh.top(zC)], [-0.87 + cabinShift, 1.42], [-0.76 + cabinShift, 1.45], [0.28 + cabinShift, 1.45], [0.38 + cabinShift, 1.42], [zA, sh.top(zA)]])
     : spline([[zC, sh.top(zC)], [-1.05, 1.24], [-0.6, 1.42], [0.25, 1.44], [0.65, 1.26], [zA, sh.top(zA)]]);
   const GR = 36, GK = 22;
   const angles = Array.from({ length: GK + 1 }, (_, k) => Math.PI * k / GK);
@@ -231,7 +233,7 @@ function buildSedan(variant: 'sedan' | 'police' | 'limo' | 'classic' = 'sedan'):
   const sOf = angles.map((angle) => Math.sin(angle));
   const gRows: THREE.Vector3[][] = [];
   const cabinStations = Array.from({ length: GR }, (_, r) => zC + ((zA - zC) * r) / (GR - 1));
-  if (classic) cabinStations.push(rearDoor, middleDoor - 0.026, middleDoor + 0.026, frontDoor);
+  if (classic) cabinStations.push(...[rearDoor, middleDoor - 0.026, middleDoor + 0.026, frontDoor].map((z) => z + cabinShift));
   cabinStations.sort((a, b) => a - b);
   for (const z of cabinStations) {
     // Ниже линия стыка с кузовом шире, а профиль крыши остаётся прежним.
@@ -249,7 +251,7 @@ function buildSedan(variant: 'sedan' | 'police' | 'limo' | 'classic' = 'sedan'):
     gRows.push(ring);
   }
   const gh = loft(gRows, (p, _r, c) => {
-    const s = (sOf[c] + sOf[c + 1]) / 2, z = p.z;
+    const s = (sOf[c] + sOf[c + 1]) / 2, z = p.z - cabinShift;
     if (classic) {
       if (s < 0.001) return 0;
       if ((z > 0.38 && s > 0.58) || (z < -0.90 && s > 0.67)) return 1;
@@ -304,12 +306,12 @@ function buildSedan(variant: 'sedan' | 'police' | 'limo' | 'classic' = 'sedan'):
       b.add(panel(1.38, 0.023, 0, 0.515, end, 0.031), 'chrome');
     }
     for (const side of [-1, 1]) {
-      b.add(panel(0.34, 0.16, side * 0.51, 0.723, 1, 0.018), 'black');
-      b.add(panel(0.227, 0.109, side * 0.478, 0.729, 1, 0.028), 'head');
+      b.add(panel(0.34, 0.21, side * 0.51, 0.738, 1, 0.018), 'black');
+      b.add(panel(0.227, 0.161, side * 0.478, 0.744, 1, 0.028), 'head');
       for (const x of [0.425, 0.478, 0.531]) {
-        b.add(panel(0.004, 0.10, side * x, 0.729, 1, 0.033), 'chrome');
+        b.add(panel(0.004, 0.151, side * x, 0.744, 1, 0.033), 'chrome');
       }
-      b.add(panel(0.048, 0.118, side * 0.637, 0.730, 1, 0.028), 'beacon');
+      b.add(panel(0.048, 0.166, side * 0.637, 0.744, 1, 0.028), 'beacon');
       b.add(panel(0.37, 0.16, side * 0.51, 0.72, -1, 0.018), 'black');
       tail.add(panel(0.30, 0.055, side * 0.51, 0.757, -1, 0.026), 'head');
       (side > 0 ? bl : br).add(panel(0.13, 0.043, side * 0.59, 0.69, -1, 0.026), 'head');
@@ -328,23 +330,23 @@ function buildSedan(variant: 'sedan' | 'police' | 'limo' | 'classic' = 'sedan'):
         b.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 24, 0.0035, 5, false), 'black');
       };
       for (const [topZ, bottomZ] of [[rearDoor, rearDoorBottom], [middleDoor, middleDoor], [frontDoor, frontDoor]]) {
-        const belt = sh.top(topZ) - 0.049;
+        const belt = sh.top(topZ + cabinShift) - 0.049;
         const points = Array.from({ length: 17 }, (_, i) => {
           const y = sill + (belt - sill) * i / 16;
           const z = topZ + (bottomZ - topZ) * (1 - smoothstep(0.48, 0.73, y));
-          return sidePoint(y, z, 0.004);
+          return sidePoint(y, z + cabinShift, 0.004);
         });
         addDoorSeam(points);
       }
-      addDoorSeam(Array.from({ length: 17 }, (_, i) => sidePoint(sill, rearDoorBottom + (frontDoor - rearDoorBottom) * i / 16, 0.004)));
-      b.add(new DecalGeometry(shell, new THREE.Vector3(side * 0.81, 0.585, -0.055),
-        new THREE.Euler(0, side * Math.PI / 2, 0), new THREE.Vector3(1.25, 0.29, 0.18)), 'logo');
-      b.box(0.025, 0.032, 0.067, 'beacon', sidePoint(0.825, 1.01, 0.006), 0.006);
-      for (const z of [-0.72, 0.05]) {
+      addDoorSeam(Array.from({ length: 17 }, (_, i) => sidePoint(sill, cabinShift + rearDoorBottom + (frontDoor - rearDoorBottom) * i / 16, 0.004)));
+      b.add(new DecalGeometry(shell, new THREE.Vector3(side * 0.81, 0.565, 0.215 + cabinShift),
+        new THREE.Euler(0, side * Math.PI / 2, 0), new THREE.Vector3(0.31, 0.31, 0.18)), 'logo');
+      b.box(0.025, 0.032, 0.067, 'beacon', sidePoint(0.825, 1.01 + cabinShift, 0.006), 0.006);
+      for (const z of [-0.72 + cabinShift, 0.05 + cabinShift]) {
         const y = sh.top(z) - 0.15, x = side * (sh.xAt(z, y) + 0.005);
         b.box(0.028, 0.023, 0.095, 'chrome', { x, y, z }, 0.008);
       }
-      const y = 1.04, z = 0.6;
+      const y = 1.04, z = 0.6 + cabinShift;
       b.box(0.16, 0.09, 0.075, 'black', { x: side * 0.82, y, z }, 0.018);
       b.box(0.13, 0.068, 0.009, 'chrome', { x: side * 0.82, y, z: z - 0.04 });
     }
@@ -749,10 +751,11 @@ export class TrafficAssets {
   }
 
   createClassicPlayer(config: CarConfig): CarModel {
-    const paint = this.paint(config.color);
+    const paint = this.paint(config.color).clone();
+    const setStripes = applyInsuranceStripes(paint);
     const plate = new THREE.MeshStandardMaterial({ map: makePlateTexture(config.plate), roughness: 0.4 });
     const livery = new THREE.MeshStandardMaterial({
-      map: logoTexture('АБСОЛЮТ', '#16468b'), transparent: true, depthWrite: false, roughness: 0.45,
+      map: brandTextures().mark, transparent: true, depthWrite: false, roughness: 0.3,
       polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, visible: false,
     });
     const { root, body, tail, template } = this.createVisual(this.classic, undefined, { paint, player: { plate, livery } });
@@ -781,7 +784,7 @@ export class TrafficAssets {
       root, body, wheels, paint, tailMat, headMat, length, width, wheelR,
       setBrake(on) { tailMat.emissiveIntensity = 1.6 + on * 5.4; },
       setHeadlights(on) { headMat.emissiveIntensity = 2.2 + on * 3; },
-      setLivery(on) { livery.visible = on; },
+      setLivery(on) { setStripes(on); livery.visible = on; },
     };
   }
 

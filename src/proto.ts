@@ -23,7 +23,7 @@ interface Preview {
 
 const trafficNames: Record<TrafficKind, string> = {
   sedan: 'Седан',
-  classic: 'Классический седан',
+  classic: 'Семёрка (трафик)',
   limo: 'Лимузин',
   truck: 'Грузовик',
   tow: 'Эвакуатор',

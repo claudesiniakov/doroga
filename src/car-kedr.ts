@@ -53,7 +53,7 @@ export function buildKedr(cfg: CarConfig, envIntensity = 1): CarModel {
   const zA = 0.72, zC = -1.865;
   const roof = spline([[zC, sh.top(zC)], [-1.845, 1.53], [-1.64, 1.655], [-0.8, 1.685], [0.14, 1.677], [0.34, 1.6], [zA, sh.top(zA)]]);
   const GR = 90, GK = 30;
-  const angles = [0, 0.012, ...Array.from({ length: GK - 1 }, (_, k) => Math.PI * (k + 1) / GK), Math.PI - 0.012, Math.PI];
+  const angles = [0, 0.001, ...Array.from({ length: GK - 1 }, (_, k) => Math.PI * (k + 1) / GK), Math.PI - 0.001, Math.PI];
   const rows: THREE.Vector3[][] = [];
   for (let r = 0; r < GR; r++) {
     const t = r / (GR - 1);
@@ -74,10 +74,10 @@ export function buildKedr(cfg: CarConfig, envIntensity = 1): CarModel {
   }
   const gh = loft(rows, (p, _r, c) => {
     const s = (Math.sin(angles[c]) + Math.sin(angles[c + 1])) / 2, z = p.z;
-    if (s < 0.03) return 0;                                          // пояс под окнами
-    if (z > 0.36) return s > 0.64 ? 1 : 0;                         // лобовое и A-стойки
-    if (z < -1.70) return s > 0.57 ? 1 : 0;                         // стекло наклонной пятой двери
-    if (s > 0.86) return 0;                                          // крыша
+    if (s < 0.001) return 0;                                        // стык окон с кузовом
+    if (z > 0.39) return s > 0.61 && p.y < 1.55 ? 1 : 0;             // лобовое и окрашенная рамка
+    if (z < -1.70) return s > 0.57 && p.y < 1.57 ? 1 : 0;            // стекло пятой двери и окрашенная рамка
+    if (s > 0.72) return 0;                                         // крыша и её закруглённые края
     if (Math.abs(z + 0.57) < 0.061) return 0;                         // широкая стойка за дверью
     if (z < -1.58) return 0;                                        // задняя стойка
     return 1;

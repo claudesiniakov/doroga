@@ -251,7 +251,6 @@ async function main() {
     show('hud');
     clock.update();
   };
-  input.onPause = () => (state === 'drive' ? pause() : resume());
   input.onCamera = () => drive.toggleCamera();
 
   // ——— страховки (покупаются перед заездом из стартовых монет) ———
@@ -430,7 +429,14 @@ async function main() {
     if (navigator.vibrate) navigator.vibrate(e.side ? 60 : 120);
   };
   addEventListener('keydown', (e) => {
-    if (state === 'pause' && (e.code === 'Escape' || e.code === 'KeyP')) resume();
+    if ((state === 'drive' || state === 'pause') && (e.code === 'Escape' || e.code === 'KeyP')) {
+      e.preventDefault();
+      if (!e.repeat) {
+        if (state === 'drive') pause();
+        else resume();
+      }
+      return;
+    }
     if (state === 'station') {
       if (e.code === 'Enter') $('stFull').click();
       if (e.code === 'Escape' || e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') $('stLeave').click();

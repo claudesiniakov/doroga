@@ -7,7 +7,6 @@ export class Input {
   private pedals = { gas: false, brake: false };
   /** Ползунок газа на сенсорном экране: 0…1, остаётся где поставили; тормоз сбрасывает в 0. */
   private gasLevel = 0;
-  onPause?: () => void;
   private resetGas = () => {};
   onCamera?: () => void;
   enabled = false;
@@ -20,7 +19,6 @@ export class Input {
       if (e.code === 'ArrowLeft' || e.code === 'KeyA') this.shift -= 1;
       if (e.code === 'ArrowRight' || e.code === 'KeyD') this.shift += 1;
       if (e.code === 'KeyC') this.onCamera?.();
-      if (e.code === 'Escape' || e.code === 'KeyP') this.onPause?.();
       if (this.isDriveKey(e.code)) e.preventDefault();
     });
     addEventListener('keyup', (e) => this.keys.delete(e.code));

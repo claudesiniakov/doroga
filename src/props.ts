@@ -55,25 +55,6 @@ function displace(g: THREE.BufferGeometry, amp: number, freq: number, seed: numb
   return g;
 }
 
-/** Двусторонний лист: копия с развёрнутой нормалью (без DoubleSide у материала). */
-function twoSided(g: THREE.BufferGeometry) {
-  const a = g.index ? g.toNonIndexed() : g.clone();
-  a.computeVertexNormals();
-  const b = a.clone();
-  const p = b.getAttribute('position') as THREE.BufferAttribute;
-  const n = b.getAttribute('normal') as THREE.BufferAttribute;
-  for (let i = 0; i < p.count; i += 3) {
-    for (const attr of [p, n]) {
-      const x = attr.getX(i + 1), y = attr.getY(i + 1), z = attr.getZ(i + 1);
-      attr.setXYZ(i + 1, attr.getX(i + 2), attr.getY(i + 2), attr.getZ(i + 2));
-      attr.setXYZ(i + 2, x, y, z);
-    }
-  }
-  for (let i = 0; i < n.count; i++) n.setXYZ(i, -n.getX(i), -n.getY(i), -n.getZ(i));
-  for (const k of Object.keys(a.attributes)) if (k !== 'position' && k !== 'normal') { a.deleteAttribute(k); b.deleteAttribute(k); }
-  return merge([a, b]);
-}
-
 const shade = (base: number, lo: number, hi: number, y0: number, y1: number, jitter = 0.06, seed = 1) =>
   (p: THREE.Vector3) => {
     const t = clamp((p.y - y0) / (y1 - y0), 0, 1);
@@ -82,7 +63,7 @@ const shade = (base: number, lo: number, hi: number, y0: number, y1: number, jit
   };
 
 // ——— растительность ———
-function pine(lo: boolean) {
+function spruce(lo: boolean) {
   const parts: THREE.BufferGeometry[] = [];
   parts.push(prep(at(new THREE.CylinderGeometry(0.1, 0.2, 3.2, lo ? 5 : 7), 0, 1.6, 0), 0x4a3426));
   const tiers = lo ? 3 : 5;
@@ -92,6 +73,23 @@ function pine(lo: boolean) {
     let cone: THREE.BufferGeometry = new THREE.ConeGeometry(r, h, lo ? 6 : 11, lo ? 1 : 3);
     if (!lo) cone = displace(cone.toNonIndexed(), 0.35, 1.3, 7 + t);
     parts.push(prep(at(cone, 0, y + h / 2, 0, 0, t * 0.7), shade(0x24452b, 0.55, 1.15, y, y + h, 0.25, t)));
+  }
+  return merge(parts);
+}
+
+function pine(lo: boolean) {
+  const parts: THREE.BufferGeometry[] = [];
+  const h = 8.8;
+  parts.push(prep(at(new THREE.CylinderGeometry(0.1, 0.27, h, lo ? 5 : 8), 0, h / 2, 0),
+    shade(0x77523a, 0.55, 1.18, 0, h)));
+  const crowns = lo ? 3 : 6;
+  for (let i = 0; i < crowns; i++) {
+    const angle = i * 2.4, y = 7.5 + i * 0.45;
+    const spread = i === crowns - 1 ? 0 : 0.9;
+    let g: THREE.BufferGeometry = new THREE.IcosahedronGeometry(1.65 - i * 0.09, lo ? 0 : 1);
+    if (!lo) g = displace(g, 0.35, 1.1, 51 + i);
+    parts.push(prep(at(g, Math.cos(angle) * spread, y, Math.sin(angle) * spread, 0, angle, 0, [1, 0.63, 1]),
+      shade(0x3b5735, 0.56, 1.15, y - 1, y + 1, 0.18, 51 + i)));
   }
   return merge(parts);
 }
@@ -130,43 +128,6 @@ function bush(col: number, lo: boolean) {
     if (!lo) g = displace(g, 0.3, 2, 40 + b);
     parts.push(prep(at(g, (b - 1) * 0.6, 0.45, (b % 2) * 0.4, 0, 0, 0, [1, 0.7, 1]), shade(col, 0.6, 1.15, 0, 1.2, 0.3, b)));
   }
-  return merge(parts);
-}
-
-function palm(lo: boolean) {
-  const parts: THREE.BufferGeometry[] = [];
-  const H = 8.5, segs = lo ? 4 : 9;
-  const bend = (t: number) => new THREE.Vector3(Math.sin(t * 1.4) * 1.3 * t, t * H, 0);
-  for (let i = 0; i < segs; i++) {
-    const a = bend(i / segs), b = bend((i + 1) / segs);
-    const len = a.distanceTo(b);
-    const g = new THREE.CylinderGeometry(0.17 - i * 0.008, 0.2 - i * 0.008, len * 1.04, lo ? 6 : 9);
-    const dir = b.clone().sub(a).normalize();
-    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
-    const mid = a.clone().add(b).multiplyScalar(0.5);
-    g.applyQuaternion(q).translate(mid.x, mid.y, mid.z);
-    parts.push(prep(g, (p) => _c.set(0x7a6248).multiplyScalar(0.8 + 0.35 * (Math.sin(p.y * 9) > 0.6 ? 1 : 0))));
-  }
-  const top = bend(1);
-  const fronds = lo ? 7 : 11;
-  for (let f = 0; f < fronds; f++) {
-    const len = 3.6 + (f % 3) * 0.5;
-    const leaf = new THREE.PlaneGeometry(lo ? 0.9 : 1.1, len, 1, lo ? 3 : 7);
-    const pos = leaf.getAttribute('position') as THREE.BufferAttribute;
-    for (let i = 0; i < pos.count; i++) {
-      const y = pos.getY(i) + len / 2;           // 0..len вдоль листа
-      const t = y / len;
-      // кончик листа не схлопывается в ноль — иначе нормаль там не определена (NaN в шейдере)
-      const w = Math.max(0.04, Math.sin(Math.PI * Math.min(1, t * 1.15)) * (1 - t * 0.5));
-      pos.setXYZ(i, pos.getX(i) * w, y, -t * t * 2.4 + Math.abs(pos.getX(i)) * 0.6); // изгиб вниз и «желобок»
-    }
-    leaf.rotateX(-Math.PI / 2 + 0.35);
-    const a = (f / fronds) * Math.PI * 2 + f * 0.4;
-    leaf.rotateY(a);
-    leaf.translate(top.x, top.y, top.z);
-    parts.push(prep(twoSided(leaf), (p) => _c.set(0x3e6b2a).multiplyScalar(0.7 + 0.4 * clamp((p.y - top.y + 2.4) / 2.6, 0, 1))));
-  }
-  if (!lo) parts.push(prep(at(new THREE.IcosahedronGeometry(0.35, 0), top.x, top.y - 0.25, top.z), 0x5a4a22));
   return merge(parts);
 }
 
@@ -255,7 +216,7 @@ function fence() {
 }
 
 export type PropId =
-  | 'pine' | 'pineLo' | 'oak' | 'oakLo' | 'birch' | 'birchLo' | 'bush' | 'dryBush' | 'palm' | 'palmLo'
+  | 'pine' | 'pineLo' | 'spruce' | 'spruceLo' | 'oak' | 'oakLo' | 'birch' | 'birchLo' | 'bush' | 'dryBush'
   | 'cactus' | 'cactusLo' | 'rock' | 'rockLo' | 'redRock' | 'delineator' | 'lamp' | 'powerPole' | 'lifeguard' | 'fence';
 
 // ——— текстуры фасадов ———
@@ -491,7 +452,7 @@ export class PropKit {
       oak: blobTree(0x4a3a2a, 0x3f6a2e, false), oakLo: blobTree(0x4a3a2a, 0x3f6a2e, true),
       birch: blobTree(0xe8e6df, 0x6f9a3e, false, true), birchLo: blobTree(0xe8e6df, 0x6f9a3e, true, true),
       bush: bush(0x41652f, false), dryBush: bush(0x8a7a52, true),
-      palm: palm(false), palmLo: palm(true),
+      spruce: spruce(false), spruceLo: spruce(true),
       cactus: cactus(false), cactusLo: cactus(true),
       rock: rock(0x8d8478, false, 3), rockLo: rock(0x8d8478, true, 3), redRock: rock(0xa8633e, false, 9),
       delineator: delineator(), lamp: lamp(), powerPole: powerPole(), lifeguard: lifeguard(), fence: fence(),

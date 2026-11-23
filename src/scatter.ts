@@ -5,19 +5,26 @@ import { EXIT_W } from './road';
 import { ROAD } from './textures';
 import { BiomeId } from './biomes';
 import { PropId, BuildingParts, house, tower, exitStation, repairShop, withColor } from './props';
-import { mulberry32, fbm1 } from './noise';
+import { mulberry32, fbm1, smoothstep, vnoise2 } from './noise';
 
 const STEP = 2;
 
+type ForestSpecies = 'pine' | 'spruce' | 'birch' | 'oak';
+
 /** Правила растительности: плотность — штук на 100 м², полоса смещений, масштаб, где у моря. */
-interface Rule { id: PropId; d: number; o: [number, number]; s: [number, number]; sea?: 'land' | 'beach'; }
+interface Rule {
+  id: PropId; d: number; o: [number, number]; s: [number, number];
+  sea?: 'land' | 'beach';
+  species?: ForestSpecies;
+}
+const forestTrees: ForestSpecies[] = ['pine', 'spruce', 'birch', 'oak'];
 const RULES: Record<BiomeId, Rule[]> = {
   forest: [
-    { id: 'pine', d: 0.5, o: [10, 70], s: [0.8, 1.4] },
-    { id: 'pineLo', d: 0.32, o: [70, 245], s: [0.9, 1.6] },
-    { id: 'birch', d: 0.1, o: [9, 55], s: [0.8, 1.2] },
-    { id: 'oak', d: 0.05, o: [10, 60], s: [0.8, 1.2] },
-    { id: 'bush', d: 0.16, o: [7, 45], s: [0.7, 1.4] },
+    ...forestTrees.flatMap((species): Rule[] => [
+      { id: species, species, d: 0.64, o: [10, 68], s: [0.68, 1.35] },
+      { id: `${species}Lo`, species, d: 0.34, o: [68, 245], s: [0.85, 1.5] },
+    ]),
+    { id: 'bush', d: 0.19, o: [7, 47], s: [0.65, 1.5] },
     { id: 'rock', d: 0.015, o: [9, 90], s: [0.5, 1.6] },
   ],
   suburb: [
@@ -39,15 +46,28 @@ const RULES: Record<BiomeId, Rule[]> = {
     { id: 'redRock', d: 0.006, o: [40, 245], s: [3, 9] },
   ],
   coast: [
-    { id: 'palm', d: 0.05, o: [9, 45], s: [0.8, 1.3], sea: 'land' },
-    { id: 'palm', d: 0.06, o: [10, 19], s: [0.8, 1.2], sea: 'beach' },
-    { id: 'palmLo', d: 0.03, o: [45, 220], s: [0.9, 1.3], sea: 'land' },
-    { id: 'bush', d: 0.07, o: [8, 60], s: [0.6, 1.2], sea: 'land' },
+    { id: 'pine', d: 0.19, o: [12, 65], s: [0.65, 1.2], sea: 'land' },
+    { id: 'birch', d: 0.075, o: [10, 55], s: [0.65, 1.05], sea: 'land' },
+    { id: 'pineLo', d: 0.14, o: [65, 220], s: [0.8, 1.4], sea: 'land' },
+    { id: 'bush', d: 0.12, o: [8, 60], s: [0.6, 1.2], sea: 'land' },
+    { id: 'dryBush', d: 0.08, o: [9, 17], s: [0.48, 0.85], sea: 'beach' },
+    { id: 'rock', d: 0.022, o: [11, 23], s: [0.4, 1.25], sea: 'beach' },
     { id: 'rock', d: 0.012, o: [9, 40], s: [0.4, 1.4], sea: 'land' },
   ],
 };
-const NO_SHADOW = new Set<PropId>(['pineLo', 'oakLo', 'birchLo', 'palmLo', 'cactusLo', 'rockLo', 'delineator', 'dryBush']);
-const TREES = new Set<PropId>(['pine', 'pineLo', 'oak', 'oakLo', 'birch', 'birchLo', 'palm', 'palmLo', 'bush', 'dryBush', 'cactus', 'cactusLo']);
+const NO_SHADOW = new Set<PropId>(['pineLo', 'spruceLo', 'oakLo', 'birchLo', 'cactusLo', 'rockLo', 'delineator', 'dryBush']);
+const TREES = new Set<PropId>([...forestTrees, 'pineLo', 'spruceLo', 'oakLo', 'birchLo', 'bush', 'dryBush', 'cactus', 'cactusLo']);
+
+function forestShare(species: ForestSpecies, s: number, offset: number, seed: number) {
+  // Состав леса меняется по обе стороны дороги и в глубину плавно, независимо от границ чанков.
+  const deciduous = smoothstep(0.34, 0.67, vnoise2(s / 360, offset / 155, seed + 41));
+  const light = smoothstep(0.33, 0.67, vnoise2(s / 285, offset / 130, seed + 67));
+  const cover = 0.22 + 0.78 * smoothstep(0.24, 0.57, vnoise2(s / 115, offset / 70, seed + 91));
+  if (species === 'birch') return cover * deciduous * light;
+  if (species === 'oak') return cover * deciduous * (1 - light);
+  if (species === 'pine') return cover * (1 - deciduous) * light;
+  return cover * (1 - deciduous) * (1 - light);
+}
 
 const UP = new THREE.Vector3(0, 1, 0);
 const _q = new THREE.Quaternion(), _m = new THREE.Matrix4(), _x = new THREE.Vector3(), _z = new THREE.Vector3();
@@ -292,10 +312,11 @@ export function scatterChunk(world: RoadWorld, k: number, i0: number, i1: number
           const i = i0 + Math.floor(rnd() * (i1 - i0));
           const o = rule.o[0] + rnd() * (rule.o[1] - rule.o[0]);
           const wgt = p.weightsAt(i)[biome];
-          if (rnd() >= wgt) continue;
+          const share = rule.species ? forestShare(rule.species, i * STEP, side * o, p.seed) : 1;
+          if (rnd() >= wgt * share) continue;
           const seaHere = seaSideAt(i) === side;
           if (rule.sea === 'beach' && !seaHere) continue;
-          if (seaHere && rule.sea !== 'beach' && o > 12) continue;   // со стороны моря — только пляжные пальмы
+          if (seaHere && (rule.sea === 'land' || (!rule.sea && o > 12))) continue;
           if (blocked(side, i * STEP, o, TREES.has(rule.id) ? 1.5 : 0.5)) continue;
           const sc = rule.s[0] + rnd() * (rule.s[1] - rule.s[0]);
           const g = ground(i, side * o, tmp, rule.id.startsWith('rock') || rule.id === 'redRock' ? 0.3 * sc : 0.15);

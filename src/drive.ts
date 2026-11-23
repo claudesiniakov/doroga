@@ -183,6 +183,12 @@ export class DriveScene {
     this.frame = this.world.path.frame(0);
   }
 
+  setSnow(on: boolean) {
+    this.world.mats.setSnow(on);
+    this.sun.color.setHex(on ? 0xe4efff : 0xffd2a0);
+    this.sun.intensity = on ? 4.2 : 5.2;
+  }
+
   setShadowMapSize(n: number) {
     const sh = this.sun.shadow;
     if (sh.mapSize.x === n) return;

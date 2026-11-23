@@ -4,6 +4,7 @@ import { ROAD, RoadTextures } from './textures';
 import { BiomeMap, Weights } from './biomes';
 import { PropKit } from './props';
 import { scatterChunk } from './scatter';
+import { addSnowCover } from './snow';
 
 export const STEP = 2;            // шаг выборки центральной линии, м
 export const CHUNK_STEPS = 48;    // 96 м на чанк (кратно периоду разметки 12 м)
@@ -319,6 +320,7 @@ export interface RoadMaterials {
   ground: THREE.MeshStandardMaterial;
   rail: THREE.MeshStandardMaterial;
   post: THREE.MeshStandardMaterial;
+  setSnow(on: boolean): void;
 }
 
 export function makeRoadMaterials(tex: RoadTextures, ground: { map: THREE.Texture; normalMap: THREE.Texture },
@@ -375,7 +377,8 @@ export function makeRoadMaterials(tex: RoadTextures, ground: { map: THREE.Textur
     normalScale: new THREE.Vector2(0.6, 0.6), envMapIntensity: 0.55, polygonOffset: true, polygonOffsetFactor: -2,
   });
   const exitLine = new THREE.MeshStandardMaterial({ color: 0xc9c8c1, roughness: 0.62, polygonOffset: true, polygonOffsetFactor: -2 });
-  return { road, gravel: gravelM, ground: groundM, rail, post, exitLine, dashCover };
+  const setSnow = addSnowCover([road, dashCover], gravelM, groundM);
+  return { road, gravel: gravelM, ground: groundM, rail, post, exitLine, dashCover, setSnow };
 }
 
 // поперечный профиль W-образного отбойника: (вбок от дороги, вверх), м

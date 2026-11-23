@@ -14,6 +14,8 @@ type State = 'loading' | 'garage' | 'drive' | 'pause' | 'station' | 'over' | 'pr
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const params = new URLSearchParams(location.search);
+const snowOverride = params.get('snow');
+const SNOW_CHANCE = 0.25;
 const SHOT = params.get('shot'); // служебный режим для автоматических снимков
 if (SHOT) document.documentElement.classList.add('shot');
 
@@ -183,6 +185,8 @@ async function main() {
   const startDrive = async (skipIntro = false, startS = 30) => {
     input.enabled = false;
     await fade(true);
+    const snowy = snowOverride === '1' || (!SHOT && snowOverride !== '0' && Math.random() < SNOW_CHANCE);
+    drive.setSnow(snowy);
     drive.attachCar(car, cfg);
     // страховки оплачиваются из кошелька, остальное — на поездку
     const cost = insCost();

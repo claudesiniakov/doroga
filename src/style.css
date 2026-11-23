@@ -271,7 +271,7 @@ kbd {
 .banner.on { opacity: 1; transform: translateX(-50%); }
 .banner.warn { border-color: rgba(255, 80, 60, .7); }
 .banner small { display: block; color: var(--ink-2); font-weight: 500; font-size: 12px; margin-top: 2px; }
-#station, #over { display: grid; place-items: center; background: rgba(5, 6, 8, .25); }
+#station, #over, #breakdown { display: grid; place-items: center; background: rgba(5, 6, 8, .25); }
 .st-row { display: flex; justify-content: space-between; align-items: center; color: var(--ink-2); font-size: 14px; padding: 2px 2px; }
 .st-row b { color: var(--ink); font-variant-numeric: tabular-nums; }
 .tank-big { display: grid; gap: 8px; margin: 2px 0 6px; }
@@ -476,3 +476,10 @@ html, body { height: 100dvh; }
   white-space: nowrap;
 }
 .calendar-month:empty { display: none; }
+
+.service-tabs { display: flex; margin: 0; }
+#station .menu, #breakdown .menu {
+  max-height: calc(100dvh - 20px - var(--safe-t) - var(--safe-b));
+  overflow-y: auto;
+}
+#stEnd[hidden] { display: none; }

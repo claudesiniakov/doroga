@@ -10,14 +10,14 @@ import type { DriveScene } from './drive';
 import { START_COINS, LITERS_PER_KM, FUEL_PRICE, KASKO, REPAIR_PRICE, POLICE_FINE } from './drive-rules';
 import { Input } from './input';
 
-type State = 'loading' | 'garage' | 'drive' | 'pause' | 'station' | 'over' | 'protocol' | 'renewal';
+type State = 'loading' | 'garage' | 'drive' | 'pause' | 'station' | 'over' | 'protocol' | 'renewal' | 'breakdown';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const params = new URLSearchParams(location.search);
 const SHOT = params.get('shot'); // служебный режим для автоматических снимков
 if (SHOT) document.documentElement.classList.add('shot');
 
-const screens = ['loading', 'garage', 'hud', 'pause', 'station', 'over', 'kbm', 'protocol'] as const;
+const screens = ['loading', 'garage', 'hud', 'pause', 'station', 'breakdown', 'over', 'kbm', 'protocol'] as const;
 function show(...ids: string[]) {
   for (const s of screens) $(s).classList.toggle('show', ids.includes(s));
 }
@@ -323,12 +323,23 @@ async function main() {
   renderIns();
 
   // ——— заправка и автосервис: одна панель ———
+  let stationService: 'fuel' | 'repair' = 'fuel';
   const updateStation = () => {
-    const repair = drive.stationKind === 'repair';
+    const repair = stationService === 'repair';
+    $('stEyebrow').textContent = drive.stationKind === 'repair' ? 'Автосервис' : 'Заправка «Топливо 24»';
+    for (const [id, active] of [['stFuelTab', !repair], ['stRepairTab', repair]] as const) {
+      const tab = $(id);
+      tab.classList.toggle('on', active);
+      tab.setAttribute('aria-pressed', String(active));
+    }
+    const canLeave = drive.fuel > 0 && drive.health > 0;
+    const leave = $<HTMLButtonElement>('stLeave');
+    leave.disabled = !canLeave;
+    leave.textContent = canLeave ? 'Уехать' : drive.health <= 0 ? 'Для выезда нужен ремонт' : 'Для выезда нужно топливо';
+    $('stEnd').hidden = canLeave;
     const full = $<HTMLButtonElement>('stFull'), ten = $<HTMLButtonElement>('stTen');
     $('stCoins').textContent = String(drive.coins);
     if (!repair) {
-      $('stEyebrow').textContent = 'Заправка «Топливо 24»';
       $('stTitle').textContent = 'Заправиться?';
       $('stTank').textContent = String(Math.ceil(drive.fuel - 1e-6));
       $('stUnit').textContent = `/ ${drive.tank} л`;
@@ -344,7 +355,6 @@ async function main() {
       ten.textContent = '+10 л · 10 монет';
       ten.style.display = can > 10 ? '' : 'none';
     } else {
-      $('stEyebrow').textContent = 'Автосервис';
       $('stTitle').textContent = 'Отремонтировать?';
       $('stTank').textContent = String(Math.round(drive.health));
       $('stUnit').textContent = '%';
@@ -364,20 +374,23 @@ async function main() {
       ten.style.display = need > 10 && canPct > 0 ? '' : 'none';
     }
   };
-  const onStation: NonNullable<DriveScene['onStation']> = () => {
+  const onStation: NonNullable<DriveScene['onStation']> = (kind) => {
+    stationService = drive.health <= 0 ? 'repair' : drive.fuel <= 0 ? 'fuel' : kind;
     state = 'station';
     input.enabled = false;
     updateStation();
     show('hud', 'station');
   };
-  $('stFull').addEventListener('click', () => {
-    if (drive.stationKind === 'repair') drive.repair(100); else drive.refuel(drive.tank);
+  $('stFuelTab').addEventListener('click', () => { stationService = 'fuel'; updateStation(); });
+  $('stRepairTab').addEventListener('click', () => { stationService = 'repair'; updateStation(); });
+  const buyService = (full: boolean) => {
+    if (state !== 'station') return;
+    if (stationService === 'repair') drive.repair(full ? 100 : 10);
+    else drive.refuel(full ? drive.tank : 10);
     updateStation();
-  });
-  $('stTen').addEventListener('click', () => {
-    if (drive.stationKind === 'repair') drive.repair(10); else drive.refuel(10);
-    updateStation();
-  });
+  };
+  $('stFull').addEventListener('click', () => buyService(true));
+  $('stTen').addEventListener('click', () => buyService(false));
   // ——— ДПС: протокол за езду без ОСАГО ———
   const onPolice: NonNullable<DriveScene['onPolice']> = () => {
     state = 'protocol';
@@ -410,27 +423,14 @@ async function main() {
     toastTimer = window.setTimeout(() => t.classList.remove('on'), 2600);
   };
   $('stLeave').addEventListener('click', () => {
-    if (state !== 'station') return;
-    drive.leaveStation();
-    if (state !== 'station') return; // уже конец заезда
+    if (state !== 'station' || !drive.leaveStation()) return;
     state = 'drive';
     input.clear();
     input.enabled = true;
     show('hud');
   });
-  // ——— бак пуст ———
-  const onEmpty: NonNullable<DriveScene['onEmpty']> = () => {
+  const showRunSummary = () => {
     finishRun();
-    if (drive.endless && drive.endReason === 'finish') {
-      state = 'renewal';
-      input.enabled = false;
-      ins.kasko = ins.osago = false;
-      $('insuranceHeading').textContent = 'Январь · выберите страховку на новый год';
-      openInsuranceTab();
-      renderIns();
-      show('garage');
-      return;
-    }
     state = 'over';
     input.enabled = false;
     const t = lastTrip;
@@ -448,6 +448,60 @@ async function main() {
       : `класс ${KBM[ch.from].cls} → ${KBM[ch.to].cls} · ОСАГО ${osagoPrice(ch.from)} → ${osagoPrice(ch.to)}`;
     show('hud', 'over');
   };
+  const onEmpty: NonNullable<DriveScene['onEmpty']> = () => {
+    if (drive.endReason === 'wreck') {
+      state = 'breakdown';
+      input.enabled = false;
+      const destination = drive.assistanceDestination;
+      const place = destination.kind === 'repair' ? 'Автосервис' : 'Заправка';
+      $('towDestination').textContent = `${place} · ${fmtKm(Math.abs(destination.sStop - drive.s) / 1000)}`;
+      $('towWallet').textContent = String(drive.coins);
+      const cost = drive.assistanceCost;
+      const call = $<HTMLButtonElement>('towCall');
+      call.disabled = drive.coins < cost;
+      call.textContent = cost === 0 ? 'Вызвать помощь · бесплатно по КАСКО'
+        : call.disabled ? `Эвакуация · нужно ${cost} монет` : `Вызвать помощь · ${cost} монет`;
+      show('hud', 'breakdown');
+      call.disabled ? $('towEnd').focus() : call.focus();
+      return;
+    }
+    if (drive.endless && drive.endReason === 'finish') {
+      finishRun();
+      state = 'renewal';
+      input.enabled = false;
+      ins.kasko = ins.osago = false;
+      $('insuranceHeading').textContent = 'Январь · выберите страховку на новый год';
+      openInsuranceTab();
+      renderIns();
+      show('garage');
+      return;
+    }
+    showRunSummary();
+  };
+  $('towCall').addEventListener('click', async () => {
+    const call = $<HTMLButtonElement>('towCall');
+    if (state !== 'breakdown' || call.disabled) return;
+    call.disabled = true;
+    const end = $<HTMLButtonElement>('towEnd');
+    end.disabled = true;
+    call.textContent = 'Эвакуируем к ближайшей остановке…';
+    try {
+      await fade(true);
+      drive.towToService();
+    } finally {
+      end.disabled = false;
+      await fade(false);
+    }
+  });
+  $('towEnd').addEventListener('click', () => {
+    if (state === 'breakdown') showRunSummary();
+  });
+  $('stEnd').addEventListener('click', () => {
+    if (state !== 'station' || (drive.fuel > 0 && drive.health > 0)) return;
+    drive.endReason = drive.health <= 0 ? 'wreck' : 'fuel';
+    drive.phase = 'stopped';
+    showRunSummary();
+  });
   $('ovAgain').addEventListener('click', () => { if (state === 'over') startDrive(); });
   $('ovGarage').addEventListener('click', async () => {
     if (state !== 'over') return;
@@ -600,11 +654,11 @@ async function main() {
       $('insChips').innerHTML = (drive.insurance.kasko ? '<i>КАСКО</i>' : '') + (drive.insurance.osago ? '<i>ОСАГО</i>' : '');
     }
     const ph = drive.phase;
-    const toExit = drive.nextExitStartDist, toStation = drive.nextStationDist;
+    const toExit = drive.nextExitStartDist, toStation = drive.nextServiceDist;
     const r50 = (m: number) => Math.max(50, Math.round(m / 50) * 50);
     const kind = drive.nextExitKind;
     const place = kind === 'repair' ? '🔧 Автосервис' : '⛽ Заправка';
-    const toPlace = kind === 'repair' ? drive.nextRepairDist : toStation;
+    const toPlace = toStation;
     const toPolice = drive.policeS !== null && drive.policeFine === 0 ? drive.policeS - drive.s : Infinity;
     const toFinish = drive.finishS - drive.s;
     if (ph === 'finish') setBanner('🏁 Финиш!');
@@ -621,7 +675,7 @@ async function main() {
         ? `${place} через ${r50(toExit)} м<small>перестройтесь в правую полосу</small>`
         : `${place}: съезд открыт<small>${innerWidth < 720 ? 'свайп' : '→'} — съехать</small>`, urgent);
     } else if (hp < 0.35 && ph === 'drive') {
-      setBanner(`Машина повреждена: ${Math.round(drive.health)} %<small>автосервис через ${(drive.nextRepairDist / 1000).toFixed(1)} км</small>`, true);
+      setBanner(`Машина повреждена: ${Math.round(drive.health)} %<small>ремонт через ${(toStation / 1000).toFixed(1)} км</small>`, true);
     } else if (f < 0.2 && ph === 'drive') {
       setBanner(`Мало топлива: ${Math.ceil(drive.fuel)} л<small>до заправки ${(toStation / 1000).toFixed(1)} км · хватит на ${(drive.fuel / LITERS_PER_KM).toFixed(1)} км</small>`, true);
     } else setBanner('');
@@ -629,6 +683,8 @@ async function main() {
 
   const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
   $('tripBar').parentElement!.hidden = !SHOT;
+  if (!SHOT) $('odoGoal').textContent = 'км';
+  const monthLabel = $('calendarMonth');
   const frame = (dt: number, elapsed = dt) => {
     time += dt;
     if (state === 'garage' || state === 'loading') {
@@ -638,7 +694,7 @@ async function main() {
       } else if (drive) renderer.render(drive.scene, drive.camera, time);
       return;
     }
-    if (state === 'station' || state === 'over' || state === 'protocol') {
+    if (state === 'station' || state === 'over' || state === 'protocol' || state === 'breakdown') {
       // мир живёт: трафик едет мимо, машина стоит
       drive.update(dt, { throttle: 0, brake: 0, laneShift: 0 }, time);
       updateHud();
@@ -657,9 +713,13 @@ async function main() {
         arcEl.style.strokeDashoffset = String(SPEEDO_LEN * (1 - Math.min(1, kmh / cfg.maxSpeedKmh)));
       }
       setOdo((drive.endless ? drive.odometer : drive.tripDone) / 100);
-      $('calendarMonth').textContent = drive.endless ? months[drive.month] : '';
-      $('odoGoal').textContent = drive.endless ? 'км' : `/ ${drive.tripKm} км`;
-      $('tripBar').style.width = drive.endless ? '0%' : `${Math.min(100, (drive.tripDone / (drive.tripKm * 1000)) * 100)}%`;
+      if (drive.endless) {
+        const month = months[drive.month];
+        if (monthLabel.textContent !== month) monthLabel.textContent = month;
+      } else {
+        $('odoGoal').textContent = `/ ${drive.tripKm} км`;
+        $('tripBar').style.width = `${Math.min(100, (drive.tripDone / (drive.tripKm * 1000)) * 100)}%`;
+      }
     }
     renderer.render(drive.scene, drive.camera, time);
   };

@@ -68,6 +68,20 @@ function spruceTier(t: number, tiers: number, lo: boolean) {
   return { r: 2.3 - progress * 1.5, h: 3.4 - progress * 1.2, y: 2.2 + t * (lo ? 2.6 : 1.6) };
 }
 
+function conifer(parts: THREE.BufferGeometry[]) {
+  const geometry = merge(parts);
+  const position = geometry.getAttribute('position');
+  const normal = geometry.getAttribute('normal');
+  const mask = new Float32Array(position.count);
+  const trunk = parts[0].getAttribute('position').count;
+  for (let i = trunk; i < position.count; i++) {
+    const patch = vnoise2(position.getX(i) * 1.7 + position.getY(i), position.getZ(i) * 1.7, 91);
+    mask[i] = smoothstep(0.18, 0.62, normal.getY(i) + (patch - 0.5) * 0.48) * (0.66 + patch * 0.34);
+  }
+  geometry.setAttribute('snowMask', new THREE.BufferAttribute(mask, 1));
+  return geometry;
+}
+
 function spruce(lo: boolean) {
   const parts: THREE.BufferGeometry[] = [];
   parts.push(prep(at(new THREE.CylinderGeometry(0.1, 0.2, 3.2, lo ? 5 : 7), 0, 1.6, 0), 0x4a3426));
@@ -78,7 +92,7 @@ function spruce(lo: boolean) {
     if (!lo) cone = displace(cone.toNonIndexed(), 0.35, 1.3, 7 + t);
     parts.push(prep(at(cone, 0, y + h / 2, 0, 0, t * 0.7), shade(0x24452b, 0.55, 1.15, y, y + h, 0.25, t)));
   }
-  return merge(parts);
+  return conifer(parts);
 }
 
 function festiveLights() {
@@ -125,6 +139,41 @@ function pine(lo: boolean) {
     if (!lo) g = displace(g, 0.35, 1.1, 51 + i);
     parts.push(prep(at(g, Math.cos(angle) * spread, y, Math.sin(angle) * spread, 0, angle, 0, [1, 0.63, 1]),
       shade(0x3b5735, 0.56, 1.15, y - 1, y + 1, 0.18, 51 + i)));
+  }
+  return conifer(parts);
+}
+
+function bareTree(lo: boolean, birch: boolean) {
+  const parts: THREE.BufferGeometry[] = [];
+  const random = mulberry32(birch ? 97 : 113);
+  const bark = birch ? 0xe8e6df : 0x4a3a2a;
+  const branch = (a: THREE.Vector3, b: THREE.Vector3, base: number, tip: number) => {
+    const direction = b.clone().sub(a);
+    const length = direction.length();
+    const geometry = new THREE.CylinderGeometry(tip, base, length, lo ? 4 : 6)
+      .applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize()))
+      .translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
+    parts.push(prep(geometry, birch
+      ? (p) => _c.set(vnoise2(p.y * 5, (p.x + p.z) * 9, 3) > 0.74 ? 0x39342f : bark)
+      : bark));
+  };
+  const joint = new THREE.Vector3(0.09, birch ? 4.2 : 3.2, 0);
+  branch(new THREE.Vector3(), joint, birch ? 0.17 : 0.29, birch ? 0.085 : 0.15);
+  branch(joint, new THREE.Vector3(0.21, birch ? 9.2 : 6.25, -0.17), birch ? 0.085 : 0.15, 0.018);
+  const count = lo ? 4 : 7;
+  for (let i = 0; i < count; i++) {
+    const angle = i * 2.4, spread = (birch ? 1.4 : 2.25) * (0.7 + random() * 0.5);
+    const height = joint.y + 0.2 + (i / count) * (birch ? 3.2 : 1.5);
+    const root = new THREE.Vector3(0.1, height, 0);
+    const tip = new THREE.Vector3(Math.cos(angle) * spread, height + 1.2 + random(), Math.sin(angle) * spread);
+    branch(root, tip, birch ? 0.052 : 0.09, 0.014);
+    if (!lo) {
+      const fork = root.clone().lerp(tip, 0.54);
+      for (const turn of [-0.58, 0.64]) {
+        const end = fork.clone().add(new THREE.Vector3(Math.cos(angle + turn), 0.9 + random() * 0.5, Math.sin(angle + turn)));
+        branch(fork, end, 0.031, 0.008);
+      }
+    }
   }
   return merge(parts);
 }
@@ -474,6 +523,11 @@ export function repairShop(out: BuildingParts, m: THREE.Matrix4) {
 export class PropKit {
   readonly geo: Record<PropId, THREE.BufferGeometry>;
   readonly mat: THREE.MeshStandardMaterial;
+  readonly coniferMat: THREE.MeshStandardMaterial;
+  readonly bare: Partial<Record<PropId, THREE.BufferGeometry>>;
+  private readonly snowOnBranches = { value: 0 };
+
+  setTreeSnow(amount: number) { this.snowOnBranches.value = amount; }
   readonly festiveMat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
   readonly houseMat: THREE.MeshStandardMaterial;
   readonly towerMat: THREE.MeshStandardMaterial;
@@ -494,6 +548,24 @@ export class PropKit {
       delineator: delineator(), lamp: lamp(), powerPole: powerPole(), lifeguard: lifeguard(), fence: fence(),
     };
     this.mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.86, metalness: 0 });
+    this.bare = { oak: bareTree(false, false), oakLo: bareTree(true, false),
+      birch: bareTree(false, true), birchLo: bareTree(true, true) };
+    // Одинаковая сфера для обеих крон: при переключении уже созданных инстансов отсечение остаётся корректным.
+    for (const [id, geometry] of Object.entries(this.bare) as [PropId, THREE.BufferGeometry][]) {
+      const bounds = this.geo[id].boundingSphere!.union(geometry.boundingSphere!);
+      geometry.boundingSphere!.copy(bounds);
+    }
+    this.coniferMat = this.mat.clone();
+    this.coniferMat.customProgramCacheKey = () => 'snow-on-conifers';
+    this.coniferMat.onBeforeCompile = (shader) => {
+      shader.uniforms.branchSnow = this.snowOnBranches;
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nattribute float snowMask;\nvarying float branchMask;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nbranchMask = snowMask;');
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', '#include <common>\nuniform float branchSnow;\nvarying float branchMask;')
+        .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.79, 0.86, 0.94), branchSnow * branchMask);');
+    };
     this.houseMat = facadeMaterial(houseTile(), 0, 0.6);
     this.towerMat = facadeMaterial(towerTile(5), 0.25, 1.3);
     this.solidMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 });

@@ -124,12 +124,28 @@
     <div class="panel menu">
       <div class="eyebrow" id="stEyebrow">Заправка «Топливо 24»</div>
       <h2 id="stTitle">Заправиться?</h2>
+      <div class="tabs service-tabs">
+        <button id="stFuelTab" type="button" aria-pressed="true">Заправка</button>
+        <button id="stRepairTab" type="button" aria-pressed="false">Ремонт</button>
+      </div>
       <div class="tank-big"><span class="fbar big" id="stBarWrap"><i id="stTankBar"></i></span><div class="tank-nums"><b id="stTank">0</b> <span id="stUnit">/ 60 л</span></div></div>
       <div class="st-row"><span>Монеты</span><b><span class="coin"></span><span id="stCoins">100</span></b></div>
       <div class="st-row"><span>Цена</span><b id="stPrice">1 монета за литр</b></div>
       <button id="stFull" class="go">Полный бак</button>
       <button id="stTen" class="ghost">+10 л</button>
       <button id="stLeave" class="ghost">Уехать</button>
+      <button id="stEnd" class="ghost" hidden>Закончить заезд</button>
+    </div>
+  </section>
+
+  <section id="breakdown" class="screen">
+    <div class="panel menu">
+      <div class="eyebrow">Помощь на дороге</div>
+      <h2>Машина сломалась</h2>
+      <div class="st-row"><span>Ближайшая остановка</span><b id="towDestination"></b></div>
+      <div class="st-row"><span>Монеты</span><b><span class="coin"></span><span id="towWallet"></span></b></div>
+      <button id="towCall" class="go">Вызвать помощь</button>
+      <button id="towEnd" class="ghost">Закончить заезд</button>
     </div>
   </section>
 

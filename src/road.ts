@@ -115,6 +115,16 @@ export class RoadPath {
     return this.exits.find((e) => e.sStop > s && (!kind || e.kind === kind))!;
   }
 
+  /** Ближайшая остановка по трассе, включая уже проеханные. */
+  nearestExit(s: number): Exit {
+    let nearest = this.nextExit(s);
+    for (const exit of this.exits) {
+      if (exit.sStop > s) break;
+      if (s - exit.sStop < Math.abs(nearest.sStop - s)) nearest = exit;
+    }
+    return nearest;
+  }
+
   /** Ширина полосы съезда справа в точке s (0 — съезда нет). */
   extraAt(s: number): number {
     const e = this.exitNear(s, 0);
@@ -320,7 +330,7 @@ export interface RoadMaterials {
   ground: THREE.MeshStandardMaterial;
   rail: THREE.MeshStandardMaterial;
   post: THREE.MeshStandardMaterial;
-  setSnow(on: boolean): void;
+  setSnow(amount: number): void;
 }
 
 export function makeRoadMaterials(tex: RoadTextures, ground: { map: THREE.Texture; normalMap: THREE.Texture },
@@ -418,6 +428,10 @@ export class RoadWorld {
     for (const chunk of this.chunks.values()) {
       for (const object of chunk.group.children) {
         if (object.userData.winterOnly) object.visible = on;
+        if (object instanceof THREE.InstancedMesh && object.userData.seasonalGeometry) {
+          const geometries = object.userData.seasonalGeometry;
+          object.geometry = on ? geometries.winter : geometries.summer;
+        }
       }
     }
   }

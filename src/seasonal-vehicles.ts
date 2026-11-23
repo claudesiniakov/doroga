@@ -184,12 +184,15 @@ function buildTiller(): TrafficTemplate<'tiller'> {
 const MOTO_COLORS: [string, number][] = [['#c4101a', 3], ['#1f4f9c', 2], ['#111214', 3], ['#f2f2f0', 2], ['#f5c518', 1], ['#2e8b3e', 1], ['#e06a12', 1]];
 const TILLER_COLORS: [string, number][] = [['#c4251c', 3], ['#e06a12', 2], ['#2e7d3a', 1], ['#1f4f9c', 1]];
 
-export function createMotoPreview(assets: TrafficAssets) {
-  return assets.createPrototype(buildMoto(), MOTO_COLORS, { wheelsOnBody: true });
+let motoTemplate: TrafficTemplate<'moto'> | undefined;
+let tillerTemplate: TrafficTemplate<'tiller'> | undefined;
+
+export function createMoto(assets: TrafficAssets) {
+  return assets.createPrototype(motoTemplate ??= buildMoto(), MOTO_COLORS, { wheelsOnBody: true });
 }
 
-export function createTillerPreview(assets: TrafficAssets) {
+export function createTiller(assets: TrafficAssets) {
   const cloth = new THREE.MeshStandardMaterial({ color: 0x5d5a4a, roughness: 0.95 });
   const wood = new THREE.MeshStandardMaterial({ color: 0x8a6440, roughness: 0.85 });
-  return assets.createPrototype(buildTiller(), TILLER_COLORS, { secondary: cloth, wood });
+  return assets.createPrototype(tillerTemplate ??= buildTiller(), TILLER_COLORS, { secondary: cloth, wood });
 }

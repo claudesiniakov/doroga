@@ -4,3 +4,4 @@ export const LITERS_PER_KM = 2;
 export const FUEL_PRICE = 1; // монет за литр
 export const KASKO = 40;
 export const REPAIR_PRICE = 1; // монет за 10 %
+export const ROADSIDE_ASSISTANCE_PRICE = 50;

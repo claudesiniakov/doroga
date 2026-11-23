@@ -9,7 +9,7 @@ import { mountainRing } from './props';
 import { makeWaterNormal } from './textures';
 import { clamp, damp, lerp, smoothstep } from './noise';
 import { RoadCoins } from './road-coins';
-import { START_COINS, LITERS_PER_KM, FUEL_PRICE, REPAIR_PRICE, POLICE_FINE } from './drive-rules';
+import { START_COINS, LITERS_PER_KM, FUEL_PRICE, REPAIR_PRICE, POLICE_FINE, ROADSIDE_ASSISTANCE_PRICE } from './drive-rules';
 
 export interface DriveInput {
   throttle: number;
@@ -79,12 +79,17 @@ export class DriveScene {
   coinsCollected = 0;
   private readonly roadCoins: RoadCoins;
   private previewing = false;
+  private snowAmount = 0;
+  private snowTarget = 0;
+  private readonly warmSun = new THREE.Color(0xffd2a0);
+  private readonly coldSun = new THREE.Color(0xe4efff);
   private winterForMonth() { return this.month <= 2 || this.month >= 10; }
 
   renewInsurance(insurance: DriveScene['insurance'], coins: number) {
     this.insurance = insurance;
     this.coins = coins;
     this.startS = this.s;
+    this.periodStartOdometer = this.odometer;
     this.endReason = null;
     this.crashes = 0;
     this.coinsCollected = 0;
@@ -97,7 +102,8 @@ export class DriveScene {
   startS = 30;
   get finishS() { return this.startS + this.tripKm * 1000; }
   /** Пройдено в этой поездке, м. */
-  get tripDone() { return Math.max(0, this.s - this.startS); }
+  private periodStartOdometer = 0;
+  get tripDone() { return this.endless ? this.odometer - this.periodStartOdometer : Math.max(0, this.s - this.startS); }
   /** Был бесплатный ремонт по КАСКО в этой поездке. */
   kaskoRepairUsed = false;
   private finishGate?: THREE.Group;
@@ -208,9 +214,16 @@ export class DriveScene {
 
   setSnow(on: boolean) {
     this.world.setSnow(on);
-    this.world.mats.setSnow(on);
-    this.sun.color.setHex(on ? 0xe4efff : 0xffd2a0);
-    this.sun.intensity = on ? 4.2 : 5.2;
+    this.snowTarget = Number(on);
+    this.applySnow(this.snowTarget);
+  }
+
+  private applySnow(amount: number) {
+    this.snowAmount = amount;
+    this.world.mats.setSnow(amount);
+    this.world.kit.setTreeSnow(amount);
+    this.sun.color.copy(this.warmSun).lerp(this.coldSun, amount);
+    this.sun.intensity = lerp(5.2, 4.2, amount);
   }
 
   setShadowMapSize(n: number) {
@@ -285,7 +298,7 @@ export class DriveScene {
     this.roll = this.rollV = this.pitch = this.pitchV = 0;
     this.introT = skipIntro ? this.introDur : 0;
     this.phase = skipIntro ? 'drive' : 'intro';
-    this.odometer = 0;
+    this.odometer = this.periodStartOdometer = 0;
     this.fuel = this.cfg.tankL;
     this.health = 100;
     this.endReason = null;
@@ -302,8 +315,11 @@ export class DriveScene {
     this.roadCoins.reset(startS);
     this.coinsCollected = 0;
     this.month = this.monthTime = 0;
-    if (this.endless) this.setSnow(this.winterForMonth());
-    else this.world.planTrip(startS, startS + this.tripKm * 1000);
+    this.traffic.summer = false;
+    if (this.endless) {
+      this.setSnow(this.winterForMonth());
+      this.traffic.prepareSeasonal();
+    } else this.world.planTrip(startS, startS + this.tripKm * 1000);
     this.schedulePolice();
     this.world.prime(this.s, this.car.root.position);
     this.crashes = 0;
@@ -331,9 +347,18 @@ export class DriveScene {
       if (this.monthTime >= 30 && this.phase === 'drive') {
         this.monthTime %= 30;
         this.month = (this.month + 1) % 12;
-        this.setSnow(this.winterForMonth());
+        const winter = this.winterForMonth();
+        if (winter !== this.world.snow) {
+          this.world.setSnow(winter);
+          this.snowTarget = Number(winter);
+        }
+        this.traffic.summer = this.month >= 5 && this.month <= 7;
         if (this.month === 0) this.phase = 'finish';
       }
+    }
+    if (this.snowAmount !== this.snowTarget) {
+      const distance = this.snowTarget - this.snowAmount;
+      this.applySnow(this.snowAmount + Math.sign(distance) * Math.min(Math.abs(distance), elapsed / 2.5));
     }
     const cfg = this.cfg;
     const vmax = cfg.maxSpeedKmh / 3.6;
@@ -728,13 +753,38 @@ export class DriveScene {
     return want;
   }
 
+  get assistanceCost() { return this.insurance.kasko ? 0 : ROADSIDE_ASSISTANCE_PRICE; }
+
+  get assistanceDestination() { return this.world.path.nearestExit(this.s); }
+
+  /** Эвакуация не добавляет километраж и сохраняет состояние машины. */
+  towToService(): boolean {
+    if (this.phase !== 'stopped' || this.endReason !== 'wreck' || this.coins < this.assistanceCost) return false;
+    const exit = this.assistanceDestination;
+    this.coins -= this.assistanceCost;
+    if (this.insurance.kasko) this.kaskoRepairUsed = true;
+    this.pitExit = exit;
+    this.s = exit.sStop;
+    this.lane = 2;
+    this.d = this.laneOffset();
+    this.v = this.dv = 0;
+    this.phase = 'refuel';
+    this.placeCar(0);
+    this.world.prime(this.s, this.car.root.position);
+    this.traffic.populate(this.playerState(), this.odometer);
+    this.updateSun();
+    this.snapCamera();
+    this.updateFar(0);
+    this.onStation?.(exit.kind);
+    return true;
+  }
+
   /** Уехать от колонки/сервиса. */
   leaveStation() {
-    if (this.phase !== 'refuel') return;
-    if (this.fuel > 0) { this.phase = 'pitOut'; return; }
-    this.endReason = 'fuel';
-    this.phase = 'stopped';
-    this.onEmpty?.();
+    if (this.phase !== 'refuel' || this.fuel <= 0 || this.health <= 0) return false;
+    this.endReason = null;
+    this.phase = 'pitOut';
+    return true;
   }
 
   /** Можно ли сейчас перестроиться на съезд (полоса открыта впереди). */
@@ -744,8 +794,7 @@ export class DriveScene {
   }
 
   /** Расстояние до ближайшей колонки впереди, м. */
-  get nextStationDist() { return this.world.path.nextExit(this.s, 'fuel').sStop - this.s; }
-  get nextRepairDist() { return this.world.path.nextExit(this.s, 'repair').sStop - this.s; }
+  get nextServiceDist() { return this.world.path.nextExit(this.s).sStop - this.s; }
   get nextExitStartDist() { return this.world.path.nextExit(this.s).s0 - this.s; }
   get nextExitKind(): ExitKind { return this.world.path.nextExit(this.s).kind; }
 

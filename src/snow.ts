@@ -26,7 +26,7 @@ const roadSnow = /* glsl */ `
   cover = mix(cover, 0.995, shoulder);
   // Снег оставляет читаемыми светлые линии на проезжей части.
   float marking = smoothstep(0.14, 0.42, dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722)));
-  diffuseColor.rgb = mix(diffuseColor.rgb, snowColor, cover * (1.0 - marking * 0.72));
+  diffuseColor.rgb = mix(diffuseColor.rgb, snowColor, snowEnabled * cover * (1.0 - marking * 0.72));
 `;
 
 export function addSnowCover(
@@ -48,17 +48,17 @@ export function addSnowCover(
       shader.fragmentShader = shader.fragmentShader
         .replace('#include <common>', `#include <common>\nuniform float snowEnabled;\nvarying vec2 snowPosition;\n${snowNoise}`)
         .replace('#include <roughnessmap_fragment>', /* glsl */ `
-          if (snowEnabled > 0.5) {
+          if (snowEnabled > 0.0) {
             float drift = snowNoise(snowPosition * 0.36);
             float grain = snowNoise(snowPosition * 7.0);
             vec3 snowColor = vec3(0.73, 0.81, 0.90) * (0.87 + drift * 0.15 + grain * 0.055);
             ${surface === 'road' ? roadSnow : `
               float exposed = smoothstep(0.31, 0.66, drift + (grain - 0.5) * 0.18);
-              diffuseColor.rgb = mix(diffuseColor.rgb, snowColor, 0.81 + exposed * 0.18);
+              diffuseColor.rgb = mix(diffuseColor.rgb, snowColor, snowEnabled * (0.81 + exposed * 0.18));
             `}
           }
           #include <roughnessmap_fragment>
-          if (snowEnabled > 0.5) roughnessFactor = mix(roughnessFactor, 0.93, 0.75);
+          if (snowEnabled > 0.0) roughnessFactor = mix(roughnessFactor, 0.93, 0.75 * snowEnabled);
         `);
     };
   };
@@ -67,10 +67,10 @@ export function addSnowCover(
   apply(ground, 'ground');
 
   const materials = [...road, gravel, ground].map((material) => ({ material, normalScale: material.normalScale.clone() }));
-  return (on: boolean) => {
-    enabled.value = Number(on);
+  return (amount: number) => {
+    enabled.value = amount;
     for (const { material, normalScale } of materials) {
-      material.normalScale.copy(normalScale).multiplyScalar(on ? 0.44 : 1);
+      material.normalScale.copy(normalScale).multiplyScalar(1 - 0.56 * amount);
     }
   };
 }

@@ -4,6 +4,9 @@ import { ROAD } from './textures';
 import { TrafficAssets, TrafficKind, TrafficVisual } from './traffic-models';
 import { clamp, mulberry32 } from './noise';
 
+type SeasonalKind = 'moto' | 'tiller';
+type RoadTrafficKind = TrafficKind | SeasonalKind;
+
 const LANE = ROAD.laneWidth;
 const SPAWN_MIN = 520, SPAWN_MAX = 820;   // впереди, за пределами чёткой видимости
 const DESPAWN_BEHIND = 160, DESPAWN_AHEAD = 1100;
@@ -22,7 +25,7 @@ class Vehicle {
   braking = false;
   spin = 0;
   roll = 0;
-  constructor(readonly kind: TrafficKind, readonly vis: TrafficVisual) {}
+  constructor(readonly kind: RoadTrafficKind, readonly vis: TrafficVisual<RoadTrafficKind>) {}
   get length() { return this.vis.template.length; }
   get width() { return this.vis.template.width; }
   /** Полосы, которые машина занимает сейчас (во время перестроения — две). */
@@ -36,7 +39,28 @@ export interface CrashEvent { severity: number; side: boolean; }
 export class Traffic {
   readonly group = new THREE.Group();
   private list: Vehicle[] = [];
-  private pool: Record<TrafficKind, TrafficVisual[]> = { sedan: [], truck: [], van: [], tow: [], limo: [], classic: [], kedr: [] };
+  private pool: Record<RoadTrafficKind, TrafficVisual<RoadTrafficKind>[]> = {
+    sedan: [], truck: [], van: [], tow: [], limo: [], classic: [], kedr: [], moto: [], tiller: [],
+  };
+  summer = false;
+  private seasonal?: typeof import('./seasonal-vehicles');
+  private preparingSeasonal = false;
+
+  prepareSeasonal() {
+    if (this.preparingSeasonal) return;
+    this.preparingSeasonal = true;
+    const idle = () => new Promise<void>((resolve) => {
+      if ('requestIdleCallback' in window) window.requestIdleCallback(() => resolve(), { timeout: 5000 });
+      else setTimeout(resolve, 0);
+    });
+    void import('./seasonal-vehicles').then(async (models) => {
+      await idle();
+      if (!this.pool.moto.length) this.pool.moto.push(models.createMoto(this.assets));
+      await idle();
+      if (!this.pool.tiller.length) this.pool.tiller.push(models.createTiller(this.assets));
+      this.seasonal = models;
+    }).catch(() => { this.preparingSeasonal = false; });
+  }
   private rnd = mulberry32(4242);
   private frame: RoadFrame;
   private spawnTimer = 0;
@@ -50,7 +74,7 @@ export class Traffic {
 
   get count() { return this.list.length; }
   /** Для проверок: машины трафика (только чтение). */
-  get vehicles(): readonly { s: number; d: number; v: number; lane: number; length: number; width: number; kind: TrafficKind }[] { return this.list; }
+  get vehicles(): readonly { s: number; d: number; v: number; lane: number; length: number; width: number; kind: RoadTrafficKind }[] { return this.list; }
 
   clear() {
     for (const v of this.list) this.release(v);
@@ -60,8 +84,9 @@ export class Traffic {
   /** Плотность растёт с пройденным расстоянием: от ~11 до ~22 машин в зоне. */
   private targetCount(odo: number) { return Math.round(clamp(11 + odo / 500, 11, 22)); }
 
-  private acquire(kind: TrafficKind) {
-    const vis = this.pool[kind].pop() ?? this.assets.create(kind);
+  private acquire(kind: RoadTrafficKind) {
+    const vis = this.pool[kind].pop() ?? (kind === 'moto' ? this.seasonal!.createMoto(this.assets)
+      : kind === 'tiller' ? this.seasonal!.createTiller(this.assets) : this.assets.create(kind));
     this.group.add(vis.root);
     return vis;
   }
@@ -121,10 +146,13 @@ export class Traffic {
     const ahead = s > p.s;
     const tow = ahead && r < 0.015 && !this.list.some((o) => o.kind === 'tow');
     const limo = ahead && r >= 0.36 && r < 0.39 && !this.list.some((o) => o.kind === 'limo');
-    const kind: TrafficKind = tow ? 'tow' : limo ? 'limo' : r < 0.22 ? 'truck' : r < 0.36 ? 'van' : r >= 0.39 && r < 0.51 ? 'classic' : r >= 0.51 && r < 0.63 ? 'kedr' : 'sedan';
+    const summer = this.summer && this.seasonal;
+    const kind: RoadTrafficKind = summer && r >= 0.63 && r < 0.70 ? 'moto'
+      : summer && r >= 0.70 && r < 0.73 ? 'tiller'
+      : tow ? 'tow' : limo ? 'limo' : r < 0.22 ? 'truck' : r < 0.36 ? 'van' : r >= 0.39 && r < 0.51 ? 'classic' : r >= 0.51 && r < 0.63 ? 'kedr' : 'sedan';
     // Крупные машины появляются в правой и средней полосах, легковые — по всей трассе.
     const truck = kind === 'truck' || tow;
-    const lanes = truck || limo ? [1, 1, 0] : [-1, 0, 0, 1, 1];
+    const lanes = kind === 'tiller' ? [1] : truck || limo ? [1, 1, 0] : [-1, 0, 0, 1, 1];
     const lane = lanes[Math.floor(this.rnd() * lanes.length)];
     const gap = limo ? 55 : 45;
     if (!this.laneFree(lane, s, gap, gap, p)) return false;
@@ -134,7 +162,7 @@ export class Traffic {
     v.lane = v.targetLane = lane;
     v.d = lane * LANE;
     // желаемая скорость: левее — быстрее; грузовики медленнее
-    const base = truck ? (tow ? 65 : 72) + this.rnd() * 14
+    const base = kind === 'tiller' ? 28 : kind === 'moto' ? 97 + this.rnd() * 18 : truck ? (tow ? 65 : 72) + this.rnd() * 14
       : [102, 88, 76][lane + 1] + (this.rnd() - 0.5) * 18 - (kind === 'classic' ? 9 : kind === 'van' || kind === 'kedr' || limo ? 5 : 0);
     v.v0 = v.v = base / 3.6;
     v.cooldown = 3 + this.rnd() * 5;
@@ -148,7 +176,9 @@ export class Traffic {
     // выгрузка далёких
     for (let i = this.list.length - 1; i >= 0; i--) {
       const v = this.list[i];
-      if (v.s < p.s - DESPAWN_BEHIND || v.s > p.s + DESPAWN_AHEAD) { this.release(v); this.list.splice(i, 1); }
+      const outOfSeason = !this.summer && (v.kind === 'moto' || v.kind === 'tiller')
+        && (v.s < p.s - 40 || v.s > p.s + 270);
+      if (outOfSeason || v.s < p.s - DESPAWN_BEHIND || v.s > p.s + DESPAWN_AHEAD) { this.release(v); this.list.splice(i, 1); }
     }
     // появление новых впереди (и изредка сзади, если игрок медленный)
     this.spawnTimer -= dt;
@@ -232,7 +262,7 @@ export class Traffic {
       else if (this.rnd() < 0.25) options.push(v.lane + 1);          // вернуться правее
       for (const to of options) {
         if (to < -1 || to > 1) continue;
-        if (truck && to < 0) continue;
+        if ((truck && to < 0) || v.kind === 'tiller') continue;
         const lead = this.leader(v, to, p);
         if (slowAhead && lead.gap < cur.gap + 15) continue;
         if (!this.laneFree(to, v.s, 30, 28, p, v) || this.wouldBlockAll(to, v.s, 30, v)) continue;

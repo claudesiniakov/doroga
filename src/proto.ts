@@ -2,9 +2,8 @@ import * as THREE from 'three';
 import { Renderer, detectQuality } from './render';
 import { GarageScene } from './garage';
 import { buildPlayerCar } from './player-car';
-import type { CarConfig } from './car';
 import { TrafficAssets, type TrafficKind } from './traffic-models';
-import { createMotoPreview, createTillerPreview } from './proto-vehicles';
+import { createMoto, createTiller } from './seasonal-vehicles';
 import cars from './cars.json';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#gl')!;
@@ -43,15 +42,14 @@ function addOption(group: HTMLOptGroupElement, id: string, name: string, build: 
 }
 
 const playerGroup = document.querySelector<HTMLOptGroupElement>('#player')!;
-for (const config of cars as CarConfig[]) {
-  addOption(playerGroup, config.id, config.name, () => buildPlayerCar(config));
-}
+const kometa = cars[0] as Parameters<typeof buildPlayerCar>[0];
+addOption(playerGroup, kometa.id, kometa.name, () => buildPlayerCar(kometa));
 const trafficGroup = document.querySelector<HTMLOptGroupElement>('#traffic')!;
 for (const kind of Object.keys(trafficNames) as TrafficKind[]) {
   addOption(trafficGroup, kind === 'kedr' ? 'traffic-kedr' : kind, trafficNames[kind], () => getTraffic().create(kind));
 }
-addOption(trafficGroup, 'moto', 'Мотоцикл', () => createMotoPreview(getTraffic()));
-addOption(trafficGroup, 'tiller', 'Мотоблок с повозкой', () => createTillerPreview(getTraffic()));
+addOption(trafficGroup, 'moto', 'Мотоцикл', () => createMoto(getTraffic()));
+addOption(trafficGroup, 'tiller', 'Мотоблок с повозкой', () => createTiller(getTraffic()));
 addOption(trafficGroup, 'police', 'Патруль ДПС', () => getTraffic().createPolice().vis);
 
 const params = new URLSearchParams(location.search);
@@ -90,7 +88,9 @@ function showVehicle(id: string) {
   updateControls();
 }
 
-const requested = params.get('car');
+const formerPlayerIds = new Map([['kedr', 'traffic-kedr'], ['prostor', 'van'], ['vaz2107', 'classic']]);
+const carId = params.get('car');
+const requested = carId && (formerPlayerIds.get(carId) ?? carId);
 if (requested && factories.has(requested)) select.value = requested;
 showVehicle(select.value);
 select.addEventListener('change', () => showVehicle(select.value));

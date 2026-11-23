@@ -192,11 +192,11 @@ function buildSedan(variant: 'sedan' | 'police' | 'limo' | 'classic' = 'sedan'):
   const classic = variant === 'classic';
   const sh = new Shape(classic ? {
     halfLen: 2.075,
-    top: [[-2.075, 0.89], [-2.01, 0.98], [-1.24, 0.99], [-0.45, 1.02], [0.58, 1.01], [0.96, 0.955], [1.78, 0.925], [2.015, 0.905], [2.075, 0.81]],
+    top: [[-2.075, 0.925], [-2.02, 0.98], [-1.24, 0.99], [-0.45, 1.01], [0.58, 1.01], [0.96, 0.955], [1.78, 0.94], [2.02, 0.927], [2.075, 0.87]],
     bottom: [[-2.075, 0.43], [-1.88, 0.35], [-1.5, 0.26], [1.44, 0.26], [1.89, 0.32], [2.075, 0.42]],
     width: [[-2.075, 0.77], [-1.75, 0.80], [-0.5, 0.81], [0.85, 0.81], [1.75, 0.79], [2.075, 0.75]],
-    planFront: 27, planRear: 24, axles: [1.24, -1.19], wheelR: 0.30, archR: 0.345, archBlend: 0.043,
-    seLow: 7, seHigh: 8, tumble: 0.055,
+    planFront: 44, planRear: 40, axles: [1.24, -1.19], wheelR: 0.30, archR: 0.345, archBlend: 0.043,
+    seLow: 10, seHigh: 14, tumble: 0.028,
   } : {
     halfLen: 2.3,
     top: [[-2.3, 0.72], [-2.26, 0.9], [-2.05, 0.985], [-1.5, 1.0], [-1.0, 0.985], [0, 0.94], [0.9, 0.905], [1.4, 0.865], [1.95, 0.79], [2.2, 0.69], [2.3, 0.5]],
@@ -219,7 +219,7 @@ function buildSedan(variant: 'sedan' | 'police' | 'limo' | 'classic' = 'sedan'):
   // «аквариум» седана: лобовое, крыша, задняя стойка, багажник отдельно
   const zA = classic ? 0.89 : 1.0, zC = classic ? -1.33 : -1.42;
   const roof = classic
-    ? spline([[zC, sh.top(zC)], [-0.91, 1.385], [-0.72, 1.45], [0.22, 1.446], [0.37, 1.395], [zA, sh.top(zA)]])
+    ? spline([[zC, sh.top(zC)], [-0.87, 1.42], [-0.76, 1.45], [0.28, 1.45], [0.38, 1.42], [zA, sh.top(zA)]])
     : spline([[zC, sh.top(zC)], [-1.05, 1.24], [-0.6, 1.42], [0.25, 1.44], [0.65, 1.26], [zA, sh.top(zA)]]);
   const GR = 36, GK = 22;
   const angles = Array.from({ length: GK + 1 }, (_, k) => Math.PI * k / GK);
@@ -239,8 +239,9 @@ function buildSedan(variant: 'sedan' | 'police' | 'limo' | 'classic' = 'sedan'):
     for (const angle of angles) {
       const phi = Math.PI - angle;
       const s = Math.sin(phi), c = Math.cos(phi);
-      const a = wb + (wr - wb) * Math.min(1, s * 1.1);
-      ring.push(new THREE.Vector3(Math.sign(c) * a * Math.pow(Math.abs(c), classic ? 0.4 : 2 / 2.4), yb + H * Math.pow(s, classic ? 0.4 : 2 / 3.4), z));
+      const height = Math.pow(s, classic ? 0.28 : 2 / 3.4);
+      const a = wb + (wr - wb) * Math.min(1, (classic ? height : s) * 1.1);
+      ring.push(new THREE.Vector3(Math.sign(c) * a * Math.pow(Math.abs(c), classic ? 0.28 : 2 / 2.4), yb + H * height, z));
     }
     gRows.push(ring);
   }
@@ -318,10 +319,21 @@ function buildSedan(variant: 'sedan' | 'police' | 'limo' | 'classic' = 'sedan'):
       };
       const trim = Array.from({ length: 19 }, (_, i) => sidePoint(0.735, -1.74 + i * 3.48 / 18, 0.008));
       b.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(trim), 36, 0.008, 6, false), 'black');
-      for (const z of [-0.98, -0.20, 0.63]) {
-        const points = Array.from({ length: 9 }, (_, i) => sidePoint(0.57 + i * 0.43 / 8, z, 0.003));
-        b.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 18, 0.0032, 5, false), 'black');
+      const rearDoorBottom = -0.80, frontDoor = 0.63;
+      const sill = sh.base(0) + 0.028;
+      const addDoorSeam = (points: THREE.Vector3[]) => {
+        b.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 24, 0.0035, 5, false), 'black');
+      };
+      for (const [topZ, bottomZ] of [[-0.98, rearDoorBottom], [-0.20, -0.20], [frontDoor, frontDoor]]) {
+        const belt = sh.top(topZ) - 0.049;
+        const points = Array.from({ length: 17 }, (_, i) => {
+          const y = sill + (belt - sill) * i / 16;
+          const z = topZ + (bottomZ - topZ) * (1 - smoothstep(0.48, 0.73, y));
+          return sidePoint(y, z, 0.004);
+        });
+        addDoorSeam(points);
       }
+      addDoorSeam(Array.from({ length: 17 }, (_, i) => sidePoint(sill, rearDoorBottom + (frontDoor - rearDoorBottom) * i / 16, 0.004)));
       b.box(0.025, 0.032, 0.067, 'beacon', sidePoint(0.825, 1.01, 0.006), 0.006);
       for (const z of [-0.72, 0.05]) {
         const y = sh.top(z) - 0.15, x = side * (sh.xAt(z, y) + 0.005);

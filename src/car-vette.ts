@@ -188,6 +188,13 @@ export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity =
   body.add(gh);
   add(new THREE.BoxGeometry(1.25, 0.42, 3.4), under, 0, 0.4, -0.05, false);
 
+  const intakeRay = new THREE.Raycaster();
+  const frontSurface = (x: number, y: number) => {
+    intakeRay.ray.origin.set(x, y, halfLen + 1);
+    intakeRay.ray.direction.set(0, 0, -1);
+    return intakeRay.intersectObject(bm, false)[0]?.point.z ?? sh.surfaceZ(x, y, 1);
+  };
+
   /**
    * Гладкая панель по поверхности торца (front +1 / rear -1): сетка x×y, z — по поверхности кузова.
    * Так решётки и диффузор без «ступенек» сетки кузова.
@@ -198,7 +205,8 @@ export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity =
       const x = x0 + ((x1 - x0) * i) / nx;
       for (let j = 0; j <= ny; j++) {
         const y = y0(x) + ((y1(x) - y0(x)) * j) / ny;
-        pos.push(x, y, sh.surfaceZ(x, y, end) + end * off);
+        const z = end > 0 ? frontSurface(x, y) : sh.surfaceZ(x, y, end);
+        pos.push(x, y, z + end * off);
       }
     }
     for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) {
@@ -213,43 +221,43 @@ export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity =
     (mesh.material as THREE.Material).side = THREE.DoubleSide;
     return mesh;
   };
-  // передняя нижняя решётка: трапеция с плавно скруглёнными краями
-  endPatch(1, -0.66, 0.66, (x) => 0.2 + 0.03 * (Math.abs(x) / 0.66) ** 2, (x) => 0.36 - 0.05 * (Math.abs(x) / 0.66) ** 3, black);
-  for (let k = 1; k <= 3; k++) {
-    const y = 0.22 + k * 0.035;
-    tube([-0.6, -0.3, 0, 0.3, 0.6].map((x) => onSurf(x, y, 1, 0.012)), 0.006, carbon);
+  // Передний воздухозаборник и рёбра повторяют поверхность носа.
+  endPatch(1, -0.64, 0.64, (x) => 0.23 + 0.018 * (x / 0.64) ** 2,
+    (x) => 0.375 - 0.045 * (x / 0.64) ** 2, black, 0.010);
+  for (const y of [0.267, 0.298, 0.329]) {
+    const xs = [-0.53, -0.36, -0.18, 0, 0.18, 0.36, 0.53];
+    tube(xs.map((x) => new THREE.Vector3(x, y, frontSurface(x, y) + 0.019)), 0.0045, carbon);
   }
   // диффузор: панель по плоскости кормы + рёбра
   endPatch(-1, -0.78, 0.78, () => 0.2, (x) => 0.46 - 0.06 * (Math.abs(x) / 0.78) ** 2, black);
   for (const x of [-0.5, -0.3, 0.3, 0.5]) add(new THREE.BoxGeometry(0.012, 0.1, 0.12), carbon, x, 0.32, sh.surfaceZ(Math.abs(x), 0.32, -1) + 0.03, false);
 
-  // боковые воздухозаборники: гладкая трапеция по изгибу борта (сетка кузова дала бы «ступеньки»)
+  // Боковые вставки и направляющие повторяют один профиль борта.
   for (const side of [-1, 1]) {
-    const rowsN = 16, colsN = 10;
-    const pos: number[] = [], idx: number[] = [];
-    const zF = -0.6, zB = -1.03;
-    for (let r = 0; r <= rowsN; r++) {
-      const u = r / rowsN, z = zF + (zB - zF) * u;
-      const y0 = 0.44 + 0.03 * u, y1 = 0.83 - 0.15 * u;     // верх скошен назад-вниз
-      for (let c = 0; c <= colsN; c++) {
-        const y = y0 + ((y1 - y0) * c) / colsN;
-        pos.push(side * (sh.xAt(z, y) + 0.004), y, z); // тёмная вставка поверх борта
-      }
+    const sidePoint = (u: number, v: number, offset: number) => {
+      const corner = 1 - Math.sin(Math.PI * v);
+      const z = -0.58 - 0.44 * u + 0.025 * (2 * u - 1) * corner;
+      const low = 0.46 + 0.025 * u, high = 0.82 - 0.12 * u;
+      const y = low + (high - low) * v;
+      intakeRay.ray.origin.set(side * 2, y, z);
+      intakeRay.ray.direction.set(-side, 0, 0);
+      const surface = intakeRay.intersectObject(bm, false)[0]?.point.x ?? side * sh.xAt(z, y);
+      return new THREE.Vector3(surface + side * offset, y, z);
+    };
+    const intake = new THREE.PlaneGeometry(1, 1, 24, 20);
+    const positions = intake.getAttribute('position');
+    for (let i = 0; i < positions.count; i++) {
+      const point = sidePoint(side * positions.getX(i) + 0.5, positions.getY(i) + 0.5, 0.008);
+      positions.setXYZ(i, point.x, point.y, point.z);
     }
-    for (let r = 0; r < rowsN; r++) for (let c = 0; c < colsN; c++) {
-      const a = r * (colsN + 1) + c, b = a + 1, d = a + colsN + 1, e = d + 1;
-      if (side > 0) idx.push(a, d, b, b, d, e); else idx.push(a, b, d, b, e, d);
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    g.setIndex(idx);
-    g.computeVertexNormals();
-    const m = add(g, black, 0, 0, 0, false);
-    (m.material as THREE.Material).side = THREE.DoubleSide;
-    // рёбра внутри заборника
-    for (let k = 1; k <= 3; k++) {
-      const z = zF + (zB - zF) * (k / 4), y = 0.6;
-      add(new THREE.BoxGeometry(0.01, 0.3, 0.012), carbon, side * (sh.xAt(z, y) + 0.004), y, z, false);
+    intake.computeVertexNormals();
+    add(intake, black, 0, 0, 0, false);
+    for (const u of [0.32, 0.52, 0.72]) {
+      const points = Array.from({ length: 7 }, (_, i) => {
+        const v = 0.14 + 0.72 * i / 6;
+        return sidePoint(u - 0.06 * (v - 0.5), v, 0.016);
+      });
+      tube(points, 0.005, carbon);
     }
   }
 
@@ -345,7 +353,7 @@ export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity =
     (lm.material as THREE.Material).side = THREE.DoubleSide;
   }
 
-  // ——— колёса: многоспицевые тёмные диски, жёлтые суппорты ———
+  // ——— колёса: многоспицевые диски и красные суппорты ———
   const wheels: CarModel['wheels'] = [];
   const W = 0.27, rimR = 0.25;
   const prof: THREE.Vector2[] = [];
@@ -359,7 +367,7 @@ export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity =
   // белые лакированные диски
   const rimMat = new THREE.MeshPhysicalMaterial({ color: 0xf3f3f0, metalness: 0.15, roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: envIntensity });
   const lipMat = new THREE.MeshStandardMaterial({ color: 0xb9bdc3, metalness: 1, roughness: 0.2, envMapIntensity: envIntensity });
-  const caliperMat = new THREE.MeshPhysicalMaterial({ color: 0xf2c200, roughness: 0.35, clearcoat: 0.8 });
+  const caliperMat = new THREE.MeshPhysicalMaterial({ color: 0xd61c21, roughness: 0.35, clearcoat: 0.8 });
   const discMat = new THREE.MeshStandardMaterial({ color: 0x77797c, metalness: 0.9, roughness: 0.42 });
   const barrel = new THREE.CylinderGeometry(rimR, rimR, W - 0.03, 40, 1, true).rotateZ(Math.PI / 2);
   const spoke = new THREE.BoxGeometry(0.024, rimR - 0.06, 0.03).translate(0, (rimR - 0.06) / 2 + 0.055, 0);

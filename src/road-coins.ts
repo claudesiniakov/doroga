@@ -3,7 +3,7 @@ import { mulberry32 } from './noise';
 import type { RoadPath } from './road';
 import { ROAD } from './textures';
 
-export const ROAD_COIN_VALUE = 5;
+export const ROAD_COIN_VALUE = 2;
 
 export class RoadCoins {
   readonly group = new THREE.Group();

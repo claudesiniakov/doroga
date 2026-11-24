@@ -264,8 +264,8 @@ async function main() {
     $('insuranceHeading').textContent = 'Страховка на год';
     if (SHOT) openInsuranceTab();
     else openHomeTab();
-    renderer.setExposure(garage ? 1.0 : 0.85);
-    renderer.setBloom(garage ? 0.22 : 0.34, 3.0, 0.4);
+    renderer.setExposure(garage ? 1.0 : 0.6);
+    renderer.setBloom(0.22, 3.0, 0.4);
     renderer.setVignette(0.45);
     input.enabled = false;
     state = 'garage';
@@ -336,7 +336,7 @@ async function main() {
   let runClosed = true;
   let lastKbmChange: { from: number; to: number } | null = null;
   let lastTrip = { finished: false, km: 0, crashes: 0, reward: 0, num: 1 };
-  const finishRun = () => {
+  const finishRun = (renewingInsurance = false) => {
     if (runClosed) return;
     runClosed = true;
     // итог поездки: награда за финиш, кошелёк, статистика
@@ -344,7 +344,7 @@ async function main() {
     const reward = finished && SHOT ? TRIP_REWARD : 0;
     const km = drive.tripDone / 1000;
     lastTrip = { finished, km, crashes: drive.crashes, reward, num: trip };
-    wallet = Math.max(0, drive.coins) + reward;
+    wallet = renewingInsurance || SHOT ? Math.max(0, drive.coins) + reward : START_COINS;
     gstats.km += km;
     gstats.crashes += drive.crashes;
     gstats.collected += drive.coinsCollected;
@@ -597,7 +597,7 @@ async function main() {
   };
   const YEAR_REPORT_MS = 3000;
   const onYearEnd = () => {
-    finishRun();
+    finishRun(true);
     state = 'yearReport';
     input.enabled = false;
     $('yearKm').textContent = fmtKm(lastTrip.km);

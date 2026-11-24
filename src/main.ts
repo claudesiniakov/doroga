@@ -95,6 +95,16 @@ async function main() {
       ? (ins.osago || ins.kasko ? 'Продолжить путь' : 'Продолжить без страховки') : 'Поехать';
   };
 
+  const ownRecordKey = 'doroga.ownRecords';
+  const ownRecords = new Set<string>();
+  try {
+    const saved = JSON.parse(localStorage.getItem(ownRecordKey) ?? '[]');
+    if (Array.isArray(saved)) {
+      for (const key of saved) if (typeof key === 'string') ownRecords.add(key);
+    }
+  } catch { /* нет хранилища */ }
+  const recordKey = (nickname: string, meters: number) => JSON.stringify([nickname, meters]);
+
   let recordSaved = false;
   let rankingRun: Promise<string | undefined> | undefined;
   let rankedSummary: { meters: number; run: Promise<string | undefined>; finished: Promise<boolean> } | undefined;
@@ -118,10 +128,23 @@ async function main() {
       status.textContent = 'Здесь будут результаты завершённых заездов.';
       status.hidden = records.length > 0;
       scroll.hidden = records.length === 0;
+      const counts = new Map<string, number>();
+      for (const { nickname, meters } of records) {
+        const key = recordKey(nickname, meters);
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+      }
       const rows = records.map(({ nickname, meters }, index) => {
         const row = document.createElement('tr');
         for (const cell of [String(index + 1), nickname, formatRecordDistance(meters)]) {
           row.insertCell().textContent = cell;
+        }
+        const key = recordKey(nickname, meters);
+        if (ownRecords.has(key) && counts.get(key) === 1) {
+          row.classList.add('own-record');
+          const label = document.createElement('span');
+          label.className = 'own-record-label';
+          label.textContent = 'Ваш заезд';
+          row.cells[1].append(' ', label);
         }
         return row;
       });
@@ -149,6 +172,10 @@ async function main() {
       if (!run) return;
       if (!await summary.finished) await finishRecordRun(run, summary.meters);
       const place = await saveRecord(submittedNickname, run);
+      if (place <= 100) {
+        ownRecords.add(recordKey(submittedNickname, summary.meters));
+        lsSet(ownRecordKey, [...ownRecords]);
+      }
       if (summary !== rankedSummary || state !== 'over') return;
       recordSaved = true;
       recordStatus.textContent = place <= 100 ? `Результат сохранён. Место №${place}.`
@@ -264,7 +291,7 @@ async function main() {
     if (garage) garage.attachCar(car);
     else drive.previewRoad(car, cfg);
     $('garage').classList.remove('is-renewal');
-    $('homeMode').textContent = 'Бесконечный заезд';
+    $('homeMode').hidden = true;
     $('insuranceHeading').textContent = 'Страховка на год';
     if (SHOT) openInsuranceTab();
     else openHomeTab();
@@ -642,7 +669,7 @@ async function main() {
       state = 'renewal';
       ins.kasko = ins.osago = false;
       $('garage').classList.add('is-renewal');
-      $('homeMode').textContent = 'Новый страховой год';
+      $('homeMode').hidden = false;
       $('insuranceHeading').textContent = 'Январь · выберите страховку';
       openInsuranceTab();
       renderIns();

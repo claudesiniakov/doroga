@@ -134,6 +134,16 @@
 #garage .gstats { gap: 8px; margin: 0; }
 #garage .gstats > div { padding: 7px 8px; border: 1px solid var(--home-line); }
 #garage .records-scroll { max-height: min(300px, 34dvh); }
+#garage .own-record td { background: rgba(200, 240, 193, .13); }
+#garage .own-record td:first-child { box-shadow: inset 3px 0 var(--home-accent); }
+.own-record-label {
+  display: inline-block;
+  margin-left: .35em;
+  color: var(--home-accent);
+  font-size: .82em;
+  font-weight: 700;
+  white-space: nowrap;
+}
 #garage button:focus-visible, #garage a:focus-visible { outline: 2px solid var(--home-accent); outline-offset: -3px; }
 
 .home-launch {
@@ -141,14 +151,6 @@
   bottom: calc(clamp(28px, 7vh, 82px) + var(--safe-b));
   left: calc(var(--home-gutter) + var(--safe-l));
   width: min(420px, 41vw);
-}
-.home-vehicle {
-  margin-bottom: 7px;
-  color: var(--home-accent);
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: .16em;
-  text-transform: uppercase;
 }
 #homeMode {
   margin: 0 0 16px;
@@ -173,7 +175,6 @@
   text-align: left;
 }
 #garage #go::after { content: "→"; font-size: 23px; line-height: 1; }
-#garage.is-renewal .home-vehicle { display: none; }
 
 @media (max-width: 850px) and (orientation: portrait), (max-width: 700px) {
   #garage { --home-gutter: 14px; }
@@ -194,17 +195,17 @@
   #garage .fs-btn { width: 34px; height: 34px; }
   .home-content {
     top: auto;
-    bottom: calc(138px + var(--safe-b));
+    bottom: calc(76px + var(--safe-b));
     left: calc(var(--home-gutter) + var(--safe-l));
     width: auto;
   }
+  #garage.is-renewal .home-content { bottom: calc(138px + var(--safe-b)); }
   .home-content .slide { max-height: 32dvh; overflow-y: auto; touch-action: pan-y; }
   .home-launch {
     bottom: calc(14px + var(--safe-b));
     right: calc(var(--home-gutter) + var(--safe-r));
     width: auto;
   }
-  .home-vehicle { margin-bottom: 4px; font-size: 11px; }
   #homeMode { margin-bottom: 10px; font-size: clamp(22px, 6vw, 34px); }
   #garage #go { height: 46px; max-width: none; }
   #garage .ins-opt small { display: block; }
@@ -221,6 +222,7 @@
 }
 
 @media (max-width: 700px) and (orientation: landscape) {
+  #garage.is-renewal .home-content { bottom: auto; }
   .home-content { top: calc(96px + var(--safe-t)); bottom: auto; left: auto; width: min(44vw, 320px); }
   .home-content .slide { max-height: calc(100dvh - 108px - var(--safe-t)); }
   .home-launch { right: auto; width: min(46vw, 290px); }
@@ -237,4 +239,42 @@
     text-align: left;
   }
   #garage .insurance-slide .startcoins { margin-top: 4px; }
+}
+
+@media (pointer: fine) and (min-width: 900px) and (min-height: 560px) {
+  #garage {
+    --home-panel-top: clamp(94px, 14dvh, 148px);
+    --home-launch-bottom: clamp(28px, 7vh, 82px);
+    --home-launch-clearance: 76px;
+  }
+  #garage.is-renewal { --home-launch-clearance: 110px; }
+  #garage .home-content {
+    top: calc(var(--home-panel-top) + var(--safe-t));
+    left: calc(var(--home-gutter) + var(--safe-l));
+    right: auto;
+    width: clamp(420px, 45vw, 730px);
+  }
+  #garage .slide {
+    max-height: calc(100dvh - var(--home-panel-top) - var(--home-launch-bottom) - var(--home-launch-clearance) - var(--safe-t) - var(--safe-b));
+    padding: clamp(22px, 2.6vw, 40px);
+    overflow-y: auto;
+  }
+  #garage .home-launch { bottom: calc(var(--home-launch-bottom) + var(--safe-b)); }
+  #garage #homeMode { font-size: 22px; margin-bottom: 12px; }
+  #garage .home-section-title { margin-bottom: 20px; font-size: clamp(24px, 2.4vw, 36px); }
+  #garage .home-policies { gap: 12px; margin-bottom: 20px; }
+  #garage .home-policies > div, #garage .home-secondary { padding: 14px 18px; font-size: 17px; }
+  #garage .ins { gap: 12px; }
+  #garage .ins-opt { padding: 14px 18px; }
+  #garage .ins-opt b { font-size: 17px; }
+  #garage .ins-opt small { display: block; font-size: 15px; }
+  #garage .kbm-link, #garage .startcoins, #garage #recordsEmpty { font-size: 15px; }
+  #garage .gstats { gap: 12px; }
+  #garage .gstats > div { padding: 12px 14px; }
+  #garage .gstats span { font-size: 13px; }
+  #garage .gstats b { font-size: 20px; }
+  #garage .records-scroll { max-height: min(52dvh, 530px); }
+  #garage .records-table { font-size: 16px; }
+  #garage .records-table th, #garage .records-table td { padding: 10px 12px; }
+  #garage .records-table thead th { position: sticky; top: 0; background: #102021; }
 }

@@ -13,19 +13,29 @@ export async function loadRecords(): Promise<RecordEntry[]> {
   return response.json();
 }
 
-export function newRecordSubmission() {
-  return Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
-export async function saveRecord(nickname: string, meters: number, submission: string): Promise<number> {
+async function postRecord(body: object) {
   const response = await fetch(endpoint, {
     method: 'POST',
     signal: AbortSignal.timeout(8000),
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ nickname, meters, submission }),
+    body: JSON.stringify(body),
   });
   if (!response.ok) throw new Error('Не удалось сохранить результат');
-  const { place } = await response.json();
+  return response.json();
+}
+
+export async function startRecordRun(): Promise<string> {
+  const { run } = await postRecord({ action: 'start' });
+  if (typeof run !== 'string' || !/^[a-f0-9]{32}$/.test(run)) throw new Error('Заезд не зарегистрирован');
+  return run;
+}
+
+export async function finishRecordRun(run: string, meters: number): Promise<void> {
+  await postRecord({ action: 'finish', run, meters });
+}
+
+export async function saveRecord(nickname: string, run: string): Promise<number> {
+  const { place } = await postRecord({ action: 'submit', run, nickname });
   return place;
 }
 

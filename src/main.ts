@@ -10,7 +10,7 @@ import { GarageScene } from './garage';
 import type { DriveScene } from './drive';
 import { START_COINS, LITERS_PER_KM, FUEL_PRICE, KASKO, REPAIR_PRICE, POLICE_FINE } from './drive-rules';
 import { Input } from './input';
-import { formatRecordDistance, loadRecords, MAX_NICKNAME_LENGTH, newRecordSubmission, saveRecord } from './records';
+import { finishRecordRun, formatRecordDistance, loadRecords, MAX_NICKNAME_LENGTH, saveRecord, startRecordRun } from './records';
 
 type State = 'loading' | 'garage' | 'drive' | 'pause' | 'station' | 'over' | 'protocol' | 'renewal' | 'breakdown' | 'yearReport' | 'returningHome';
 
@@ -95,9 +95,9 @@ async function main() {
       ? (ins.osago || ins.kasko ? 'Продолжить путь' : 'Продолжить без страховки') : 'Поехать';
   };
 
-  let recordMeters = 0;
   let recordSaved = false;
-  let recordSubmission = '';
+  let rankingRun: Promise<string | undefined> | undefined;
+  let rankedSummary: { meters: number; run: Promise<string | undefined>; finished: Promise<boolean> } | undefined;
   let submittedNickname: string | undefined;
   let recordLoad = 0;
   const recordForm = $<HTMLFormElement>('recordForm');
@@ -132,7 +132,8 @@ async function main() {
   };
   recordForm.addEventListener('submit', async (event) => {
     event.preventDefault();
-    if (state !== 'over' || recordMeters <= 0 || recordSaved || recordSave.disabled) return;
+    const summary = rankedSummary;
+    if (state !== 'over' || !summary || recordSaved || recordSave.disabled) return;
     const nickname = recordNickname.value.trim();
     recordStatus.hidden = false;
     if (!nickname || nickname.length > MAX_NICKNAME_LENGTH || /[\u0000-\u001f\u007f]/u.test(nickname)) {
@@ -140,19 +141,21 @@ async function main() {
       recordNickname.focus();
       return;
     }
-    const submission = recordSubmission;
     submittedNickname ??= nickname;
     recordNickname.disabled = recordSave.disabled = true;
     recordStatus.textContent = 'Сохраняем результат…';
     try {
-      const place = await saveRecord(submittedNickname, recordMeters, submission);
-      if (submission !== recordSubmission || state !== 'over') return;
+      const run = await summary.run;
+      if (!run) return;
+      if (!await summary.finished) await finishRecordRun(run, summary.meters);
+      const place = await saveRecord(submittedNickname, run);
+      if (summary !== rankedSummary || state !== 'over') return;
       recordSaved = true;
       recordStatus.textContent = place <= 100 ? `Результат сохранён. Место №${place}.`
         : `Результат сохранён. Место №${place} в общем рейтинге.`;
       $('ovGarage').textContent = 'К таблице рекордов';
     } catch {
-      if (submission !== recordSubmission || state !== 'over') return;
+      if (summary !== rankedSummary || state !== 'over') return;
       recordSave.disabled = false;
       recordStatus.textContent = 'Не удалось сохранить результат. Попробуйте ещё раз.';
     }
@@ -316,6 +319,7 @@ async function main() {
       wallet = startCoins;
       lsSet('doroga.wallet', wallet);
       runClosed = false;
+      rankingRun = drive.endless ? startRecordRun().catch(() => undefined) : undefined;
       state = 'drive';
       show('hud');
       $('ctrlHint').classList.remove('hide');
@@ -560,14 +564,35 @@ async function main() {
     $('ovEyebrow').textContent = SHOT ? `Поездка №${t.num} · ${tripKm(t.num)} км` : 'Бесконечная дорога';
     $('ovTitle').textContent = drive.endReason === 'wreck' ? 'Машина разбита'
       : drive.endReason === 'fuel' ? 'Топливо кончилось' : 'Заезд завершён';
-    recordMeters = drive.endless ? Math.max(0, Math.round(drive.odometer)) : 0;
+    const recordMeters = drive.endless ? Math.max(0, Math.round(drive.odometer)) : 0;
     recordSaved = false;
-    recordSubmission = newRecordSubmission();
+    rankedSummary = undefined;
     submittedNickname = undefined;
     recordForm.reset();
     recordNickname.disabled = recordSave.disabled = false;
     recordForm.hidden = recordMeters <= 0;
     recordStatus.hidden = true;
+    if (recordMeters > 0) {
+      const meters = recordMeters;
+      const run = rankingRun ?? Promise.resolve(undefined);
+      const finished = run.then(async (token) => {
+        if (!token) return false;
+        await finishRecordRun(token, meters);
+        return true;
+      }).catch(() => false);
+      const summary = rankedSummary = { meters, run, finished };
+      recordSave.disabled = true;
+      void run.then((token) => {
+        if (summary !== rankedSummary || state !== 'over') return;
+        if (token) {
+          recordSave.disabled = false;
+        } else {
+          recordNickname.disabled = true;
+          recordStatus.hidden = false;
+          recordStatus.textContent = 'Сервер рекордов был недоступен при старте заезда.';
+        }
+      });
+    }
     $('ovGarage').textContent = 'На главную';
     $('ovKm').textContent = drive.endless ? formatRecordDistance(recordMeters) : fmtKm(t.km);
     $('ovRewardRow').style.display = t.finished ? '' : 'none';

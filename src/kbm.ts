@@ -1,7 +1,7 @@
 /**
- * КБМ (бонус-малус) ОСАГО: коэффициенты — по Указанию Банка России № 6007-У (с 01.04.2022),
+ * КБМ (бонус-малус) ОСАГО: коэффициенты — по Указанию Банка России № 7204-У,
  * переходы между классами за год — по числу страховых случаев (0, 1, 2, 3, 4+).
- * В игре каждый заезд — год; новичок — класс 3.
+ * В игре новичок начинает с класса 3.
  */
 export interface KbmRow { cls: string; k: number; next: [number, number, number, number, number]; }
 
@@ -27,7 +27,8 @@ export const KBM: KbmRow[] = [
 export const KBM_START = 4; // класс 3 — новичок
 export const OSAGO_BASE = 10;
 
-export const osagoPrice = (idx: number) => Math.max(1, Math.round(OSAGO_BASE * KBM[idx].k));
+export const osagoFactors = (idx: number) => [OSAGO_BASE, 1, KBM[idx].k, 1, 1, 1, 1];
+export const osagoPrice = (idx: number) => Math.max(1, Math.round(osagoFactors(idx).reduce((price, factor) => price * factor, 1)));
 export const kbmNext = (idx: number, claims: number) => KBM[idx].next[Math.min(4, Math.max(0, claims))];
 
 export function loadKbm(): number {

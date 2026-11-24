@@ -38,9 +38,9 @@
           <section class="slide insurance-slide" data-name="Страховка">
             <h2 class="home-section-title" id="insuranceHeading">Страховка на год</h2>
             <div class="ins">
-              <button class="ins-opt" id="insKasko"><span class="chk"></span><span class="t"><b>КАСКО · <span id="kaskoPrice">40</span></b><small>Защищает ваш автомобиль (добровольно): от угона, повреждения или полной гибели.</small></span></button>
-              <button class="ins-opt" id="insOsago"><span class="chk"></span><span class="t"><b>ОСАГО · <span id="osagoPrice">10</span></b><small>Защищает вашу ответственность перед другими — компенсирует чужой ущерб, если вы виноваты в ДТП (в России оно обязательно).</small></span></button>
-              <button class="kbm-link" id="kbmLink">КБМ <b id="kbmNow">1,17</b> · класс <b id="kbmCls">3</b> — таблица</button>
+              <button class="ins-opt" id="insKasko"><span class="chk"></span><span class="t"><b>КАСКО · <span id="kaskoPrice">40</span></b><small>В Doroga оплачивает ремонт вашей машины независимо от виновника ДТП и эвакуацию, если машина разбита.</small></span></button>
+              <button class="ins-opt" id="insOsago"><span class="chk"></span><span class="t"><b>ОСАГО · <span id="osagoPrice">10</span></b><small>Если вы виноваты в ДТП, ОСАГО возмещает каждому потерпевшему ущерб имуществу до 400 000 ₽ и вред жизни или здоровью до 500 000 ₽.</small></span></button>
+              <button class="kbm-link" id="kbmLink">Как рассчитывается ОСАГО? · КБМ <b id="kbmNow">1,17</b>, класс <b id="kbmCls">3</b></button>
             </div>
             <div class="startcoins">В кошельке <span class="coin"></span><b id="walletCard">100</b> · на поездку останется <b id="startCoins">100</b></div>
           </section>
@@ -227,20 +227,41 @@
     </div>
   </section>
 
-  <section id="kbm" class="screen">
+  <section id="kbm" class="screen" inert role="dialog" aria-modal="true" aria-labelledby="kbmTitle">
     <div class="panel menu kbm-panel">
       <button id="kbmClose" class="close-x" aria-label="Закрыть"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-      <div class="eyebrow">ОСАГО · коэффициент бонус-малус</div>
-      <h2>Цена ОСАГО по КБМ</h2>
-      <p class="kbm-note">Каждый заезд — это год. Цена ОСАГО = 10 монет × КБМ. Год без ДТП — класс растёт на 1 (скидка больше); каждое ДТП по ОСАГО — страховой случай, класс падает по таблице. Класс меняется только в год, когда куплено ОСАГО.</p>
-      <button id="kbmBuy" class="go">Купить ОСАГО</button>
-      <div class="kbm-wrap"><table class="kbm-table">
-        <thead>
-          <tr><th rowspan="2">Класс</th><th rowspan="2">КБМ</th><th rowspan="2">Цена</th><th colspan="5" class="grp">Класс через год при числе ДТП</th></tr>
-          <tr><th class="n">0</th><th class="n">1</th><th class="n">2</th><th class="n">3</th><th class="n">4+</th></tr>
-        </thead>
-        <tbody id="kbmBody"></tbody>
-      </table></div>
+      <h2 id="kbmTitle" tabindex="-1">Оформление ОСАГО</h2>
+      <div id="osagoLesson" class="osago-lesson" hidden>
+        <div id="osagoCount" class="eyebrow" aria-live="polite"></div>
+        <div class="osago-formula"><span>Цена полиса =</span><div id="osagoFactors" class="osago-factors"></div></div>
+        <h3 id="osagoCardTitle"></h3>
+        <p id="osagoExplanation"></p>
+        <p id="osagoGameValue" class="osago-game-value"></p>
+        <details id="osagoDetails" hidden>
+          <summary id="osagoTableTitle"></summary>
+          <div id="osagoLessonTable" class="osago-table-scroll" tabindex="0"></div>
+        </details>
+        <a id="osagoSource" class="osago-source" target="_blank" rel="noopener noreferrer">Указание Банка России № 7204-У ↗</a>
+        <div class="osago-actions">
+          <button id="osagoBack" type="button" class="ghost">Назад</button>
+          <button id="osagoSkip" type="button" class="ghost">Пропустить</button>
+          <button id="osagoNext" type="button" class="ghost">Далее</button>
+        </div>
+      </div>
+      <div id="osagoConfirm" class="osago-confirm">
+        <p id="osagoCalculation" class="osago-game-value"></p>
+        <button id="kbmBuy" class="go">Выбрать ОСАГО</button>
+        <button id="osagoReplay" class="ghost" type="button">Посмотреть расчёт</button>
+        <div id="osagoConfirmTable" class="osago-table-scroll">
+          <table id="kbmTable" class="kbm-table" aria-label="Классы КБМ">
+            <thead>
+              <tr><th rowspan="2">Класс</th><th rowspan="2">КБМ</th><th rowspan="2">Цена в игре</th><th colspan="5" class="grp">Следующий класс по числу случаев</th></tr>
+              <tr><th class="n">0</th><th class="n">1</th><th class="n">2</th><th class="n">3</th><th class="n">4+</th></tr>
+            </thead>
+            <tbody id="kbmBody"></tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </section>
 

@@ -5,11 +5,12 @@ import cars from './cars.json';
 import { Renderer, detectQuality, QualityName } from './render';
 import type { CarConfig } from './car';
 import { buildPlayerCar } from './player-car';
-import { KBM, loadKbm, saveKbm, osagoPrice, kbmNext, fmtK } from './kbm';
+import { KBM, loadKbm, saveKbm, osagoPrice, osagoFactors, kbmNext, fmtK } from './kbm';
 import { GarageScene } from './garage';
 import type { DriveScene } from './drive';
 import { START_COINS, LITERS_PER_KM, FUEL_PRICE, KASKO, REPAIR_PRICE, POLICE_FINE } from './drive-rules';
 import { Input } from './input';
+import { OSAGO_LESSON, OSAGO_TARIFF_SOURCE } from './osago-lesson';
 import { finishRecordRun, formatRecordDistance, formatRecordDays, loadRecords, MAX_NICKNAME_LENGTH, saveRecord, startRecordRun } from './records';
 
 type State = 'loading' | 'garage' | 'drive' | 'pause' | 'station' | 'over' | 'protocol' | 'renewal' | 'breakdown' | 'yearReport' | 'returningHome';
@@ -23,6 +24,7 @@ const screens = ['loading', 'garage', 'hud', 'pause', 'station', 'breakdown', 'o
 function show(...ids: string[]) {
   for (const s of screens) $(s).classList.toggle('show', ids.includes(s));
   $('garage').inert = !ids.includes('garage') || ids.includes('kbm');
+  $('kbm').inert = !ids.includes('kbm');
 }
 const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -459,22 +461,105 @@ async function main() {
     updateEconomyUI();
     try { localStorage.setItem('doroga.ins', JSON.stringify({ kasko: ins.kasko, osago: ins.osago })); } catch { /* нет хранилища */ }
   }
-  // всплывающее окно с таблицей КБМ: текущий класс подсвечен, рядом — куда попадёте через год
+  const lessonKey = 'doroga.osagoLessonSeen';
+  let lessonSeen = false;
+  try { lessonSeen = localStorage.getItem(lessonKey) === '1'; } catch { /* нет хранилища */ }
+  let lessonIndex = 0;
+  let kbmTrigger: HTMLElement | null = null;
+  const lesson = $('osagoLesson');
+  const confirmation = $('osagoConfirm');
+  const kbmTable = $('kbmTable');
+  const confirmTable = $('osagoConfirmTable');
+  const referenceTable = $('osagoLessonTable');
+  const lessonDetails = $<HTMLDetailsElement>('osagoDetails');
+  const lessonBack = $<HTMLButtonElement>('osagoBack');
+  const lessonNext = $<HTMLButtonElement>('osagoNext');
+  $<HTMLAnchorElement>('osagoSource').href = OSAGO_TARIFF_SOURCE;
+  const formatFactor = (factor: number) => String(factor).replace('.', ',');
+
   const renderKbmTable = () => {
-    const nxt = new Set(KBM[kbm].next);
     $('kbmBody').innerHTML = KBM.map((r, i) =>
       `<tr class="${i === kbm ? 'cur' : ''}"><td class="c">${r.cls}</td><td>${fmtK(r.k)}</td><td>${osagoPrice(i)}</td>` +
-      r.next.map((n) => `<td class="n${i === kbm && nxt.has(n) ? '' : ''}">${KBM[n].cls}</td>`).join('') + '</tr>').join('');
+      r.next.map((n) => `<td class="n">${KBM[n].cls}</td>`).join('') + '</tr>').join('');
     const afford = insCost() + osagoPrice(kbm) <= wallet;
-    $('kbmBuy').textContent = ins.osago ? 'ОСАГО уже выбрано' : afford ? `Купить ОСАГО за ${osagoPrice(kbm)}` : 'Не хватает монет';
+    $('kbmBuy').textContent = ins.osago ? 'ОСАГО уже выбрано' : afford ? `Выбрать ОСАГО за ${osagoPrice(kbm)} монет` : 'Не хватает монет';
     ($('kbmBuy') as HTMLButtonElement).disabled = ins.osago || !afford;
   };
-  let kbmTrigger: HTMLElement | null = null;
-  const openKbm = () => {
-    kbmTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+  const showOsagoConfirmation = () => {
+    confirmTable.append(kbmTable);
+    lesson.hidden = true;
+    confirmation.hidden = false;
+    $('kbmTitle').textContent = 'Оформление ОСАГО';
+    $('osagoCalculation').textContent = `${osagoFactors(kbm).map(formatFactor).join(' × ')} ≈ ${osagoPrice(kbm)} монет`;
+  };
+
+  const renderOsagoCard = () => {
+    const card = OSAGO_LESSON[lessonIndex];
+    lesson.hidden = false;
+    confirmation.hidden = true;
+    $('kbmTitle').textContent = 'Как рассчитывается стоимость ОСАГО?';
+    $('osagoCount').textContent = `${lessonIndex + 1} / ${OSAGO_LESSON.length} карточек`;
+    $('osagoFactors').replaceChildren(...OSAGO_LESSON.map(({ factor }, index) => {
+      const chip = document.createElement(index === lessonIndex ? 'mark' : 'span');
+      chip.textContent = factor;
+      return chip;
+    }));
+    $('osagoCardTitle').textContent = card.title;
+    $('osagoExplanation').textContent = card.explanation;
+    const example = formatFactor(osagoFactors(kbm)[lessonIndex]);
+    $('osagoGameValue').textContent = lessonIndex === 0 ? `В игре · ${example} монет` : `В игре · ${card.factor} = ${example}`;
+    lessonBack.disabled = lessonIndex === 0;
+    lessonNext.textContent = lessonIndex === OSAGO_LESSON.length - 1 ? 'К оформлению' : 'Далее';
+    confirmTable.append(kbmTable);
+    referenceTable.replaceChildren();
+    lessonDetails.open = false;
+    const isKbm = card.factor === 'КБМ';
+    lessonDetails.hidden = !isKbm && !card.table;
+    if (isKbm) {
+      $('osagoTableTitle').textContent = 'Таблица КБМ';
+      referenceTable.append(kbmTable);
+    } else if (card.table) {
+      $('osagoTableTitle').textContent = card.table.title;
+      const table = document.createElement('table');
+      table.className = 'kbm-table';
+      table.setAttribute('aria-label', card.table.title);
+      const head = table.createTHead().insertRow();
+      for (const label of card.table.headers) {
+        const column = document.createElement('th');
+        column.scope = 'col';
+        column.textContent = label;
+        head.append(column);
+      }
+      const body = table.createTBody();
+      for (const values of card.table.rows) {
+        const row = body.insertRow();
+        for (const value of values) row.insertCell().textContent = value;
+      }
+      referenceTable.append(table);
+    }
+  };
+
+  const startOsagoLesson = () => {
+    lessonIndex = 0;
+    renderOsagoCard();
+    $('kbmTitle').focus({ preventScroll: true });
+  };
+  const finishOsagoLesson = () => {
+    lessonSeen = true;
+    lsSet(lessonKey, '1');
+    showOsagoConfirmation();
+    $('kbmTitle').focus({ preventScroll: true });
+  };
+  const openKbm = (trigger: HTMLElement, reviewLesson = false) => {
+    kbmTrigger = trigger;
     renderKbmTable();
     show('garage', 'kbm');
-    $('kbmClose').focus({ preventScroll: true });
+    if (reviewLesson || (!lessonSeen && !SHOT)) startOsagoLesson();
+    else {
+      showOsagoConfirmation();
+      $('kbmClose').focus({ preventScroll: true });
+    }
   };
   const closeKbm = () => {
     show('garage');
@@ -483,9 +568,20 @@ async function main() {
   $('insKasko').addEventListener('click', () => { ins.kasko = !ins.kasko; renderIns(); });
   $('insOsago').addEventListener('click', () => {
     if (ins.osago) { ins.osago = false; renderIns(); return; }
-    openKbm(); // покупка — из окна с таблицей
+    openKbm($('insOsago'));
   });
-  $('kbmLink').addEventListener('click', openKbm);
+  $('kbmLink').addEventListener('click', () => openKbm($('kbmLink'), true));
+  $('osagoReplay').addEventListener('click', startOsagoLesson);
+  $('osagoSkip').addEventListener('click', finishOsagoLesson);
+  lessonBack.addEventListener('click', () => {
+    lessonIndex--;
+    renderOsagoCard();
+    if (lessonBack.disabled) lessonNext.focus();
+  });
+  lessonNext.addEventListener('click', () => {
+    if (lessonIndex + 1 === OSAGO_LESSON.length) finishOsagoLesson();
+    else { lessonIndex++; renderOsagoCard(); }
+  });
   $('kbmBuy').addEventListener('click', () => { ins.osago = true; renderIns(); closeKbm(); });
   $('kbmClose').addEventListener('click', closeKbm);
   renderIns();
@@ -732,9 +828,21 @@ async function main() {
     if (navigator.vibrate) navigator.vibrate(e.side ? 60 : 120);
   };
   addEventListener('keydown', (e) => {
-    if (e.code === 'Escape' && $('kbm').classList.contains('show')) {
-      e.preventDefault();
-      closeKbm();
+    const osagoDialog = $('kbm');
+    if (!osagoDialog.inert) {
+      if (e.code === 'Escape') {
+        e.preventDefault();
+        closeKbm();
+      } else if (e.key === 'Tab') {
+        const controls = [...osagoDialog.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], summary, [tabindex="0"]')]
+          .filter((control) => control.getClientRects().length > 0);
+        const first = controls[0], last = controls.at(-1);
+        const active = document.activeElement;
+        if (first && last && (!controls.some((control) => control === active) || active === (e.shiftKey ? first : last))) {
+          e.preventDefault();
+          (e.shiftKey ? last : first).focus();
+        }
+      }
       return;
     }
     if ((state === 'drive' || state === 'pause') && (e.code === 'Escape' || e.code === 'KeyP')) {
@@ -795,6 +903,7 @@ async function main() {
   if ('serviceWorker' in navigator && !SHOT && location.protocol === 'https:') navigator.serviceWorker.register('./sw.js').catch(() => undefined);
 
   $('go').addEventListener('click', () => {
+    if (!$('kbm').inert) return;
     if (state === 'renewal') {
       wallet -= insCost();
       lsSet('doroga.wallet', wallet);

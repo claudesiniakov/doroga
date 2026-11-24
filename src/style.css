@@ -336,8 +336,6 @@ kbd {
 .close-x svg { width: 18px; height: 18px; stroke: #111317; stroke-width: 2.8; stroke-linecap: round; fill: none; }
 .kbm-panel h2, .kbm-panel .eyebrow { padding-right: 44px; }
 .kbm-panel { position: relative; width: min(560px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; }
-.kbm-note { margin: 0 0 6px; color: var(--ink-2); font-size: 13px; line-height: 1.45; }
-.kbm-wrap { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 .kbm-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
 .kbm-table th { text-align: left; font-weight: 600; color: var(--ink-2); font-size: 11px; letter-spacing: .04em; padding: 8px 8px; background: rgba(255,255,255,.04); }
 .kbm-table td { padding: 5px 8px; border-top: 1px solid rgba(255,255,255,.05); color: var(--ink-2); }
@@ -345,8 +343,7 @@ kbd {
 .kbm-table td.n { text-align: center; width: 30px; }
 .kbm-table tr.cur td { background: rgba(255, 140, 60, .18); color: var(--ink); }
 .kbm-table tr.cur td.c::after { content: ' ← вы'; color: var(--accent-2); font-weight: 600; font-size: 11px; }
-.kbm-table tr.next td { background: rgba(90, 170, 255, .1); }
-@media (max-height: 640px) { .kbm-note { display: none; } .kbm-table td { padding: 3px 8px; } }
+@media (max-height: 640px) { .kbm-table td { padding: 3px 8px; } }
 .kbm-table th.grp { text-align: center; padding-bottom: 2px; }
 .kbm-table th.n { text-align: center; padding-top: 2px; }
 
@@ -581,7 +578,7 @@ html, body { height: 100dvh; }
   .record-fields input, .record-fields button { min-height: 44px; }
   .car-card .go, .menu .go, .menu .ghost { height: 52px; font-size: 17px; }
   .kbm-panel { width: min(680px, calc(100vw - 72px)); }
-  .kbm-note, .kbm-table { font-size: 15px; }
+  .kbm-table { font-size: 15px; }
   .kbm-table th { font-size: 12px; }
   .paper { width: min(550px, calc(100vw - 72px)); padding: 28px 32px; }
   .p-title { font-size: 23px; }
@@ -634,3 +631,34 @@ html, body { height: 100dvh; }
 }
 #yearReport.show .year-progress::after { animation: year-progress 3s linear forwards; }
 @keyframes year-progress { to { transform: scaleX(1); } }
+
+#kbm .kbm-panel {
+  background: rgba(16, 19, 23, .97);
+  width: min(680px, calc(100% - 24px - var(--safe-l) - var(--safe-r)));
+  max-height: calc(100dvh - 24px - var(--safe-t) - var(--safe-b));
+  touch-action: pan-y;
+}
+.osago-lesson, .osago-confirm { display: grid; gap: 12px; min-width: 0; }
+.osago-lesson[hidden], .osago-confirm[hidden] { display: none; }
+.osago-lesson h3, .osago-lesson p, .osago-confirm p { margin: 0; }
+.osago-lesson p { font-size: 14px; line-height: 1.45; }
+.osago-formula { display: grid; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.osago-factors { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.osago-factors > * { padding: 4px 6px; border-radius: 5px; color: var(--ink); background: rgba(255,255,255,.06); }
+.osago-factors > :not(:last-child)::after { content: ' ×'; color: var(--ink-3); margin-left: 4px; }
+.osago-factors mark { background: var(--accent-2); color: #1a0d04; font-weight: 750; }
+.osago-factors mark::after { color: inherit; }
+.osago-game-value { color: var(--accent-2); font-weight: 700; }
+.osago-table-scroll { max-height: min(280px, 36dvh); overflow: auto; touch-action: pan-x pan-y; }
+.osago-table-scroll td:not(:first-child), .osago-table-scroll th:not(:first-child) { white-space: nowrap; }
+.osago-lesson summary { cursor: pointer; margin-bottom: 6px; font-size: 14px; }
+.osago-source { color: var(--ink-2); font-size: 13px; }
+.osago-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.osago-actions .ghost { background: #35373b; font-size: 13px; }
+.osago-actions .ghost:disabled { opacity: .45; }
+@media (max-width: 520px), (max-height: 520px) {
+  #kbm .kbm-panel { padding: 16px; gap: 8px; }
+  #kbm h2 { font-size: 21px; margin-bottom: 0; }
+  .osago-lesson, .osago-confirm { gap: 8px; }
+  .osago-actions .ghost { height: 44px; }
+}

@@ -17,7 +17,7 @@
   <canvas id="gl"></canvas>
   <div id="touch"></div>
 
-  <section id="loading" class="screen show">
+  <section id="loading" class="screen show" role="status" aria-live="polite">
     <div class="brand">ДОРОГА</div>
     <div class="bar"><i id="loadbar"></i></div>
     <div class="sub" id="loadtext">Прокладываем трассу…</div>
@@ -190,6 +190,17 @@
       </form>
       <button id="ovAgain" class="go">Ещё раз</button>
       <button id="ovGarage" class="ghost">На главную</button>
+    </div>
+  </section>
+
+  <section id="yearReport" class="screen" aria-labelledby="yearReportTitle">
+    <div class="panel menu year-report">
+      <h2 id="yearReportTitle">Итоги страхового года</h2>
+      <div class="st-row"><span>Пробег за год</span><b id="yearKm"></b></div>
+      <div class="st-row"><span>Столкновения</span><b id="yearCrashes"></b></div>
+      <div class="st-row"><span>Собрано монет</span><b id="yearCoins"></b></div>
+      <div class="st-row" id="yearKbmRow"><span>КБМ</span><b id="yearKbm"></b></div>
+      <div class="year-progress" aria-hidden="true"></div>
     </div>
   </section>
 

@@ -12,14 +12,14 @@ import { START_COINS, LITERS_PER_KM, FUEL_PRICE, KASKO, REPAIR_PRICE, POLICE_FIN
 import { Input } from './input';
 import { formatRecordDistance, loadRecords, MAX_NICKNAME_LENGTH, newRecordSubmission, saveRecord } from './records';
 
-type State = 'loading' | 'garage' | 'drive' | 'pause' | 'station' | 'over' | 'protocol' | 'renewal' | 'breakdown';
+type State = 'loading' | 'garage' | 'drive' | 'pause' | 'station' | 'over' | 'protocol' | 'renewal' | 'breakdown' | 'yearReport';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const params = new URLSearchParams(location.search);
 const SHOT = params.get('shot'); // служебный режим для автоматических снимков
 if (SHOT) document.documentElement.classList.add('shot');
 
-const screens = ['loading', 'garage', 'hud', 'pause', 'station', 'breakdown', 'over', 'kbm', 'protocol'] as const;
+const screens = ['loading', 'garage', 'hud', 'pause', 'station', 'breakdown', 'over', 'kbm', 'protocol', 'yearReport'] as const;
 function show(...ids: string[]) {
   for (const s of screens) $(s).classList.toggle('show', ids.includes(s));
   $('garage').inert = !ids.includes('garage') || ids.includes('kbm');
@@ -63,7 +63,7 @@ async function main() {
     scene.setSnow(!SHOT || params.get('snow') !== '0');
     scene.setShadowMapSize(renderer.quality.shadowMap);
     scene.resize(innerWidth / innerHeight);
-    Object.assign(scene, { onStation, onPolice, onDamage, onEmpty, onCrash });
+    Object.assign(scene, { onStation, onPolice, onDamage, onEmpty, onCrash, onYearEnd });
     drive = scene;
     return scene;
   };
@@ -279,13 +279,14 @@ async function main() {
     startingDrive = true;
     input.enabled = false;
     try {
-      if (!drive && !SHOT) {
-        loadBar(0.35, 'Прокладываем трассу…');
+      if (!SHOT) {
+        state = 'loading';
+        $('fade').classList.remove('on');
+        $('loading').classList.add('starting-drive');
+        loadBar(0.15, 'Готовим заезд…');
         show('loading');
         await nextFrame();
         await nextFrame();
-      } else {
-        await fade(true);
       }
       await prepareDrive();
       drive.attachCar(car, cfg);
@@ -294,26 +295,38 @@ async function main() {
       drive.insurance = { ...ins, osagoPrice: osagoPrice(kbm) };
       drive.tripKm = tripKm(trip);
       drive.startCoins = startCoins;
+      if (!SHOT) {
+        loadBar(0.45, 'Прокладываем трассу…');
+        await nextFrame();
+      }
       drive.reset(skipIntro, startS);
-      wallet = startCoins;
-      lsSet('doroga.wallet', wallet);
-      runClosed = false;
       renderer.setExposure(0.6);
       renderer.setBloom(0.18, 4.5, 0.35);
       renderer.setVignette(0.3);
+      if (!SHOT) {
+        loadBar(0.8, 'Готовим первый кадр…');
+        await nextFrame();
+        if (renderer.gl.getContext().isContextLost()) throw new Error('Потерян контекст WebGL');
+        renderer.render(drive.scene, drive.camera, time);
+        if (renderer.gl.getContext().isContextLost()) throw new Error('Потерян контекст WebGL');
+        loadBar(1, 'Заезд готов');
+        await nextFrame();
+      }
+      wallet = startCoins;
+      lsSet('doroga.wallet', wallet);
+      runClosed = false;
       state = 'drive';
       show('hud');
       $('ctrlHint').classList.remove('hide');
       hintTimer = 0;
       clock.update();
-      await fade(false);
     } catch (error) {
       if (SHOT) throw error;
       console.error(error);
       enterGarage();
       $('go').textContent = 'Не удалось выехать · повторить';
-      await fade(false);
     } finally {
+      $('loading').classList.remove('starting-drive');
       startingDrive = false;
     }
   };
@@ -327,7 +340,7 @@ async function main() {
     if (runClosed) return;
     runClosed = true;
     // итог поездки: награда за финиш, кошелёк, статистика
-    const finished = drive.endReason === 'finish';
+    const finished = drive.endReason === 'finish' || drive.endReason === 'year';
     const reward = finished && SHOT ? TRIP_REWARD : 0;
     const km = drive.tripDone / 1000;
     lastTrip = { finished, km, crashes: drive.crashes, reward, num: trip };
@@ -580,10 +593,23 @@ async function main() {
       call.disabled ? $('towEnd').focus() : call.focus();
       return;
     }
-    if (drive.endless && drive.endReason === 'finish') {
-      finishRun();
+    showRunSummary();
+  };
+  const YEAR_REPORT_MS = 3000;
+  const onYearEnd = () => {
+    finishRun();
+    state = 'yearReport';
+    input.enabled = false;
+    $('yearKm').textContent = fmtKm(lastTrip.km);
+    $('yearCrashes').textContent = String(lastTrip.crashes);
+    $('yearCoins').textContent = String(drive.coinsCollected);
+    const change = lastKbmChange;
+    $('yearKbmRow').hidden = !change;
+    if (change) $('yearKbm').textContent = `${fmtK(KBM[change.from].k)} → ${fmtK(KBM[change.to].k)}`;
+    show('yearReport');
+    setTimeout(() => {
+      if (state !== 'yearReport') return;
       state = 'renewal';
-      input.enabled = false;
       ins.kasko = ins.osago = false;
       $('garage').classList.add('is-renewal');
       $('homeMode').textContent = 'Новый страховой год';
@@ -591,9 +617,7 @@ async function main() {
       openInsuranceTab();
       renderIns();
       show('garage');
-      return;
-    }
-    showRunSummary();
+    }, YEAR_REPORT_MS);
   };
   $('towCall').addEventListener('click', async () => {
     const call = $<HTMLButtonElement>('towCall');
@@ -787,7 +811,7 @@ async function main() {
     const toPolice = drive.policeS !== null && drive.policeFine === 0 ? drive.policeS - drive.s : Infinity;
     const toFinish = drive.finishS - drive.s;
     if (ph === 'finish') setBanner('🏁 Финиш!');
-    else if (ph === 'drive' && toFinish > 0 && toFinish < 500) setBanner(`🏁 Финиш через ${r50(toFinish)} м`);
+    else if (!drive.endless && ph === 'drive' && toFinish > 0 && toFinish < 500) setBanner(`🏁 Финиш через ${r50(toFinish)} м`);
     else if (ph === 'policeIn' || ph === 'protocol') setBanner('🚓 Остановка ДПС<small>проверка документов</small>', true);
     else if (ph === 'drive' && toPolice > 0 && toPolice < 450) setBanner(`🚓 Впереди пост ДПС<small>через ${r50(toPolice)} м · полиса ОСАГО нет</small>`, true);
     else if (ph === 'pitIn' || ph === 'refuel') setBanner(drive.stationKind === 'repair' ? '🔧 Заезжаем в автосервис' : '⛽ Заезжаем на заправку');
@@ -813,6 +837,7 @@ async function main() {
   const frame = (dt: number, elapsed = dt) => {
     time += dt;
     if (state === 'garage' || state === 'loading') {
+      if (startingDrive && state === 'loading') return;
       if (garage) {
         garage.update(dt);
         renderer.render(garage.scene, garage.camera, time);

@@ -23,6 +23,7 @@ const SUN_AZIMUTH = 62;
 const CRUISE = 25;           // м/с = 90 км/ч
 const MIN_SPEED = 11;
 const MONTH_DURATION = 21;
+const POLICE_APPROACH_RATE = 1.7;
 const LEFT_SHOULDER = -2;
 const RIGHT_SHOULDER = 4;
 const SHOULDER_OFFSET = ROAD.half - 0.35;
@@ -72,7 +73,7 @@ export class DriveScene {
    * intro — заставка; drive — езда; pitIn — заезд к колонке; refuel — стоим у колонки;
    * pitOut — выезд со съезда; empty — бак пуст, машина катится; stopped — заезд окончен.
    */
-  phase: 'intro' | 'drive' | 'pitIn' | 'refuel' | 'pitOut' | 'policeIn' | 'protocol' | 'policeOut' | 'empty' | 'wrecked' | 'finish' | 'stopped' = 'intro';
+  phase: 'intro' | 'drive' | 'pitIn' | 'refuel' | 'pitOut' | 'policeIn' | 'protocol' | 'policeOut' | 'empty' | 'wrecked' | 'finish' | 'yearBreak' | 'stopped' = 'intro';
   // поездка: длина задаётся снаружи, финиш — на startS + tripKm
   tripKm = 4;
   endless = false;
@@ -124,9 +125,10 @@ export class DriveScene {
   health = 100;
   insurance = { kasko: false, osago: false, osagoPrice: 10 };
   /** Причина конца заезда. */
-  endReason: 'fuel' | 'wreck' | 'finish' | null = null;
+  endReason: 'fuel' | 'wreck' | 'finish' | 'year' | null = null;
   onStation?: (kind: ExitKind) => void;
   onEmpty?: () => void;
+  onYearEnd?: () => void;
   /** Удар: потеря здоровья и (без ОСАГО) списанные монеты. */
   onDamage?: (info: { damage: number; fine: number; covered: boolean }) => void;
   get stationKind(): ExitKind | null { return this.pitExit?.kind ?? null; }
@@ -369,7 +371,10 @@ export class DriveScene {
   private lastBrake = 0;
 
   update(dt: number, input: DriveInput, time: number, elapsed = dt) {
+    if (this.phase === 'yearBreak') return;
     dt = Math.min(dt, 1 / 20);
+    const policeApproach = this.phase === 'policeIn';
+    const motionDt = policeApproach ? dt * POLICE_APPROACH_RATE : dt;
     const fromS = this.s;
     if (this.endless && (this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'policeOut' ||
       this.phase === 'pitIn' || this.phase === 'policeIn')) {
@@ -385,7 +390,12 @@ export class DriveScene {
         }
         this.traffic.motoSeason = !winter;
         this.traffic.summer = this.month >= 5 && this.month <= 7;
-        if (this.month === 0) this.phase = 'finish';
+        if (this.month === 0) {
+          this.phase = 'yearBreak';
+          this.endReason = 'year';
+          this.onYearEnd?.();
+          return;
+        }
       }
     }
     if (this.snowAmount !== this.snowTarget) {
@@ -482,10 +492,10 @@ export class DriveScene {
     }
     // тормозом ниже MIN_SPEED не сбросить, но после удара/заправки скорость может быть меньше — машина разгонится сама
     const floor = this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'policeOut' ? Math.min(MIN_SPEED, this.v) : 0;
-    this.v = clamp(this.v + a * dt, floor, vmax);
+    this.v = clamp(this.v + a * motionDt, floor, vmax);
     if (input.brake > 0 && this.v <= MIN_SPEED + 0.01) brake = input.brake;
     this.lastBrake = brake;
-    const ds = this.v * dt;
+    const ds = this.v * motionDt;
     this.s += ds;
     this.odometer += ds;
     // расход: 2 л на км
@@ -500,9 +510,14 @@ export class DriveScene {
     // смена полосы: пружина с критическим демпфированием
     const target = this.laneOffset();
     const w = (this.phase === 'intro' ? 2.2 : 4.6 / cfg.laneChangeTime) ;
-    const acc = w * w * (target - this.d) - 2 * w * this.dv;
-    this.dv += acc * dt;
-    this.d += this.dv * dt;
+    const steps = policeApproach ? 2 : 1;
+    const step = motionDt / steps;
+    let acc = 0;
+    for (let i = 0; i < steps; i++) {
+      acc = w * w * (target - this.d) - 2 * w * this.dv;
+      this.dv += acc * step;
+      this.d += this.dv * step;
+    }
 
     // динамика кузова: крен от бокового ускорения, тангаж от продольного
     this.placeCar(dt);

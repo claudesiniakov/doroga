@@ -128,7 +128,10 @@ async function main() {
   };
 
   const ownRecordKey = 'doroga.ownTimeRecords';
+  const recordNicknameKey = 'doroga.recordNickname';
+  let lastRecordNickname = '';
   const ownRecords = new Set<number>();
+  try { lastRecordNickname = localStorage.getItem(recordNicknameKey) ?? ''; } catch { /* нет хранилища */ }
   try {
     const saved = JSON.parse(localStorage.getItem(ownRecordKey) ?? '[]');
     if (Array.isArray(saved)) {
@@ -142,13 +145,22 @@ async function main() {
   let accountedRunMs = 0;
   let runCrashes = 0;
   let rankedSummary: { durationMs: number; run: Promise<string | undefined>; finished: Promise<boolean> } | undefined;
-  let submittedNickname: string | undefined;
+  let savingRecord = false;
   let recordLoad = 0;
   const recordForm = $<HTMLFormElement>('recordForm');
   const recordNickname = $<HTMLInputElement>('recordNickname');
-  const recordSave = $<HTMLButtonElement>('recordSave');
+  const ovAgain = $<HTMLButtonElement>('ovAgain');
+  const ovGarage = $<HTMLButtonElement>('ovGarage');
   const recordStatus = $('recordStatus');
   recordNickname.maxLength = MAX_NICKNAME_LENGTH;
+  const isValidRecordNickname = (nickname: string) =>
+    nickname.length <= MAX_NICKNAME_LENGTH && !/[\u0000-\u001f\u007f]/u.test(nickname);
+  recordNickname.addEventListener('input', () => {
+    const nickname = recordNickname.value.trim();
+    if (!isValidRecordNickname(nickname) || nickname === lastRecordNickname) return;
+    lastRecordNickname = nickname;
+    lsSet(recordNicknameKey, nickname);
+  });
   const renderRecords = async () => {
     const request = ++recordLoad;
     const status = $('recordsEmpty');
@@ -181,39 +193,46 @@ async function main() {
       if (request === recordLoad) status.textContent = 'Общие рекорды пока недоступны.';
     }
   };
-  recordForm.addEventListener('submit', async (event) => {
-    event.preventDefault();
+  const saveSummaryRecord = async () => {
     const summary = rankedSummary;
-    if (state !== 'over' || !summary || recordSaved || recordSave.disabled) return;
     const nickname = recordNickname.value.trim();
+    if (!summary || recordSaved || recordNickname.disabled || !nickname) return true;
     recordStatus.hidden = false;
-    if (!nickname || nickname.length > MAX_NICKNAME_LENGTH || /[\u0000-\u001f\u007f]/u.test(nickname)) {
+    if (!isValidRecordNickname(nickname)) {
       recordStatus.textContent = `Введите ник длиной до ${MAX_NICKNAME_LENGTH} символов.`;
       recordNickname.focus();
-      return;
+      return false;
     }
-    submittedNickname ??= nickname;
-    recordNickname.disabled = recordSave.disabled = true;
+    savingRecord = true;
+    recordNickname.disabled = ovAgain.disabled = ovGarage.disabled = true;
     recordStatus.textContent = 'Сохраняем результат…';
     try {
       const run = await summary.run;
-      if (!run) return;
+      if (!run) {
+        recordStatus.textContent = 'Сервер рекордов был недоступен при старте заезда.';
+        return true;
+      }
       if (!await summary.finished) await finishRecordRun(run, summary.durationMs);
-      const { place, id } = await saveRecord(submittedNickname, run);
+      const { place, id } = await saveRecord(nickname, run);
       if (place <= 100) {
         ownRecords.add(id);
         lsSet(ownRecordKey, [...ownRecords]);
       }
-      if (summary !== rankedSummary || state !== 'over') return;
       recordSaved = true;
       recordStatus.textContent = place <= 100 ? `Результат сохранён. Место №${place}.`
         : `Результат сохранён. Место №${place} в общем рейтинге.`;
-      $('ovGarage').textContent = 'К таблице рекордов';
+      return true;
     } catch {
-      if (summary !== rankedSummary || state !== 'over') return;
-      recordSave.disabled = false;
-      recordStatus.textContent = 'Не удалось сохранить результат. Попробуйте ещё раз.';
+      recordStatus.textContent = 'Не удалось сохранить результат. Повторите попытку или очистите поле ника, чтобы выйти.';
+      return false;
+    } finally {
+      savingRecord = false;
+      recordNickname.disabled = ovAgain.disabled = ovGarage.disabled = false;
     }
+  };
+  recordForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    ovAgain.click();
   });
 
   // ——— начать сначала: полный сброс прогресса (в два нажатия) ———
@@ -370,7 +389,7 @@ async function main() {
       lsSet('doroga.wallet', wallet);
       runClosed = false;
       activeRunSeconds = 0;
-      daysValue.textContent = '0';
+      setOdo(0);
       accountedRunMs = 0;
       runCrashes = 0;
       rankingRun = drive.endless ? startRecordRun().catch(() => undefined) : undefined;
@@ -723,9 +742,9 @@ async function main() {
     const durationMs = drive.endless ? Math.floor(activeRunSeconds * 1000) : 0;
     recordSaved = false;
     rankedSummary = undefined;
-    submittedNickname = undefined;
     recordForm.reset();
-    recordNickname.disabled = recordSave.disabled = false;
+    recordNickname.value = lastRecordNickname;
+    recordNickname.disabled = false;
     recordForm.hidden = durationMs <= 0;
     recordStatus.hidden = true;
     if (durationMs > 0) {
@@ -736,12 +755,9 @@ async function main() {
         return true;
       }).catch(() => false);
       const summary = rankedSummary = { durationMs, run, finished };
-      recordSave.disabled = true;
       void run.then((token) => {
-        if (summary !== rankedSummary || state !== 'over') return;
-        if (token) {
-          recordSave.disabled = false;
-        } else {
+        if (summary !== rankedSummary || state !== 'over' || savingRecord) return;
+        if (!token) {
           recordNickname.disabled = true;
           recordStatus.hidden = false;
           recordStatus.textContent = 'Сервер рекордов был недоступен при старте заезда.';
@@ -814,7 +830,7 @@ async function main() {
       ins.kasko = ins.osago = false;
       $('garage').classList.add('is-renewal');
       $('homeMode').hidden = false;
-      $('insuranceHeading').textContent = 'Январь · выберите страховку';
+      $('insuranceHeading').textContent = 'Новый страховой год · выберите страховку';
       openInsuranceTab();
       renderIns();
       show('garage');
@@ -844,9 +860,12 @@ async function main() {
     drive.phase = 'stopped';
     showRunSummary();
   });
-  $('ovAgain').addEventListener('click', () => { if (state === 'over') startDrive(); });
-  $('ovGarage').addEventListener('click', async () => {
-    if (state !== 'over') return;
+  ovAgain.addEventListener('click', async () => {
+    if (state !== 'over' || savingRecord || !await saveSummaryRecord() || state !== 'over') return;
+    await startDrive();
+  });
+  ovGarage.addEventListener('click', async () => {
+    if (state !== 'over' || savingRecord || !await saveSummaryRecord() || state !== 'over') return;
     state = 'returningHome';
     await fade(true);
     enterGarage();
@@ -983,8 +1002,20 @@ async function main() {
   // одометр: барабаны крутятся как настоящие — десятые плавно, старшие разряды докручиваются при переносе
   const drums = [...odoEl.querySelectorAll<HTMLElement>('.drum')].reverse();   // [десятые, единицы, десятки, сотни]
   const drumPos = drums.map(() => -1);
+  let lastOdo = -1;
   function setOdo(tenths: number) {
     const v = Math.max(0, tenths);
+    if (v === lastOdo) return;
+    lastOdo = v;
+    if (!SHOT) {
+      while (v >= 10 ** drums.length) {
+        const drum = drums[1].cloneNode(true) as HTMLElement;
+        odoEl.prepend(drum);
+        drums.push(drum);
+        drumPos.push(-1);
+      }
+      odoEl.setAttribute('aria-label', formatRecordDays(v * 1000));
+    }
     const frac = v % 1;
     for (let i = 0; i < drums.length; i++) {
       const unit = 10 ** i;
@@ -1054,11 +1085,13 @@ async function main() {
     } else setBanner('');
   };
 
-  const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+  const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
   $('tripBar').parentElement!.hidden = !SHOT;
-  $('daysCounter').hidden = !!SHOT;
-  $('distanceCounter').hidden = !SHOT;
-  const daysValue = $('daysValue');
+  if (!SHOT) {
+    odoEl.querySelector('.dot')?.remove();
+    drums[0].classList.remove('tenth');
+    $('odoGoal').textContent = 'дн.';
+  }
   const dateLabel = $('calendarDate');
   const frame = (dt: number, elapsed = dt) => {
     time += dt;
@@ -1101,9 +1134,8 @@ async function main() {
         arcEl.style.strokeDashoffset = String(SPEEDO_LEN * (1 - Math.min(1, kmh / cfg.maxSpeedKmh)));
       }
       if (drive.endless) {
-        const days = String(Math.floor(activeRunSeconds));
-        if (daysValue.textContent !== days) daysValue.textContent = days;
-        const date = `${drive.calendarDay} ${months[drive.month]}`;
+        setOdo(Math.floor(activeRunSeconds));
+        const date = months[drive.month];
         if (dateLabel.textContent !== date) dateLabel.textContent = date;
       } else {
         setOdo(drive.tripDone / 100);

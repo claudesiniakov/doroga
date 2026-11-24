@@ -107,16 +107,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* одометр под спидометром: барабаны с цифрами, десятые — инверсные */
 .odo { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); width: max-content; display: grid; gap: 5px; }
 .odo-row { display: flex; align-items: center; gap: 6px; }
-.odo-row[hidden], .odo .tripbar[hidden] { display: none; }
-.days-counter {
-  padding: 3px 8px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  background: rgba(8, 10, 13, .8);
-  white-space: nowrap;
-}
-.days-counter b { font: 700 16px/22px ui-monospace, monospace; font-variant-numeric: tabular-nums; }
-.days-counter abbr { color: var(--ink-2); font-size: 12px; text-decoration: none; }
+.odo .tripbar[hidden] { display: none; }
 .drums {
   display: flex; align-items: center; gap: 2px; padding: 3px; border-radius: 7px;
   background: linear-gradient(#0b0c0e, #1a1c20 50%, #0b0c0e); border: 1px solid rgba(255,255,255,.16);
@@ -536,12 +527,11 @@ html, body { height: 100dvh; }
 .record-form:not([hidden]) { display: grid; gap: 6px; }
 .record-form label, #recordStatus { color: var(--ink-2); font-size: 13px; margin: 0; }
 .record-fields { display: flex; gap: 6px; }
-.record-fields input, .record-fields button {
+.record-fields input {
   min-height: 36px; border: 1px solid var(--line); border-radius: 8px;
   background: rgba(255,255,255,.08); color: var(--ink); font: inherit; padding: 4px 8px;
 }
 .record-fields input { min-width: 0; flex: 1; user-select: text; font-size: 16px; }
-.record-fields button:disabled { opacity: .5; }
 
 @media (pointer: fine) and (min-width: 1000px) and (min-height: 600px) {
   .car-card {
@@ -590,7 +580,7 @@ html, body { height: 100dvh; }
   .menu .st-row, .menu .tank-nums { font-size: 16px; }
   .menu .st-row > b { text-align: right; }
   .menu .quality > span, .record-form label, #recordStatus { font-size: 14px; }
-  .record-fields input, .record-fields button { min-height: 44px; }
+  .record-fields input { min-height: 44px; }
   .car-card .go, .menu .go, .menu .ghost { height: 52px; font-size: 17px; }
   .kbm-panel { width: min(680px, calc(100vw - 72px)); }
   .kbm-table { font-size: 15px; }

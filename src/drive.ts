@@ -24,6 +24,7 @@ const CRUISE = 25;           // м/с = 90 км/ч
 const MIN_SPEED = 11;
 // Одна секунда заезда соответствует одному дню невисокосного года.
 const MONTH_SECONDS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+const INSURANCE_YEAR_DAYS = 365;
 const POLICE_APPROACH_RATE = 1.7;
 const POLICE_STOP_GAP_M = 10;
 const LEFT_SHOULDER = -2;
@@ -79,7 +80,9 @@ export class DriveScene {
   tripKm = 4;
   endless = false;
   month = 0;
-  monthTime = 0;
+  private insuranceDays = 0;
+  private insuranceStartDay = 0;
+  calendarDay = 1;
   coinsCollected = 0;
   payouts = { osago: 0, kasko: 0, ownVictims: 0, ownService: 0, hadOsago: false, hadKasko: false };
   private readonly roadCoins: RoadCoins;
@@ -88,7 +91,6 @@ export class DriveScene {
   private snowTarget = 0;
   private readonly warmSun = new THREE.Color(0xffd2a0);
   private readonly coldSun = new THREE.Color(0xe4efff);
-  get calendarDay() { return Math.min(Math.floor(this.monthTime) + 1, MONTH_SECONDS[this.month]); }
 
   private updateCalendarSeason(immediate = false) {
     const winter = this.month < 2 || this.month === 11;
@@ -102,11 +104,30 @@ export class DriveScene {
 
   private resetCalendar(date = new Date()) {
     this.month = date.getMonth();
-    this.monthTime = Math.min(date.getDate(), MONTH_SECONDS[this.month]) - 1;
+    this.calendarDay = Math.min(date.getDate(), MONTH_SECONDS[this.month]);
+    this.insuranceStartDay = this.calendarDay - 1;
+    for (let m = 0; m < this.month; m++) this.insuranceStartDay += MONTH_SECONDS[m];
+    this.insuranceDays = 0;
     this.updateCalendarSeason(true);
   }
 
+  private advanceCalendar(elapsed: number) {
+    const oldDay = Math.floor(this.insuranceDays);
+    this.insuranceDays = Math.min(INSURANCE_YEAR_DAYS, this.insuranceDays + elapsed);
+    const newDay = Math.floor(this.insuranceDays);
+    if (oldDay === newDay) return;
+    let day = (this.insuranceStartDay + newDay) % INSURANCE_YEAR_DAYS;
+    let month = 0;
+    while (day >= MONTH_SECONDS[month]) day -= MONTH_SECONDS[month++];
+    this.calendarDay = day + 1;
+    if (month !== this.month) {
+      this.month = month;
+      this.updateCalendarSeason();
+    }
+  }
+
   renewInsurance(insurance: DriveScene['insurance'], coins: number) {
+    this.insuranceDays = 0;
     this.insurance = insurance;
     this.payouts.hadOsago ||= insurance.osago;
     this.payouts.hadKasko ||= insurance.kasko;
@@ -343,7 +364,7 @@ export class DriveScene {
     this.traffic.group.visible = true;
     this.roadCoins.reset(startS);
     this.coinsCollected = 0;
-    this.month = this.monthTime = 0;
+    this.month = 0;
     this.traffic.summer = false;
     this.traffic.motoSeason = false;
     if (this.endless) {
@@ -389,7 +410,7 @@ export class DriveScene {
     const fromS = this.s;
     if (this.endless && !this.waitingToMerge && (this.phase === 'drive' || this.leavingStop ||
       this.phase === 'pitIn' || this.phase === 'policeIn')) {
-      this.monthTime += elapsed;
+      this.advanceCalendar(elapsed);
     }
     if (this.snowAmount !== this.snowTarget) {
       const distance = this.snowTarget - this.snowAmount;
@@ -557,20 +578,12 @@ export class DriveScene {
       this.onPolice?.();
     }
 
-    // Смена месяца после расхода топлива и столкновений. Въезд на АЗС и остановка ДПС завершаются первыми.
-    if (this.endless && this.phase === 'drive' && this.monthTime >= MONTH_SECONDS[this.month] &&
+    // Переоформление на годовщину после выезда с АЗС или от ДПС.
+    if (this.endless && this.phase === 'drive' && this.insuranceDays >= INSURANCE_YEAR_DAYS &&
       this.health > 0 && this.fuel > 0) {
-      do {
-        this.monthTime -= MONTH_SECONDS[this.month];
-        this.month = (this.month + 1) % MONTH_SECONDS.length;
-      } while (this.month !== 0 && this.monthTime >= MONTH_SECONDS[this.month]);
-      this.updateCalendarSeason();
-      if (this.month === 0) {
-        this.monthTime = 0;
-        this.phase = 'yearBreak';
-        this.endReason = 'year';
-        this.onYearEnd?.();
-      }
+      this.phase = 'yearBreak';
+      this.endReason = 'year';
+      this.onYearEnd?.();
     }
   }
 

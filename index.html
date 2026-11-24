@@ -110,10 +110,7 @@
       </svg>
       <div class="num"><b id="speed">0</b><span>км/ч</span></div>
       <div class="odo">
-        <div class="odo-row days-counter" id="daysCounter">
-          <b id="daysValue">0</b><abbr title="дней заезда">дн.</abbr>
-        </div>
-        <div class="odo-row" id="distanceCounter" hidden><div class="drums" id="odo"><span class="drum"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></span><span class="drum"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></span><span class="drum"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></span><i class="dot"></i><span class="drum tenth"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></span></div>
+        <div class="odo-row"><div class="drums" id="odo"><span class="drum"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></span><span class="drum"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></span><span class="drum"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></span><i class="dot"></i><span class="drum tenth"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></span></div>
 <span class="odo-goal" id="odoGoal">/ 4 км</span></div>
         <i class="tripbar" hidden><i id="tripBar"></i></i>
       </div>
@@ -203,8 +200,7 @@
         <form id="recordForm" class="record-form" hidden>
           <label for="recordNickname">Ник для таблицы рекордов</label>
           <div class="record-fields">
-            <input id="recordNickname" type="text" placeholder="Ваш ник" required>
-            <button id="recordSave" type="submit">Сохранить</button>
+            <input id="recordNickname" type="text" placeholder="Ваш ник">
           </div>
           <p id="recordStatus" role="status" hidden></p>
         </form>

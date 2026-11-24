@@ -10,7 +10,7 @@ import { GarageScene } from './garage';
 import type { DriveScene } from './drive';
 import { START_COINS, LITERS_PER_KM, FUEL_PRICE, KASKO, REPAIR_PRICE, POLICE_FINE } from './drive-rules';
 import { Input } from './input';
-import { finishRecordRun, formatRecordDistance, formatRecordDuration, loadRecords, MAX_NICKNAME_LENGTH, saveRecord, startRecordRun } from './records';
+import { finishRecordRun, formatRecordDistance, formatRecordDays, loadRecords, MAX_NICKNAME_LENGTH, saveRecord, startRecordRun } from './records';
 
 type State = 'loading' | 'garage' | 'drive' | 'pause' | 'station' | 'over' | 'protocol' | 'renewal' | 'breakdown' | 'yearReport' | 'returningHome';
 
@@ -60,7 +60,7 @@ async function main() {
     const { DriveScene } = await loadDrive();
     const scene = new DriveScene(pmrem, renderer.quality.textureSize, renderer.anisotropy, Number(params.get('seed') || 1337));
     scene.endless = !SHOT;
-    scene.setSnow(!SHOT || params.get('snow') !== '0');
+    if (SHOT) scene.setSnow(params.get('snow') !== '0');
     scene.setShadowMapSize(renderer.quality.shadowMap);
     scene.resize(innerWidth / innerHeight);
     Object.assign(scene, { onStation, onPolice, onDamage, onEmpty, onCrash, onYearEnd });
@@ -130,7 +130,7 @@ async function main() {
       scroll.hidden = records.length === 0;
       const rows = records.map(({ id, nickname, durationMs }, index) => {
         const row = document.createElement('tr');
-        for (const cell of [String(index + 1), nickname, formatRecordDuration(durationMs)]) {
+        for (const cell of [String(index + 1), nickname, formatRecordDays(durationMs)]) {
           row.insertCell().textContent = cell;
         }
         if (ownRecords.has(id)) {
@@ -547,7 +547,7 @@ async function main() {
     drive.leavePolice();
     state = 'drive';
     input.clear();
-    input.enabled = true;
+    input.enabled = false;
     show('hud');
   });
   // ——— удары: здоровье и ОСАГО ———
@@ -564,7 +564,7 @@ async function main() {
     if (state !== 'station' || !drive.leaveStation()) return;
     state = 'drive';
     input.clear();
-    input.enabled = true;
+    input.enabled = false;
     show('hud');
   });
   const showRunSummary = () => {
@@ -605,8 +605,8 @@ async function main() {
     }
     $('ovGarage').textContent = 'На главную';
     $('ovKm').textContent = drive.endless ? formatRecordDistance(Math.round(drive.odometer)) : fmtKm(t.km);
-    $('ovTimeRow').hidden = !drive.endless;
-    $('ovTime').textContent = formatRecordDuration(durationMs);
+    $('ovDaysRow').hidden = !drive.endless;
+    $('ovDays').textContent = formatRecordDays(durationMs);
     $('ovRewardRow').style.display = t.finished ? '' : 'none';
     $('ovReward').textContent = String(t.reward);
     $('ovCrashes').textContent = String(t.crashes);
@@ -864,6 +864,8 @@ async function main() {
     else if (ph === 'policeIn' || ph === 'protocol') setBanner('🚓 Остановка ДПС<small>проверка документов</small>', true);
     else if (ph === 'drive' && toPolice > 0 && toPolice < 450) setBanner(`🚓 Впереди пост ДПС<small>через ${r50(toPolice)} м · полиса ОСАГО нет</small>`, true);
     else if (ph === 'pitIn' || ph === 'refuel') setBanner(drive.stationKind === 'repair' ? '🔧 Заезжаем в автосервис' : '⛽ Заезжаем на заправку');
+    else if (drive.waitingToMerge) setBanner('Ждём свободную полосу');
+    else if (ph === 'pitOut' || ph === 'policeOut') setBanner('Выезжаем на дорогу');
     else if (ph === 'empty') setBanner('Топливо кончилось', true);
     else if (ph === 'wrecked') setBanner('Машина разбита', true);
     else if (ph === 'drive' && drive.lane === 2) setBanner(`${place}<small>${kind === 'repair' ? 'бокс' : 'колонка'} через ${r50(toPlace)} м</small>`);
@@ -879,10 +881,10 @@ async function main() {
     } else setBanner('');
   };
 
-  const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+  const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
   $('tripBar').parentElement!.hidden = !SHOT;
   if (!SHOT) $('odoGoal').textContent = 'км';
-  const monthLabel = $('calendarMonth');
+  const dateLabel = $('calendarDate');
   const frame = (dt: number, elapsed = dt) => {
     time += dt;
     if (state === 'garage' || state === 'loading') {
@@ -899,7 +901,7 @@ async function main() {
       updateHud();
     }
     if (state === 'drive') {
-      if (drive.phase !== 'intro') activeRunSeconds += elapsed;
+      if (drive.phase !== 'intro' && !drive.waitingToMerge) activeRunSeconds += elapsed;
       input.poll();
       drive.update(dt, { throttle: input.throttle, brake: input.brake, laneShift: input.take() }, time, elapsed);
       updateHud();
@@ -917,8 +919,8 @@ async function main() {
       }
       setOdo((drive.endless ? drive.odometer : drive.tripDone) / 100);
       if (drive.endless) {
-        const month = months[drive.month];
-        if (monthLabel.textContent !== month) monthLabel.textContent = month;
+        const date = `${drive.calendarDay} ${months[drive.month]}`;
+        if (dateLabel.textContent !== date) dateLabel.textContent = date;
       } else {
         $('odoGoal').textContent = `/ ${drive.tripKm} км`;
         $('tripBar').style.width = `${Math.min(100, (drive.tripDone / (drive.tripKm * 1000)) * 100)}%`;

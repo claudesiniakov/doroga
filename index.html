@@ -57,11 +57,11 @@
             <button class="reset-all" id="resetAll">Начать сначала</button>
           </section>
           <section class="slide" data-name="Рекорды">
-            <h2 class="home-section-title" id="recordsTitle">Топ-100 по времени</h2>
+            <h2 class="home-section-title" id="recordsTitle">Топ-100 по дням</h2>
             <p id="recordsEmpty">Здесь будут результаты завершённых заездов.</p>
             <div class="records-scroll" id="recordsScroll" hidden>
               <table class="records-table" aria-labelledby="recordsTitle">
-                <thead><tr><th scope="col">Место</th><th scope="col">Ник</th><th scope="col">Время</th></tr></thead>
+                <thead><tr><th scope="col">Место</th><th scope="col">Ник</th><th scope="col">Дни</th></tr></thead>
                 <tbody id="recordsBody"></tbody>
               </table>
             </div>
@@ -94,7 +94,7 @@
       </div>
       <div class="hud-right">
         <div class="coins"><span class="coin"></span><b id="coins">100</b></div>
-        <div class="hud-row"><span id="calendarMonth" class="calendar-month"></span><span class="chips" id="insChips"></span><button id="pauseBtn" class="icon-btn" aria-label="Пауза"><svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button></div>
+        <div class="hud-row"><span id="calendarDate" class="calendar-month"></span><span class="chips" id="insChips"></span><button id="pauseBtn" class="icon-btn" aria-label="Пауза"><svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button></div>
       </div>
     </div>
     <div class="banner" id="banner"></div>
@@ -175,7 +175,7 @@
       <div class="eyebrow" id="ovEyebrow">Поездка</div>
       <h2 id="ovTitle">Топливо кончилось</h2>
       <div class="st-row"><span>Проехали</span><b id="ovKm">0 км</b></div>
-      <div class="st-row" id="ovTimeRow"><span>Время заезда</span><b id="ovTime">00:00</b></div>
+      <div class="st-row" id="ovDaysRow"><span>В заезде</span><b id="ovDays">0 дней</b></div>
       <div class="st-row" id="ovRewardRow"><span>Награда</span><b><span class="coin"></span>+<span id="ovReward">100</span></b></div>
       <div class="st-row"><span>Столкновений</span><b id="ovCrashes">0</b></div>
       <div class="st-row"><span>Кошелёк на новый заезд</span><b><span class="coin"></span><span id="ovCoins">100</span></b></div>

@@ -25,6 +25,7 @@ const MIN_SPEED = 11;
 // Одна секунда заезда соответствует одному дню невисокосного года.
 const MONTH_SECONDS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 const POLICE_APPROACH_RATE = 1.7;
+const POLICE_STOP_GAP_M = 10;
 const LEFT_SHOULDER = -2;
 const RIGHT_SHOULDER = 4;
 const SHOULDER_OFFSET = ROAD.half - 0.35;
@@ -86,7 +87,23 @@ export class DriveScene {
   private snowTarget = 0;
   private readonly warmSun = new THREE.Color(0xffd2a0);
   private readonly coldSun = new THREE.Color(0xe4efff);
-  private winterForMonth() { return this.month < 2 || this.month === 11; }
+  get calendarDay() { return Math.min(Math.floor(this.monthTime) + 1, MONTH_SECONDS[this.month]); }
+
+  private updateCalendarSeason(immediate = false) {
+    const winter = this.month < 2 || this.month === 11;
+    const season = winter ? 'winter' : this.month < 5 ? 'spring' : this.month < 8 ? 'summer' : 'autumn';
+    this.world.setSeason(season);
+    this.snowTarget = Number(winter);
+    if (immediate) this.applySnow(this.snowTarget);
+    this.traffic.motoSeason = !winter;
+    this.traffic.summer = season === 'summer';
+  }
+
+  private resetCalendar(date = new Date()) {
+    this.month = date.getMonth();
+    this.monthTime = Math.min(date.getDate(), MONTH_SECONDS[this.month]) - 1;
+    this.updateCalendarSeason(true);
+  }
 
   renewInsurance(insurance: DriveScene['insurance'], coins: number) {
     this.insurance = insurance;
@@ -257,6 +274,7 @@ export class DriveScene {
   /** Комета припаркована на обочине главного экрана. */
   previewRoad(car: CarModel, config: CarConfig) {
     this.previewing = true;
+    if (this.endless) this.resetCalendar();
     const s = 30;
     const f = this.world.path.frame(s);
     this.attachCar(car, config);
@@ -325,7 +343,7 @@ export class DriveScene {
     this.traffic.summer = false;
     this.traffic.motoSeason = false;
     if (this.endless) {
-      this.setSnow(this.winterForMonth());
+      this.resetCalendar();
       this.traffic.prepareSeasonal();
     } else this.world.planTrip(startS, startS + this.tripKm * 1000);
     this.schedulePolice();
@@ -342,6 +360,9 @@ export class DriveScene {
 
   toggleCamera() { this.camFar = !this.camFar; }
 
+  private get leavingStop() { return this.phase === 'pitOut' || this.phase === 'policeOut'; }
+  get waitingToMerge() { return this.leavingStop && this.lane !== 1; }
+
   get speedKmh() { return this.v * 3.6; }
   get braking() { return this.lastBrake; }
   private lastBrake = 0;
@@ -349,10 +370,20 @@ export class DriveScene {
   update(dt: number, input: DriveInput, time: number, elapsed = dt) {
     if (this.phase === 'yearBreak') return;
     dt = Math.min(dt, 1 / 20);
+    const policeLeft = this.policeS === null ? Infinity : this.policeS - POLICE_STOP_GAP_M - this.s;
+    if (this.phase === 'drive' && this.policeS !== null && this.policeFine === 0 &&
+      this.health > 0 && this.fuel > 0 && this.v > 0 && policeLeft > 0) {
+      // Сжимаем прежний путь от начала манёвра до точки остановки, сохраняя зазор до патруля.
+      const oldStoppingDistance = 60 + this.v ** 2 / 8 - POLICE_STOP_GAP_M;
+      if (policeLeft <= oldStoppingDistance / 4) {
+        this.phase = 'policeIn';
+        this.lane = RIGHT_SHOULDER;
+      }
+    }
     const policeApproach = this.phase === 'policeIn';
     const motionDt = policeApproach ? dt * POLICE_APPROACH_RATE : dt;
     const fromS = this.s;
-    if (this.endless && (this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'policeOut' ||
+    if (this.endless && !this.waitingToMerge && (this.phase === 'drive' || this.leavingStop ||
       this.phase === 'pitIn' || this.phase === 'policeIn')) {
       this.monthTime += elapsed;
     }
@@ -372,19 +403,9 @@ export class DriveScene {
       if (t > 1.2) this.lane = 1;
       if (this.introT >= this.introDur) this.phase = 'drive';
     } else if (this.phase === 'policeIn') {
-      // к обочине и остановка за патрульной машиной
-      const left = Math.max(0, this.policeS! - 10 - this.s);
-      a = clamp((Math.sqrt(2 * 3.5 * left) - this.v) * 3, -10, 1);
+      // Тормозим с ускорением, рассчитанным для оставшегося пути до точки остановки.
+      a = policeLeft > 0 ? -(this.v ** 2) / (2 * policeLeft) : 0;
       brake = 1;
-      // никогда не въезжаем в патрульную машину: упор за 8 м
-      if (this.s > this.policeS! - 8) { this.s = this.policeS! - 8; this.v = 0; }
-      if ((left < 0.4 && this.v < 0.6) || this.v === 0) {
-        this.v = 0; a = 0;
-        this.phase = 'protocol';
-        this.policeFine = Math.min(POLICE_FINE, this.coins);
-        this.coins -= this.policeFine;
-        this.onPolice?.();
-      }
     } else if (this.phase === 'protocol') {
       this.v = 0; a = 0; brake = 1;
     } else if (this.phase === 'pitIn') {
@@ -399,6 +420,15 @@ export class DriveScene {
         this.v = 0; a = 0;
         this.phase = 'refuel';
         this.onStation?.(this.pitExit!.kind);
+      }
+    } else if (this.leavingStop) {
+      if (this.waitingToMerge && this.traffic.canMerge(this.playerState(), 1)) this.lane = 1;
+      if (this.waitingToMerge) {
+        this.v = 0;
+        brake = 1;
+      } else {
+        a = clamp((CRUISE - this.v) * 0.35, 0, 3.2);
+        if (Math.abs(this.d - ROAD.laneWidth) < 0.4) this.phase = 'drive';
       }
     } else if (this.phase === 'refuel' || this.phase === 'stopped') {
       this.v = 0; a = 0; brake = 1;
@@ -417,15 +447,6 @@ export class DriveScene {
       if (input.laneShift && this.phase === 'drive') this.shiftLane(Math.sign(input.laneShift));
       // съезд кончается — вливаемся обратно
       if (this.lane === 2 && path.extraAt(this.s + 35) < EXIT_W * 0.7) this.lane = 1;
-      if (this.phase === 'pitOut' && this.lane !== 2) this.phase = 'drive';
-      if (this.phase === 'policeOut' && Math.abs(this.d - this.lane * ROAD.laneWidth) < 0.4) this.phase = 'drive';
-      // патруль впереди: машина сама уходит на обочину
-      // начинаем заранее — с учётом тормозного пути на текущей скорости
-      const policeLead = 60 + (this.v * this.v) / (2 * 4);
-      if (this.phase === 'drive' && this.policeS !== null && this.policeFine === 0 && this.s > this.policeS - policeLead && this.s < this.policeS - 12) {
-        this.phase = 'policeIn';
-        this.lane = RIGHT_SHOULDER;
-      }
       // в полосе съезда перед колонкой — заезд на заправку
       const ex = path.exitNear(this.s, 0);
       // в полосе съезда до колонки — сразу заезд (машина сама тормозит и встаёт у колонки)
@@ -440,7 +461,7 @@ export class DriveScene {
         else a = clamp((vt - this.v) * 0.35, -2.2, 0);
       }
       else if (input.brake > 0) { a = -cfg.brake * input.brake; brake = input.brake; }
-      else a = clamp((CRUISE - this.v) * 0.35, this.phase === 'pitOut' ? -2.2 : -2.2, this.phase === 'pitOut' ? 3.2 : 1.8);
+      else a = clamp((CRUISE - this.v) * 0.35, -2.2, 1.8);
     }
     this.shoulderRoughness = this.phase === 'drive' && this.lane !== 2
       ? smoothstep(ROAD.half - ROAD.shoulder, SHOULDER_OFFSET, Math.abs(this.d)) : 0;
@@ -450,10 +471,17 @@ export class DriveScene {
     }
     // тормозом ниже MIN_SPEED не сбросить, но после удара/заправки скорость может быть меньше — машина разгонится сама
     const floor = this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'policeOut' ? Math.min(MIN_SPEED, this.v) : 0;
+    const previousSpeed = this.v;
     this.v = clamp(this.v + a * motionDt, floor, vmax);
     if (input.brake > 0 && this.v <= MIN_SPEED + 0.01) brake = input.brake;
     this.lastBrake = brake;
-    const ds = this.v * motionDt;
+    // Для торможения к точной позиции используем среднюю скорость за шаг.
+    const stoppingDistance = Math.max(0, policeLeft);
+    const ds = policeApproach
+      ? Math.min(stoppingDistance, this.v === 0 ? stoppingDistance : (previousSpeed + this.v) * motionDt / 2)
+      : this.v * motionDt;
+    const reachedPoliceStop = policeApproach && stoppingDistance - ds < 1e-6;
+    if (reachedPoliceStop) this.v = 0;
     this.s += ds;
     this.odometer += ds;
     // расход: 2 л на км
@@ -518,6 +546,13 @@ export class DriveScene {
     this.updateCamera(dt, time);
     this.updateFar(time);
 
+    if (reachedPoliceStop && this.phase === 'policeIn') {
+      this.phase = 'protocol';
+      this.policeFine = Math.min(POLICE_FINE, this.coins);
+      this.coins -= this.policeFine;
+      this.onPolice?.();
+    }
+
     // Смена месяца после расхода топлива и столкновений. Въезд на АЗС и остановка ДПС завершаются первыми.
     if (this.endless && this.phase === 'drive' && this.monthTime >= MONTH_SECONDS[this.month] &&
       this.health > 0 && this.fuel > 0) {
@@ -525,12 +560,7 @@ export class DriveScene {
         this.monthTime -= MONTH_SECONDS[this.month];
         this.month = (this.month + 1) % MONTH_SECONDS.length;
       } while (this.month !== 0 && this.monthTime >= MONTH_SECONDS[this.month]);
-      const winter = this.winterForMonth();
-      const season = winter ? 'winter' : this.month < 5 ? 'spring' : this.month < 8 ? 'summer' : 'autumn';
-      this.world.setSeason(season);
-      this.snowTarget = Number(winter);
-      this.traffic.motoSeason = !winter;
-      this.traffic.summer = season === 'summer';
+      this.updateCalendarSeason();
       if (this.month === 0) {
         this.monthTime = 0;
         this.phase = 'yearBreak';
@@ -761,7 +791,6 @@ export class DriveScene {
   leavePolice() {
     if (this.phase !== 'protocol') return;
     this.phase = 'policeOut';
-    this.lane = 1;
   }
 
   /** Цена ремонта на pct процентов (с КАСКО — бесплатно). */
@@ -829,6 +858,7 @@ export class DriveScene {
   private playerState(): PlayerState {
     const p = this.player;
     p.s = this.s; p.v = this.v; p.d = this.d; p.lane = this.lane;
+    p.mergeLane = this.leavingStop && this.lane === 1 ? 1 : undefined;
     return p;
   }
 

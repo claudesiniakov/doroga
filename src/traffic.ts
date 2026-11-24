@@ -13,6 +13,7 @@ const DESPAWN_BEHIND = 160, DESPAWN_AHEAD = 1100;
 
 export interface PlayerState {
   s: number; v: number; d: number; lane: number; length: number; width: number;
+  mergeLane?: number;
 }
 
 class Vehicle {
@@ -130,13 +131,25 @@ export class Traffic {
     this.place(v, 0, 0);
   }
 
+  canMerge(p: PlayerState, lane: number) {
+    for (const vehicle of this.list) {
+      const indicating = vehicle.blinker !== 0 && vehicle.lane + vehicle.blinker === lane;
+      if (!vehicle.occupies(lane) && !indicating) continue;
+      const ds = vehicle.s - p.s;
+      const gap = Math.abs(ds) - (vehicle.length + p.length) / 2;
+      const closingSpeed = ds >= 0 ? p.v - vehicle.v : vehicle.v - p.v;
+      if (gap < 12 + Math.max(0, closingSpeed) * 2.5) return false;
+    }
+    return true;
+  }
+
   private laneFree(lane: number, s: number, gapAhead: number, gapBehind: number, p: PlayerState, except?: Vehicle) {
     for (const o of this.list) {
       if (o === except || !o.occupies(lane)) continue;
       const ds = o.s - s;
       if (ds > -gapBehind && ds < gapAhead) return false;
     }
-    if (Math.abs(p.d - lane * LANE) < LANE * 0.6) {
+    if (p.mergeLane === lane || Math.abs(p.d - lane * LANE) < LANE * 0.6) {
       const ds = p.s - s;
       if (ds > -gapBehind && ds < gapAhead) return false;
     }
@@ -214,7 +227,7 @@ export class Traffic {
       const g = o.s - v.s - (o.length + v.length) / 2;
       if (g < gap) { gap = g; lv = o.v; }
     }
-    if (p.s > v.s && Math.abs(p.d - lane * LANE) < LANE * 0.6) {
+    if (p.s > v.s && (p.mergeLane === lane || Math.abs(p.d - lane * LANE) < LANE * 0.6)) {
       const g = p.s - v.s - (p.length + v.length) / 2;
       if (g < gap) { gap = g; lv = p.v; }
     }

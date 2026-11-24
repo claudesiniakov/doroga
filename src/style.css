@@ -520,6 +520,7 @@ html, body { height: 100dvh; }
 .records-table td:nth-child(2) { overflow-wrap: anywhere; }
 .records-table td:last-child, .records-table th:last-child { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 #over .menu { max-height: calc(100dvh - 20px - var(--safe-t) - var(--safe-b)); overflow: auto; touch-action: pan-y; }
+#ovTimeRow[hidden] { display: none; }
 .record-form:not([hidden]) { display: grid; gap: 6px; }
 .record-form label, #recordStatus { color: var(--ink-2); font-size: 13px; margin: 0; }
 .record-fields { display: flex; gap: 6px; }

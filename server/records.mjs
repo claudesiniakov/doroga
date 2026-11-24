@@ -40,19 +40,39 @@ export function openRecords(databasePath) {
     );
     CREATE INDEX IF NOT EXISTS record_runs_age ON record_runs (started_at);
     CREATE INDEX IF NOT EXISTS records_ranking ON records (meters DESC, id ASC);
+    CREATE TABLE IF NOT EXISTS time_records (
+      id INTEGER PRIMARY KEY,
+      submission TEXT NOT NULL UNIQUE,
+      nickname TEXT NOT NULL,
+      durationMs INTEGER NOT NULL CHECK (durationMs > 0)
+    );
+    CREATE TABLE IF NOT EXISTS time_record_runs (
+      token TEXT PRIMARY KEY,
+      started_at INTEGER NOT NULL,
+      durationMs INTEGER CHECK (durationMs > 0)
+    );
+    CREATE INDEX IF NOT EXISTS time_record_runs_age ON time_record_runs (started_at);
+    CREATE INDEX IF NOT EXISTS time_records_ranking ON time_records (durationMs DESC, id ASC);
   `);
 
-  const createRun = database.prepare('INSERT INTO record_runs (token, started_at) VALUES (?, ?)');
-  const pruneRuns = database.prepare('DELETE FROM record_runs WHERE started_at < ?');
-  const findRun = database.prepare('SELECT started_at, meters FROM record_runs WHERE token = ?');
-  const finishRun = database.prepare('UPDATE record_runs SET meters = ? WHERE token = ? AND meters IS NULL');
-  const leaders = database.prepare('SELECT nickname, meters FROM records ORDER BY meters DESC, id ASC LIMIT 100');
-  const insert = database.prepare('INSERT INTO records (submission, nickname, meters) VALUES (?, ?, ?) ON CONFLICT (submission) DO NOTHING');
-  const bySubmission = database.prepare('SELECT id, nickname, meters FROM records WHERE submission = ?');
-  const rank = database.prepare('SELECT count(*) + 1 AS place FROM records WHERE meters > ? OR (meters = ? AND id < ?)');
+  const prepareRanking = (records, runs, metric) => ({
+    createRun: database.prepare(`INSERT INTO ${runs} (token, started_at) VALUES (?, ?)`),
+    pruneRuns: database.prepare(`DELETE FROM ${runs} WHERE started_at < ?`),
+    findRun: database.prepare(`SELECT started_at, ${metric} AS score FROM ${runs} WHERE token = ?`),
+    finishRun: database.prepare(`UPDATE ${runs} SET ${metric} = ? WHERE token = ? AND ${metric} IS NULL`),
+    leaders: database.prepare(`SELECT ${metric === 'meters' ? '' : 'id, '}nickname, ${metric} FROM ${records} ORDER BY ${metric} DESC, id ASC LIMIT 100`),
+    insert: database.prepare(`INSERT INTO ${records} (submission, nickname, ${metric}) VALUES (?, ?, ?) ON CONFLICT (submission) DO NOTHING`),
+    bySubmission: database.prepare(`SELECT id, nickname, ${metric} AS score FROM ${records} WHERE submission = ?`),
+    rank: database.prepare(`SELECT count(*) + 1 AS place FROM ${records} WHERE ${metric} > ? OR (${metric} = ? AND id < ?)`),
+  });
+  const distanceRanking = prepareRanking('records', 'record_runs', 'meters');
+  const timeRanking = prepareRanking('time_records', 'time_record_runs', 'durationMs');
 
   const handle = async (request, response) => {
-    if (request.url !== '/api/records') return json(response, 404, { error: 'not_found' });
+    const byTime = request.url === '/api/records?metric=time';
+    if (!byTime && request.url !== '/api/records') return json(response, 404, { error: 'not_found' });
+    const { createRun, pruneRuns, findRun, finishRun, leaders, insert, bySubmission, rank } =
+      byTime ? timeRanking : distanceRanking;
     try {
       if (request.method === 'GET') return json(response, 200, leaders.all());
       if (request.method !== 'POST') {
@@ -79,17 +99,19 @@ export function openRecords(databasePath) {
         return json(response, 404, { error: 'run_not_found' });
       }
       if (entry.action === 'finish') {
-        const meters = entry.meters;
-        if (started.meters !== null) {
-          return started.meters === meters
+        const score = byTime ? entry.durationMs : entry.meters;
+        if (started.score !== null) {
+          return started.score === score
             ? json(response, 200, {})
             : json(response, 409, { error: 'run_already_finished' });
         }
-        const maxMeters = Math.ceil((now - started.started_at) * MAX_METERS_PER_SECOND / 1000) + 1;
-        if (!Number.isSafeInteger(meters) || meters <= 0 || meters > maxMeters) {
-          return json(response, 400, { error: 'invalid_distance' });
+        const elapsed = now - started.started_at;
+        // Запрос регистрации может попасть на сервер уже после начала игры.
+        const maximum = byTime ? elapsed + 8000 : Math.ceil(elapsed * MAX_METERS_PER_SECOND / 1000) + 1;
+        if (!Number.isSafeInteger(score) || score <= 0 || score > maximum) {
+          return json(response, 400, { error: byTime ? 'invalid_duration' : 'invalid_distance' });
         }
-        finishRun.run(meters, run);
+        finishRun.run(score, run);
         return json(response, 200, {});
       }
 
@@ -97,14 +119,14 @@ export function openRecords(databasePath) {
       if (entry.action !== 'submit' || !nickname || nickname.length > 24 || /[\u0000-\u001f\u007f]/u.test(nickname)) {
         return json(response, 400, { error: 'invalid_record' });
       }
-      if (started.meters === null) return json(response, 409, { error: 'run_not_finished' });
-      const result = insert.run(run, nickname, started.meters);
+      if (started.score === null) return json(response, 409, { error: 'run_not_finished' });
+      const result = insert.run(run, nickname, started.score);
       const stored = bySubmission.get(run);
-      if (stored.nickname !== nickname || stored.meters !== started.meters) {
+      if (stored.nickname !== nickname || stored.score !== started.score) {
         return json(response, 409, { error: 'submission_conflict' });
       }
-      return json(response, result.changes ? 201 : 200,
-        rank.get(stored.meters, stored.meters, stored.id));
+      const placement = rank.get(stored.score, stored.score, stored.id);
+      return json(response, result.changes ? 201 : 200, byTime ? { ...placement, id: stored.id } : placement);
     } catch (error) {
       console.error(error);
       return json(response, 500, { error: 'server_error' });

@@ -10,7 +10,7 @@ import { GarageScene } from './garage';
 import type { DriveScene } from './drive';
 import { START_COINS, LITERS_PER_KM, FUEL_PRICE, KASKO, REPAIR_PRICE, POLICE_FINE } from './drive-rules';
 import { Input } from './input';
-import { finishRecordRun, formatRecordDistance, loadRecords, MAX_NICKNAME_LENGTH, saveRecord, startRecordRun } from './records';
+import { finishRecordRun, formatRecordDistance, formatRecordDuration, loadRecords, MAX_NICKNAME_LENGTH, saveRecord, startRecordRun } from './records';
 
 type State = 'loading' | 'garage' | 'drive' | 'pause' | 'station' | 'over' | 'protocol' | 'renewal' | 'breakdown' | 'yearReport' | 'returningHome';
 
@@ -95,19 +95,19 @@ async function main() {
       ? (ins.osago || ins.kasko ? 'Продолжить путь' : 'Продолжить без страховки') : 'Поехать';
   };
 
-  const ownRecordKey = 'doroga.ownRecords';
-  const ownRecords = new Set<string>();
+  const ownRecordKey = 'doroga.ownTimeRecords';
+  const ownRecords = new Set<number>();
   try {
     const saved = JSON.parse(localStorage.getItem(ownRecordKey) ?? '[]');
     if (Array.isArray(saved)) {
-      for (const key of saved) if (typeof key === 'string') ownRecords.add(key);
+      for (const key of saved) if (Number.isSafeInteger(key)) ownRecords.add(key);
     }
   } catch { /* нет хранилища */ }
-  const recordKey = (nickname: string, meters: number) => JSON.stringify([nickname, meters]);
 
   let recordSaved = false;
   let rankingRun: Promise<string | undefined> | undefined;
-  let rankedSummary: { meters: number; run: Promise<string | undefined>; finished: Promise<boolean> } | undefined;
+  let activeRunSeconds = 0;
+  let rankedSummary: { durationMs: number; run: Promise<string | undefined>; finished: Promise<boolean> } | undefined;
   let submittedNickname: string | undefined;
   let recordLoad = 0;
   const recordForm = $<HTMLFormElement>('recordForm');
@@ -128,18 +128,12 @@ async function main() {
       status.textContent = 'Здесь будут результаты завершённых заездов.';
       status.hidden = records.length > 0;
       scroll.hidden = records.length === 0;
-      const counts = new Map<string, number>();
-      for (const { nickname, meters } of records) {
-        const key = recordKey(nickname, meters);
-        counts.set(key, (counts.get(key) ?? 0) + 1);
-      }
-      const rows = records.map(({ nickname, meters }, index) => {
+      const rows = records.map(({ id, nickname, durationMs }, index) => {
         const row = document.createElement('tr');
-        for (const cell of [String(index + 1), nickname, formatRecordDistance(meters)]) {
+        for (const cell of [String(index + 1), nickname, formatRecordDuration(durationMs)]) {
           row.insertCell().textContent = cell;
         }
-        const key = recordKey(nickname, meters);
-        if (ownRecords.has(key) && counts.get(key) === 1) {
+        if (ownRecords.has(id)) {
           row.classList.add('own-record');
           const label = document.createElement('span');
           label.className = 'own-record-label';
@@ -170,10 +164,10 @@ async function main() {
     try {
       const run = await summary.run;
       if (!run) return;
-      if (!await summary.finished) await finishRecordRun(run, summary.meters);
-      const place = await saveRecord(submittedNickname, run);
+      if (!await summary.finished) await finishRecordRun(run, summary.durationMs);
+      const { place, id } = await saveRecord(submittedNickname, run);
       if (place <= 100) {
-        ownRecords.add(recordKey(submittedNickname, summary.meters));
+        ownRecords.add(id);
         lsSet(ownRecordKey, [...ownRecords]);
       }
       if (summary !== rankedSummary || state !== 'over') return;
@@ -339,6 +333,7 @@ async function main() {
       wallet = startCoins;
       lsSet('doroga.wallet', wallet);
       runClosed = false;
+      activeRunSeconds = 0;
       rankingRun = drive.endless ? startRecordRun().catch(() => undefined) : undefined;
       state = 'drive';
       show('hud');
@@ -580,23 +575,22 @@ async function main() {
     $('ovEyebrow').textContent = SHOT ? `Поездка №${t.num} · ${tripKm(t.num)} км` : 'Бесконечная дорога';
     $('ovTitle').textContent = drive.endReason === 'wreck' ? 'Машина разбита'
       : drive.endReason === 'fuel' ? 'Топливо кончилось' : 'Заезд завершён';
-    const recordMeters = drive.endless ? Math.max(0, Math.round(drive.odometer)) : 0;
+    const durationMs = drive.endless ? Math.floor(activeRunSeconds * 1000) : 0;
     recordSaved = false;
     rankedSummary = undefined;
     submittedNickname = undefined;
     recordForm.reset();
     recordNickname.disabled = recordSave.disabled = false;
-    recordForm.hidden = recordMeters <= 0;
+    recordForm.hidden = durationMs <= 0;
     recordStatus.hidden = true;
-    if (recordMeters > 0) {
-      const meters = recordMeters;
+    if (durationMs > 0) {
       const run = rankingRun ?? Promise.resolve(undefined);
       const finished = run.then(async (token) => {
         if (!token) return false;
-        await finishRecordRun(token, meters);
+        await finishRecordRun(token, durationMs);
         return true;
       }).catch(() => false);
-      const summary = rankedSummary = { meters, run, finished };
+      const summary = rankedSummary = { durationMs, run, finished };
       recordSave.disabled = true;
       void run.then((token) => {
         if (summary !== rankedSummary || state !== 'over') return;
@@ -610,7 +604,9 @@ async function main() {
       });
     }
     $('ovGarage').textContent = 'На главную';
-    $('ovKm').textContent = drive.endless ? formatRecordDistance(recordMeters) : fmtKm(t.km);
+    $('ovKm').textContent = drive.endless ? formatRecordDistance(Math.round(drive.odometer)) : fmtKm(t.km);
+    $('ovTimeRow').hidden = !drive.endless;
+    $('ovTime').textContent = formatRecordDuration(durationMs);
     $('ovRewardRow').style.display = t.finished ? '' : 'none';
     $('ovReward').textContent = String(t.reward);
     $('ovCrashes').textContent = String(t.crashes);
@@ -903,6 +899,7 @@ async function main() {
       updateHud();
     }
     if (state === 'drive') {
+      if (drive.phase !== 'intro') activeRunSeconds += elapsed;
       input.poll();
       drive.update(dt, { throttle: input.throttle, brake: input.brake, laneShift: input.take() }, time, elapsed);
       updateHud();

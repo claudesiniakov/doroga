@@ -30,7 +30,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .screen.show > .hud-top, .screen.show > .banner, .screen.show > .toast { pointer-events: none; }
 .hud-left { pointer-events: none; }
 .hud-right { pointer-events: none; }
-#hud.show #pauseBtn, #garage.show .prototypes-link { pointer-events: auto; }
+#hud.show #pauseBtn { pointer-events: auto; }
 
 .panel {
   background: var(--glass);
@@ -424,7 +424,6 @@ kbd {
 
 /* ——— полный экран и веб-приложение ——— */
 html, body { height: 100dvh; }
-.prototypes-link { color: inherit; padding: 7px 4px; font-size: 13px; }
 .top-right { display: flex; align-items: center; gap: 8px; }
 .fs-btn svg { fill: none; color: var(--ink); stroke: currentColor; }
 .ios-tip {

@@ -33,22 +33,20 @@
 }
 #garage .top-right { margin-left: auto; gap: 8px; }
 #garage.show .top-right > *, #garage.show #tabs { pointer-events: auto; }
-#garage .prototypes-link, #garage .wallet-top, #garage .fs-btn {
+#garage .wallet-top, #garage .fs-btn {
   border: 1px solid var(--home-line);
   border-radius: 5px;
   background: rgba(212, 235, 224, .07);
   color: #eaf2ef;
 }
-#garage .prototypes-link, #garage .wallet-top {
+#garage .wallet-top {
   display: flex;
   align-items: center;
   gap: 7px;
   min-height: 40px;
   padding: 0 12px;
-  text-decoration: none;
   font-size: 13px;
 }
-#garage .prototypes-link:hover { border-color: var(--home-accent); }
 
 #garage #tabs {
   align-self: stretch;
@@ -200,7 +198,7 @@
   #garage #tabs { order: 3; width: 100%; min-height: 42px; margin-top: 4px; }
   #garage #tabs button { padding: 0 5px; font-size: 12px; }
   #garage .top-right { gap: 5px; }
-  #garage .prototypes-link, #garage .wallet-top { min-height: 34px; padding: 0 7px; font-size: 11px; }
+  #garage .wallet-top { min-height: 34px; padding: 0 7px; font-size: 11px; }
   #garage .fs-btn { width: 34px; height: 34px; }
   .home-content {
     top: auto;
@@ -246,39 +244,101 @@
   #garage .insurance-slide .startcoins { margin-top: 4px; }
 }
 
-@media (pointer: fine) and (min-width: 900px) and (min-height: 560px) {
+@media (pointer: fine) and (min-width: 900px) {
   #garage {
-    --home-panel-top: clamp(94px, 14dvh, 148px);
-    --home-launch-bottom: clamp(28px, 7vh, 82px);
-    --home-launch-clearance: 76px;
+    --home-nav-height: clamp(68px, 10dvh, 108px);
+    --home-panel-top: calc(var(--home-nav-height) + clamp(12px, 2.6dvh, 32px));
+    --home-launch-bottom: clamp(14px, 3.4dvh, 40px);
+    --home-launch-height: clamp(52px, 8dvh, 86px);
+    --home-launch-clearance: calc(var(--home-launch-height) + 16px);
+    --home-panel-width: clamp(464px, 53vw, 1040px);
   }
-  #garage.is-renewal { --home-launch-clearance: 110px; }
+  #garage.is-renewal { --home-launch-clearance: calc(var(--home-launch-height) + 66px); }
+  #garage .home-nav { min-height: calc(var(--home-nav-height) + var(--safe-t)); }
+  #garage .top-right { gap: 12px; }
+  #homeTitle { font-size: clamp(34px, 3.5vw, 60px); }
+  #garage #tabs button { font-size: clamp(18px, 1.55vw, 27px); }
+  #garage .wallet-top, #garage .fs-btn { min-height: clamp(44px, 6dvh, 62px); }
+  #garage .wallet-top { font-size: clamp(18px, 1.5vw, 26px); padding-inline: 16px; }
+  #garage .fs-btn { width: clamp(44px, 6dvh, 62px); }
   #garage .home-content {
     top: calc(var(--home-panel-top) + var(--safe-t));
     left: calc(var(--home-gutter) + var(--safe-l));
     right: auto;
-    width: clamp(420px, 45vw, 730px);
+    width: var(--home-panel-width);
   }
   #garage .slide {
     max-height: calc(100dvh - var(--home-panel-top) - var(--home-launch-bottom) - var(--home-launch-clearance) - var(--safe-t) - var(--safe-b));
-    padding: clamp(22px, 2.6vw, 40px);
+    padding: clamp(16px, 3dvh, 36px) clamp(20px, 2.7vw, 48px);
     overflow-y: auto;
   }
-  #garage .home-launch { bottom: calc(var(--home-launch-bottom) + var(--safe-b)); }
-  #garage #homeMode { font-size: 22px; margin-bottom: 12px; }
-  #garage .home-section-title { margin-bottom: 20px; font-size: clamp(24px, 2.4vw, 36px); }
-  #garage .ins { gap: 12px; }
-  #garage .ins-opt { padding: 14px 18px; }
-  #garage .ins-opt b { font-size: 17px; }
-  #garage .ins-opt small { display: block; font-size: 15px; }
-  #garage .osago-option { --osago-inset: 18px; }
-  #garage .osago-help, #garage .startcoins, #garage #recordsEmpty { font-size: 15px; }
+  #garage .home-launch { bottom: calc(var(--home-launch-bottom) + var(--safe-b)); width: var(--home-panel-width); }
+  #garage #homeMode { font-size: clamp(23px, 2.2vw, 38px); margin-bottom: 12px; }
+  #garage #go {
+    max-width: min(100%, 530px);
+    height: var(--home-launch-height);
+    padding-inline: clamp(20px, 2.1vw, 34px);
+    font-size: clamp(19px, 2vw, 32px);
+  }
+  #garage #go::after { font-size: 1.35em; }
+  #garage .home-section-title { margin-bottom: clamp(12px, 2dvh, 24px); font-size: clamp(30px, 3.3vw, 54px); }
+  #garage .ins { gap: clamp(10px, 1.6dvh, 18px); }
+  #garage .ins-opt { padding: clamp(10px, 1.8dvh, 20px) 20px; gap: 14px; }
+  #garage .ins-opt .chk { width: 24px; height: 24px; }
+  #garage .ins-opt b { font-size: clamp(21px, 1.85vw, 30px); }
+  #garage .ins-opt small { display: block; font-size: clamp(16px, 1.35vw, 23px); line-height: 1.4; }
+  #garage .osago-option { --osago-inset: 28px; }
+  #garage .osago-option .ins-opt { padding-bottom: 2px; }
+  #garage .osago-help, #garage .startcoins, #garage #recordsEmpty, #garage .reset-all {
+    font-size: clamp(16px, 1.3vw, 22px);
+  }
+  #garage .osago-help { min-height: 36px; }
+  #garage .reset-all { color: var(--home-muted); }
   #garage .gstats { gap: 12px; }
   #garage .gstats > div { padding: 12px 14px; }
-  #garage .gstats > div > span { font-size: 13px; }
-  #garage .gstats b { font-size: 20px; }
-  #garage .records-scroll { max-height: min(52dvh, 530px); }
-  #garage .records-table { font-size: 16px; }
-  #garage .records-table th, #garage .records-table td { padding: 10px 12px; }
+  #garage .gstats > div > span { font-size: clamp(14px, 1.15vw, 19px); letter-spacing: .03em; }
+  #garage .gstats b { font-size: clamp(23px, 2vw, 34px); }
+  #garage .records-scroll { max-height: min(46dvh, 580px); }
+  #garage .records-table { font-size: clamp(17px, 1.4vw, 24px); }
+  #garage .records-table th, #garage .records-table td { padding: 12px 14px; }
   #garage .records-table thead th { position: sticky; top: 0; background: #102021; }
+
+  #kbm .kbm-panel { width: min(860px, calc(100vw - 64px)); padding: clamp(24px, 3vw, 42px); }
+  #kbm h2 { font-size: clamp(28px, 3vw, 48px); }
+  #kbm h3 { font-size: clamp(22px, 2vw, 32px); }
+  #kbm .osago-formula, #kbm .osago-lesson p, #kbm .osago-lesson summary,
+  #kbm .osago-confirm p, #kbm .osago-actions .ghost, #kbm .osago-confirm button {
+    font-size: clamp(16px, 1.4vw, 22px);
+  }
+  #kbm .kbm-table, #kbm .kbm-table th { font-size: clamp(14px, 1.2vw, 19px); }
+}
+
+@media (pointer: fine) and (min-width: 1200px),
+       (pointer: fine) and (min-width: 900px) and (max-height: 780px) {
+  #garage .gstats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  #garage .gstats > .wide:not(:last-child) { grid-column: auto; }
+}
+
+@media (pointer: fine) and (min-width: 900px) and (max-height: 780px) {
+  #garage, #garage.is-renewal {
+    --home-panel-width: min(63vw, 1040px);
+    --home-launch-clearance: 0px;
+  }
+  #garage .home-launch {
+    left: calc(var(--home-gutter) + var(--home-panel-width) + 18px + var(--safe-l));
+    right: calc(var(--home-gutter) + var(--safe-r));
+    width: auto;
+  }
+  #garage #go {
+    min-height: var(--home-launch-height);
+    height: auto;
+    padding-block: 10px;
+    gap: 12px;
+    font-size: clamp(18px, 1.8vw, 28px);
+  }
+}
+
+@media (pointer: fine) and (min-width: 900px) and (max-height: 640px) {
+  #garage .gstats > div { padding: 9px 10px; }
+  #garage .gstats > div > span { text-transform: none; letter-spacing: normal; }
 }

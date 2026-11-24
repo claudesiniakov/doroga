@@ -107,6 +107,16 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* одометр под спидометром: барабаны с цифрами, десятые — инверсные */
 .odo { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); width: max-content; display: grid; gap: 5px; }
 .odo-row { display: flex; align-items: center; gap: 6px; }
+.odo-row[hidden], .odo .tripbar[hidden] { display: none; }
+.days-counter {
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: rgba(8, 10, 13, .8);
+  white-space: nowrap;
+}
+.days-counter b { font: 700 16px/22px ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+.days-counter abbr { color: var(--ink-2); font-size: 12px; text-decoration: none; }
 .drums {
   display: flex; align-items: center; gap: 2px; padding: 3px; border-radius: 7px;
   background: linear-gradient(#0b0c0e, #1a1c20 50%, #0b0c0e); border: 1px solid rgba(255,255,255,.16);
@@ -260,6 +270,8 @@ kbd {
   background: radial-gradient(circle at 35% 35%, #fff3b0, #f2b630 55%, #b27a10); box-shadow: inset 0 0 0 1.5px rgba(120, 70, 0, .5);
 }
 .coins .coin { margin-right: 0; }
+.coin-amount { display: inline-flex; gap: .3em; align-items: center; white-space: nowrap; }
+.coin-amount .coin { width: .85em; height: .85em; flex: none; margin: 0; }
 .banner {
   position: absolute; left: 50%; top: calc(20px + var(--safe-t)); transform: translateX(-50%) translateY(-6px);
   padding: 10px 18px; border-radius: 14px; background: var(--glass); border: 1px solid var(--line);
@@ -308,7 +320,13 @@ kbd {
 .toast.on { opacity: 1; transform: translateX(-50%); }
 .toast.ok { background: rgba(14, 40, 60, .72); border-color: rgba(90, 170, 255, .55); }
 @media (max-height: 520px) { .ins small, .startcoins { display: none; } .ins-opt { padding: 6px 10px; } }
-@media (max-width: 720px) { .toast { top: auto; bottom: calc(190px + var(--safe-b)); } }
+@media (max-width: 720px) {
+  .toast {
+    top: auto; bottom: calc(190px + var(--safe-b));
+    width: max-content; max-width: calc(100% - 28px);
+    white-space: normal; text-align: center;
+  }
+}
 
 /* карточка гаража не выше экрана */
 .car-card { max-height: calc(100vh - 96px); max-height: calc(100dvh - 96px); overflow-y: auto; scrollbar-width: none; }
@@ -378,7 +396,7 @@ kbd {
 .gstats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin-top: 10px; }
 .gstats div { display: grid; gap: 2px; }
 .gstats .wide { grid-column: 1 / -1; }
-.gstats span { color: var(--ink-3); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.gstats > div > span { color: var(--ink-3); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
 .gstats b { font-size: 15px; font-variant-numeric: tabular-nums; }
 .car-card .go { margin-top: 14px; }
 .odo { position: relative; padding-bottom: 12px !important; }
@@ -557,7 +575,7 @@ html, body { height: 100dvh; }
   .car-card .ins-opt small { font-size: 14px; line-height: 1.42; }
   .car-card .kbm-link, .car-card .startcoins { font-size: 14px; }
   .car-card .startcoins { display: block; }
-  .gstats span { font-size: 12px; }
+  .gstats > div > span { font-size: 12px; }
   .gstats b { font-size: 18px; }
   .records-table { font-size: 15px; }
   .records-table th, .records-table td { padding: 9px 8px; }
@@ -652,7 +670,6 @@ html, body { height: 100dvh; }
 .osago-table-scroll { max-height: min(280px, 36dvh); overflow: auto; touch-action: pan-x pan-y; }
 .osago-table-scroll td:not(:first-child), .osago-table-scroll th:not(:first-child) { white-space: nowrap; }
 .osago-lesson summary { cursor: pointer; margin-bottom: 6px; font-size: 14px; }
-.osago-source { color: var(--ink-2); font-size: 13px; }
 .osago-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .osago-actions .ghost { background: #35373b; font-size: 13px; }
 .osago-actions .ghost:disabled { opacity: .45; }

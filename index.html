@@ -9,8 +9,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Дорога" />
-  <title>Дорога</title>
+  <meta name="apple-mobile-web-app-title" content="Игра" />
+  <title>Игра</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%2307080a%22/%3E%3Cpath d=%22M13 4h6l5 24H8z%22 fill=%22%23ff8a3d%22/%3E%3Cpath d=%22M15.3 8h1.4v4h-1.4zM15.2 15h1.6v5h-1.6z%22 fill=%22%2307080a%22/%3E%3C/svg%3E" />
 </head>
 <body>
@@ -18,14 +18,14 @@
   <div id="touch"></div>
 
   <section id="loading" class="screen show" role="status" aria-live="polite">
-    <div class="brand">ДОРОГА</div>
+    <div class="brand">ИГРА</div>
     <div class="bar"><i id="loadbar"></i></div>
     <div class="sub" id="loadtext">Прокладываем трассу…</div>
   </section>
 
   <section id="garage" class="screen" aria-labelledby="homeTitle" inert>
     <header class="top home-nav">
-      <h1 id="homeTitle">Дорога</h1>
+      <h1 id="homeTitle">Игра</h1>
       <div class="tabs" id="tabs" role="tablist" aria-label="Меню игры"></div>
       <div class="top-right">
         <a class="prototypes-link" href="./proto.html">Прототипы</a>
@@ -38,11 +38,11 @@
           <section class="slide insurance-slide" data-name="Страховка">
             <h2 class="home-section-title" id="insuranceHeading">Страховка на год</h2>
             <div class="ins">
-              <button class="ins-opt" id="insKasko"><span class="chk"></span><span class="t"><b>КАСКО · <span id="kaskoPrice">40</span></b><small>В Doroga оплачивает ремонт вашей машины независимо от виновника ДТП и эвакуацию, если машина разбита.</small></span></button>
-              <button class="ins-opt" id="insOsago"><span class="chk"></span><span class="t"><b>ОСАГО · <span id="osagoPrice">10</span></b><small>Если вы виноваты в ДТП, ОСАГО возмещает каждому потерпевшему ущерб имуществу до 400 000 ₽ и вред жизни или здоровью до 500 000 ₽.</small></span></button>
+              <button class="ins-opt" id="insKasko"><span class="chk"></span><span class="t"><b>КАСКО · <span class="coin-amount"><span id="kaskoPrice">40</span><span class="coin" role="img" aria-label="монет"></span></span></b><small>В игре оплачивает ремонт вашей машины независимо от виновника ДТП и эвакуацию, если машина разбита.</small></span></button>
+              <button class="ins-opt" id="insOsago"><span class="chk"></span><span class="t"><b>ОСАГО · <span class="coin-amount"><span id="osagoPrice">10</span><span class="coin" role="img" aria-label="монет"></span></span></b><small>Если вы виноваты в ДТП, ОСАГО возмещает каждому потерпевшему ущерб имуществу до 400 000 ₽ и вред жизни или здоровью до 500 000 ₽.</small></span></button>
               <button class="kbm-link" id="kbmLink">Как рассчитывается ОСАГО? · КБМ <b id="kbmNow">1,17</b>, класс <b id="kbmCls">3</b></button>
             </div>
-            <div class="startcoins">В кошельке <span class="coin"></span><b id="walletCard">100</b> · на поездку останется <b id="startCoins">100</b></div>
+            <div class="startcoins">В кошельке <span class="coin"></span><b id="walletCard">100</b> · на поездку останется <b class="coin-amount"><span id="startCoins">100</span><span class="coin" role="img" aria-label="монет"></span></b></div>
           </section>
           <section class="slide analytics-slide" data-name="Аналитика">
             <h2 class="home-section-title">Аналитика</h2>
@@ -53,7 +53,7 @@
               <div><span>Смен страхового года</span><b id="gsYears">0</b></div>
               <div><span>Общий пробег</span><b id="gsKm">0 км</b></div>
               <div><span>Столкновений</span><b id="gsCrashes">0</b></div>
-              <div class="wide"><span>Подобрано монет</span><b id="gsCoins">0</b></div>
+              <div class="wide"><span>Подобрано монет</span><b class="coin-amount"><span id="gsCoins">0</span><span class="coin" role="img" aria-label="монет"></span></b></div>
               <div class="wide"><span>Последний заезд</span><b id="gsLast">—</b></div>
             </div>
             <button class="reset-all" id="resetAll">Начать сначала</button>
@@ -107,10 +107,13 @@
         <path d="M20 110 A80 80 0 0 1 180 110" class="fill" id="speedArc" />
       </svg>
       <div class="num"><b id="speed">0</b><span>км/ч</span></div>
-      <div class="odo" aria-label="Пройдено">
-        <div class="odo-row"><div class="drums" id="odo"><span class="drum"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></span><span class="drum"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></span><span class="drum"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></span><i class="dot"></i><span class="drum tenth"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></span></div>
+      <div class="odo">
+        <div class="odo-row days-counter" id="daysCounter">
+          <b id="daysValue">0</b><abbr title="дней заезда">дн.</abbr>
+        </div>
+        <div class="odo-row" id="distanceCounter" hidden><div class="drums" id="odo"><span class="drum"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></span><span class="drum"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></span><span class="drum"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></span><i class="dot"></i><span class="drum tenth"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span></span></div>
 <span class="odo-goal" id="odoGoal">/ 4 км</span></div>
-        <i class="tripbar"><i id="tripBar"></i></i>
+        <i class="tripbar" hidden><i id="tripBar"></i></i>
       </div>
     </div>
     <div class="controls-hint" id="ctrlHint">
@@ -163,7 +166,6 @@
 
   <section id="breakdown" class="screen">
     <div class="panel menu">
-      <div class="eyebrow">Помощь на дороге</div>
       <h2>Машина сломалась</h2>
       <div class="st-row"><span>Ближайшая остановка</span><b id="towDestination"></b></div>
       <div class="st-row"><span>Монеты</span><b><span class="coin"></span><span id="towWallet"></span></b></div>
@@ -200,7 +202,7 @@
       <h2 id="yearReportTitle">Итоги страхового года</h2>
       <div class="st-row"><span>Пробег за год</span><b id="yearKm"></b></div>
       <div class="st-row"><span>Столкновения</span><b id="yearCrashes"></b></div>
-      <div class="st-row"><span>Собрано монет</span><b id="yearCoins"></b></div>
+      <div class="st-row"><span>Собрано монет</span><b class="coin-amount"><span id="yearCoins"></span><span class="coin" role="img" aria-label="монет"></span></b></div>
       <div class="st-row" id="yearKbmRow"><span>КБМ</span><b id="yearKbm"></b></div>
       <div class="year-progress" aria-hidden="true"></div>
     </div>
@@ -240,8 +242,16 @@
         <details id="osagoDetails" hidden>
           <summary id="osagoTableTitle"></summary>
           <div id="osagoLessonTable" class="osago-table-scroll" tabindex="0"></div>
+          <div id="osagoKbmTable" class="osago-table-scroll" tabindex="0" hidden>
+            <table id="kbmTable" class="kbm-table" aria-label="Классы КБМ">
+              <thead>
+                <tr><th rowspan="2">Класс</th><th rowspan="2">КБМ</th><th colspan="5" class="grp">Следующий класс по числу случаев</th></tr>
+                <tr><th class="n">0</th><th class="n">1</th><th class="n">2</th><th class="n">3</th><th class="n">4+</th></tr>
+              </thead>
+              <tbody id="kbmBody"></tbody>
+            </table>
+          </div>
         </details>
-        <a id="osagoSource" class="osago-source" target="_blank" rel="noopener noreferrer">Указание Банка России № 7204-У ↗</a>
         <div class="osago-actions">
           <button id="osagoBack" type="button" class="ghost">Назад</button>
           <button id="osagoSkip" type="button" class="ghost">Пропустить</button>
@@ -252,15 +262,6 @@
         <p id="osagoCalculation" class="osago-game-value"></p>
         <button id="kbmBuy" class="go">Выбрать ОСАГО</button>
         <button id="osagoReplay" class="ghost" type="button">Посмотреть расчёт</button>
-        <div id="osagoConfirmTable" class="osago-table-scroll">
-          <table id="kbmTable" class="kbm-table" aria-label="Классы КБМ">
-            <thead>
-              <tr><th rowspan="2">Класс</th><th rowspan="2">КБМ</th><th rowspan="2">Цена в игре</th><th colspan="5" class="grp">Следующий класс по числу случаев</th></tr>
-              <tr><th class="n">0</th><th class="n">1</th><th class="n">2</th><th class="n">3</th><th class="n">4+</th></tr>
-            </thead>
-            <tbody id="kbmBody"></tbody>
-          </table>
-        </div>
       </div>
     </div>
   </section>

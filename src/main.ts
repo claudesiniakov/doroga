@@ -10,12 +10,23 @@ import { GarageScene } from './garage';
 import type { DriveScene } from './drive';
 import { START_COINS, LITERS_PER_KM, FUEL_PRICE, KASKO, REPAIR_PRICE, POLICE_FINE } from './drive-rules';
 import { Input } from './input';
-import { OSAGO_LESSON, OSAGO_TARIFF_SOURCE } from './osago-lesson';
+import { OSAGO_LESSON } from './osago-lesson';
 import { finishRecordRun, formatRecordDistance, formatRecordDays, loadRecords, MAX_NICKNAME_LENGTH, saveRecord, startRecordRun } from './records';
 
 type State = 'loading' | 'garage' | 'drive' | 'pause' | 'station' | 'over' | 'protocol' | 'renewal' | 'breakdown' | 'yearReport' | 'returningHome';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
+const coinAmount = (value: string | number) => {
+  const amount = document.createElement('span');
+  amount.className = 'coin-amount';
+  const icon = document.createElement('span');
+  icon.className = 'coin';
+  icon.setAttribute('role', 'img');
+  icon.setAttribute('aria-label', 'монет');
+  amount.append(String(value), icon);
+  return amount;
+};
+
 const params = new URLSearchParams(location.search);
 const SHOT = params.get('shot'); // служебный режим для автоматических снимков
 if (SHOT) document.documentElement.classList.add('shot');
@@ -356,6 +367,7 @@ async function main() {
       lsSet('doroga.wallet', wallet);
       runClosed = false;
       activeRunSeconds = 0;
+      daysValue.textContent = '0';
       accountedRunMs = 0;
       runCrashes = 0;
       rankingRun = drive.endless ? startRecordRun().catch(() => undefined) : undefined;
@@ -468,30 +480,29 @@ async function main() {
   let kbmTrigger: HTMLElement | null = null;
   const lesson = $('osagoLesson');
   const confirmation = $('osagoConfirm');
-  const kbmTable = $('kbmTable');
-  const confirmTable = $('osagoConfirmTable');
+  const kbmReference = $('osagoKbmTable');
   const referenceTable = $('osagoLessonTable');
   const lessonDetails = $<HTMLDetailsElement>('osagoDetails');
   const lessonBack = $<HTMLButtonElement>('osagoBack');
   const lessonNext = $<HTMLButtonElement>('osagoNext');
-  $<HTMLAnchorElement>('osagoSource').href = OSAGO_TARIFF_SOURCE;
   const formatFactor = (factor: number) => String(factor).replace('.', ',');
 
   const renderKbmTable = () => {
     $('kbmBody').innerHTML = KBM.map((r, i) =>
-      `<tr class="${i === kbm ? 'cur' : ''}"><td class="c">${r.cls}</td><td>${fmtK(r.k)}</td><td>${osagoPrice(i)}</td>` +
+      `<tr class="${i === kbm ? 'cur' : ''}"><td class="c">${r.cls}</td><td>${fmtK(r.k)}</td>` +
       r.next.map((n) => `<td class="n">${KBM[n].cls}</td>`).join('') + '</tr>').join('');
     const afford = insCost() + osagoPrice(kbm) <= wallet;
-    $('kbmBuy').textContent = ins.osago ? 'ОСАГО уже выбрано' : afford ? `Выбрать ОСАГО за ${osagoPrice(kbm)} монет` : 'Не хватает монет';
-    ($('kbmBuy') as HTMLButtonElement).disabled = ins.osago || !afford;
+    const buy = $<HTMLButtonElement>('kbmBuy');
+    buy.replaceChildren(...(ins.osago ? ['ОСАГО уже выбрано'] : afford
+      ? ['Выбрать ОСАГО за ', coinAmount(osagoPrice(kbm))] : ['Не хватает монет']));
+    buy.disabled = ins.osago || !afford;
   };
 
   const showOsagoConfirmation = () => {
-    confirmTable.append(kbmTable);
     lesson.hidden = true;
     confirmation.hidden = false;
     $('kbmTitle').textContent = 'Оформление ОСАГО';
-    $('osagoCalculation').textContent = `${osagoFactors(kbm).map(formatFactor).join(' × ')} ≈ ${osagoPrice(kbm)} монет`;
+    $('osagoCalculation').replaceChildren(`${osagoFactors(kbm).map(formatFactor).join(' × ')} ≈ `, coinAmount(osagoPrice(kbm)));
   };
 
   const renderOsagoCard = () => {
@@ -499,7 +510,7 @@ async function main() {
     lesson.hidden = false;
     confirmation.hidden = true;
     $('kbmTitle').textContent = 'Как рассчитывается стоимость ОСАГО?';
-    $('osagoCount').textContent = `${lessonIndex + 1} / ${OSAGO_LESSON.length} карточек`;
+    $('osagoCount').textContent = `${lessonIndex + 1} / ${OSAGO_LESSON.length}`;
     $('osagoFactors').replaceChildren(...OSAGO_LESSON.map(({ factor }, index) => {
       const chip = document.createElement(index === lessonIndex ? 'mark' : 'span');
       chip.textContent = factor;
@@ -508,17 +519,17 @@ async function main() {
     $('osagoCardTitle').textContent = card.title;
     $('osagoExplanation').textContent = card.explanation;
     const example = formatFactor(osagoFactors(kbm)[lessonIndex]);
-    $('osagoGameValue').textContent = lessonIndex === 0 ? `В игре · ${example} монет` : `В игре · ${card.factor} = ${example}`;
+    $('osagoGameValue').replaceChildren('В игре · ', lessonIndex === 0 ? coinAmount(example) : `${card.factor} = ${example}`);
     lessonBack.disabled = lessonIndex === 0;
     lessonNext.textContent = lessonIndex === OSAGO_LESSON.length - 1 ? 'К оформлению' : 'Далее';
-    confirmTable.append(kbmTable);
     referenceTable.replaceChildren();
     lessonDetails.open = false;
     const isKbm = card.factor === 'КБМ';
+    kbmReference.hidden = !isKbm;
+    referenceTable.hidden = !card.table;
     lessonDetails.hidden = !isKbm && !card.table;
     if (isKbm) {
       $('osagoTableTitle').textContent = 'Таблица КБМ';
-      referenceTable.append(kbmTable);
     } else if (card.table) {
       $('osagoTableTitle').textContent = card.table.title;
       const table = document.createElement('table');
@@ -609,14 +620,14 @@ async function main() {
       $('stUnit').textContent = `/ ${drive.tank} л`;
       $('stTankBar').style.width = `${(drive.fuel / drive.tank) * 100}%`;
       $('stBarWrap').classList.remove('hp');
-      $('stPrice').textContent = '1 монета за литр';
+      $('stPrice').replaceChildren(coinAmount(FUEL_PRICE), ' за литр');
       const need = Math.ceil(drive.tank - drive.fuel - 1e-6);
       const can = Math.min(need, Math.floor(drive.coins / FUEL_PRICE));
       full.disabled = can <= 0;
-      full.textContent = can <= 0 ? (need <= 0 ? 'Бак полный' : 'Не хватает монет')
-        : can < need ? `На все монеты · ${can} л` : `Полный бак · ${need} л за ${need * FUEL_PRICE}`;
+      full.replaceChildren(...(can <= 0 ? [need <= 0 ? 'Бак полный' : 'Не хватает монет']
+        : [can < need ? `Заправить ${can} л за ` : `Полный бак · ${need} л за `, coinAmount(can * FUEL_PRICE)]));
       ten.disabled = can <= 0;
-      ten.textContent = '+10 л · 10 монет';
+      ten.replaceChildren('+10 л · ', coinAmount(10 * FUEL_PRICE));
       ten.style.display = can > 10 ? '' : 'none';
     } else {
       $('stTitle').textContent = 'Отремонтировать?';
@@ -625,16 +636,16 @@ async function main() {
       $('stTankBar').style.width = `${drive.health}%`;
       $('stBarWrap').classList.add('hp');
       const kasko = drive.insurance.kasko;
-      $('stPrice').textContent = kasko ? 'по КАСКО — бесплатно' : '1 монета за 10 %';
+      $('stPrice').replaceChildren(...(kasko ? ['по КАСКО — бесплатно'] : [coinAmount(REPAIR_PRICE), ' за 10 %']));
       const need = Math.max(0, 100 - drive.health);
       const canPct = kasko ? need : Math.min(need, Math.floor(drive.coins / REPAIR_PRICE) * 10);
       full.disabled = canPct <= 0;
-      full.textContent = need <= 0 ? 'Машина целая'
-        : canPct <= 0 ? 'Не хватает монет'
-          : canPct < need ? `На все монеты · +${canPct} %`
-            : `Полный ремонт · ${kasko ? 'бесплатно' : `${drive.repairCost(need)} монет`}`;
+      full.replaceChildren(...(need <= 0 ? ['Машина целая']
+        : canPct <= 0 ? ['Не хватает монет']
+          : [canPct < need ? `Ремонт · +${canPct} % за ` : 'Полный ремонт · ',
+            kasko ? 'бесплатно' : coinAmount(drive.repairCost(canPct))]));
       ten.disabled = canPct <= 0;
-      ten.textContent = `+10 % · ${kasko ? 'бесплатно' : `${REPAIR_PRICE} монета`}`;
+      ten.replaceChildren('+10 % · ', kasko ? 'бесплатно' : coinAmount(REPAIR_PRICE));
       ten.style.display = need > 10 && canPct > 0 ? '' : 'none';
     }
   };
@@ -663,9 +674,10 @@ async function main() {
     $('prNum').textContent = `77 ДР № ${n}`;
     $('prPlace').textContent = `трасса, ${(drive.odometer / 1000).toFixed(1).replace('.', ',')} км`;
     $('prCar').textContent = `${cfg.name}, г/н ${cfg.plate}`;
-    $('prFine').textContent = drive.policeFine >= POLICE_FINE ? `штраф ${drive.policeFine} монет`
-      : `штраф ${POLICE_FINE} монет (списано ${drive.policeFine} — больше нет)`;
-    $('prSign').textContent = `Подписать · −${drive.policeFine} монет`;
+    const fine = $('prFine');
+    fine.replaceChildren('штраф ', coinAmount(POLICE_FINE));
+    if (drive.policeFine < POLICE_FINE) fine.append(' (списано ', coinAmount(drive.policeFine), ' — больше нет)');
+    $('prSign').replaceChildren('Подписать · ', coinAmount(`−${drive.policeFine}`));
     show('hud', 'protocol');
   };
   $('prSign').addEventListener('click', () => {
@@ -680,7 +692,9 @@ async function main() {
   let toastTimer = 0;
   const onDamage: NonNullable<DriveScene['onDamage']> = ({ damage, fine, covered }) => {
     const t = $('toast');
-    t.innerHTML = `−${damage} % здоровья` + (covered ? ' · ущерб покрыло ОСАГО' : fine > 0 ? ` · ущерб другой машине <span class="coin"></span>−${fine}` : '');
+    t.replaceChildren(`−${damage} % здоровья`);
+    if (covered) t.append(' · ущерб покрыло ОСАГО');
+    else if (fine > 0) t.append(' · ущерб другой машине ', coinAmount(`−${fine}`));
     t.classList.toggle('ok', covered);
     t.classList.add('on');
     clearTimeout(toastTimer);
@@ -698,7 +712,7 @@ async function main() {
     state = 'over';
     input.enabled = false;
     const t = lastTrip;
-    $('ovEyebrow').textContent = SHOT ? `Поездка №${t.num} · ${tripKm(t.num)} км` : 'Бесконечная дорога';
+    $('ovEyebrow').textContent = SHOT ? `Поездка №${t.num} · ${tripKm(t.num)} км` : 'Итоги игры';
     $('ovTitle').textContent = drive.endReason === 'wreck' ? 'Машина разбита'
       : drive.endReason === 'fuel' ? 'Топливо кончилось' : 'Заезд завершён';
     const durationMs = drive.endless ? Math.floor(activeRunSeconds * 1000) : 0;
@@ -740,8 +754,8 @@ async function main() {
     $('ovAgain').textContent = 'Начать новый заезд';
     const ch = lastKbmChange;
     $('ovKbmRow').style.display = ch ? '' : 'none';
-    if (ch) $('ovKbm').textContent = ch.from === ch.to ? `класс ${KBM[ch.to].cls} (без изменений)`
-      : `класс ${KBM[ch.from].cls} → ${KBM[ch.to].cls} · ОСАГО ${osagoPrice(ch.from)} → ${osagoPrice(ch.to)}`;
+    if (ch) $('ovKbm').replaceChildren(...(ch.from === ch.to ? [`класс ${KBM[ch.to].cls} (без изменений)`]
+      : [`класс ${KBM[ch.from].cls} → ${KBM[ch.to].cls} · ОСАГО `, coinAmount(osagoPrice(ch.from)), ' → ', coinAmount(osagoPrice(ch.to))]));
     show('hud', 'over');
   };
   const onEmpty: NonNullable<DriveScene['onEmpty']> = () => {
@@ -755,8 +769,8 @@ async function main() {
       const cost = drive.assistanceCost;
       const call = $<HTMLButtonElement>('towCall');
       call.disabled = drive.coins < cost;
-      call.textContent = cost === 0 ? 'Вызвать помощь · бесплатно по КАСКО'
-        : call.disabled ? `Эвакуация · нужно ${cost} монет` : `Вызвать помощь · ${cost} монет`;
+      call.replaceChildren(...(cost === 0 ? ['Вызвать помощь · бесплатно по КАСКО']
+        : [call.disabled ? 'Эвакуация · нужно ' : 'Вызвать помощь · ', coinAmount(cost)]));
       show('hud', 'breakdown');
       call.disabled ? $('towEnd').focus() : call.focus();
       return;
@@ -1022,7 +1036,9 @@ async function main() {
 
   const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
   $('tripBar').parentElement!.hidden = !SHOT;
-  if (!SHOT) $('odoGoal').textContent = 'км';
+  $('daysCounter').hidden = !!SHOT;
+  $('distanceCounter').hidden = !SHOT;
+  const daysValue = $('daysValue');
   const dateLabel = $('calendarDate');
   const frame = (dt: number, elapsed = dt) => {
     time += dt;
@@ -1056,11 +1072,13 @@ async function main() {
         speedEl.textContent = String(kmh);
         arcEl.style.strokeDashoffset = String(SPEEDO_LEN * (1 - Math.min(1, kmh / cfg.maxSpeedKmh)));
       }
-      setOdo((drive.endless ? drive.odometer : drive.tripDone) / 100);
       if (drive.endless) {
+        const days = String(Math.floor(activeRunSeconds));
+        if (daysValue.textContent !== days) daysValue.textContent = days;
         const date = `${drive.calendarDay} ${months[drive.month]}`;
         if (dateLabel.textContent !== date) dateLabel.textContent = date;
       } else {
+        setOdo(drive.tripDone / 100);
         $('odoGoal').textContent = `/ ${drive.tripKm} км`;
         $('tripBar').style.width = `${Math.min(100, (drive.tripDone / (drive.tripKm * 1000)) * 100)}%`;
       }

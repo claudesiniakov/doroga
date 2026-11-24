@@ -1,4 +1,4 @@
-// Сервис-воркер «Дороги»: сначала сеть (всегда свежая версия), при отсутствии сети — кеш.
+// Сервис-воркер игры: сначала сеть (всегда свежая версия), при отсутствии сети — кеш.
 const CACHE = 'doroga-v1';
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));

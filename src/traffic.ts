@@ -249,7 +249,10 @@ export class Traffic {
     };
     const cur = this.leader(v, v.lane, p);
     let a = idm(cur.gap, cur.v);
-    if (v.targetLane !== v.lane) a = Math.min(a, idm(this.leader(v, v.targetLane, p).gap, this.leader(v, v.targetLane, p).v));
+    if (v.targetLane !== v.lane) {
+      const target = this.leader(v, v.targetLane, p);
+      a = Math.min(a, idm(target.gap, target.v));
+    }
     // не перекрывать последнюю свободную полосу: если обе соседние заняты рядом впереди — пропустить их
     {
       let busy = 0;

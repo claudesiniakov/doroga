@@ -71,6 +71,7 @@ async function main() {
   const prepareDrive = async () => {
     if (drive) return drive;
     const { DriveScene } = await loadDrive();
+    if (drive) return drive;
     const scene = new DriveScene(pmrem, renderer.quality.textureSize, renderer.anisotropy, Number(params.get('seed') || 1337));
     scene.endless = !SHOT;
     if (SHOT) scene.setSnow(params.get('snow') !== '0');
@@ -293,8 +294,10 @@ async function main() {
   clock.connect(document);
   let time = 0;
   let hintTimer = 0;
+  let renderedBackdrop: State | undefined;
 
   const resize = () => {
+    renderedBackdrop = undefined;
     renderer.resize();
     garage?.resize(innerWidth / innerHeight);
     drive?.resize(innerWidth / innerHeight);
@@ -310,7 +313,7 @@ async function main() {
   const enterGarage = () => {
     void renderRecords();
     if (garage) garage.attachCar(car);
-    else drive.previewRoad(car, cfg);
+    else drive?.previewRoad(car, cfg);
     $('garage').classList.remove('is-renewal');
     $('homeMode').hidden = true;
     $('insuranceHeading').textContent = 'Страховка на год';
@@ -388,7 +391,7 @@ async function main() {
     }
   };
 
-  // КБМ и КАСКО пересчитываются при завершении страхового периода.
+  // Скидка по КБМ начисляется только за безаварийный страховой период, завершившийся сменой года.
   let kbm = loadKbm();
   let runClosed = true;
   let lastKbmChange: { from: number; to: number } | null = null;
@@ -420,7 +423,7 @@ async function main() {
     }
     lsSet('doroga.wallet', wallet); lsSet('doroga.trip', trip); lsSet('doroga.kaskoPrice', kaskoPrice); lsSet('doroga.stats', gstats);
     lastKbmChange = null;
-    if (drive.insurance.osago) {
+    if (drive.insurance.osago && (renewingInsurance || drive.crashes > 0)) {
       const to = kbmNext(kbm, drive.crashes);
       lastKbmChange = { from: kbm, to };
       kbm = to;
@@ -447,7 +450,7 @@ async function main() {
   portrait.addEventListener('change', (event) => {
     if (touchControls.matches && event.matches) pause();
   });
-  input.onCamera = () => drive.toggleCamera();
+  input.onCamera = () => drive?.toggleCamera();
 
   // ——— страховки (покупаются перед заездом из стартовых монет) ———
   const ins = { kasko: false, osago: false };
@@ -753,12 +756,13 @@ async function main() {
     $('ovRewardRow').style.display = t.finished ? '' : 'none';
     $('ovReward').textContent = String(t.reward);
     $('ovCrashes').textContent = String(runCrashes);
-    const { osago, kasko, own, hadOsago, hadKasko } = drive.payouts;
+    const { osago, kasko, ownVictims, ownService, hadOsago, hadKasko } = drive.payouts;
     $('ovOsagoRow').hidden = !hadOsago;
     $('ovKaskoRow').hidden = !hadKasko;
     $('ovOsago').replaceChildren(coinAmount(osago));
     $('ovKasko').replaceChildren(coinAmount(kasko));
-    $('ovOwn').replaceChildren(coinAmount(own));
+    $('ovOwnVictims').replaceChildren(coinAmount(ownVictims));
+    $('ovOwnService').replaceChildren(coinAmount(ownService));
     $('ovWalletRow').hidden = drive.endless;
     $('ovCoins').textContent = String(wallet);
     $('ovAgain').textContent = 'Начать новый заезд';
@@ -777,10 +781,15 @@ async function main() {
       $('towDestination').textContent = `${place} · ${fmtKm(Math.abs(destination.sStop - drive.s) / 1000)}`;
       $('towWallet').textContent = String(drive.coins);
       const cost = drive.assistanceCost;
+      const minimum = drive.assistanceMinimumCost;
+      $('towPrice').replaceChildren(coinAmount(cost));
+      $('towRepair').replaceChildren(coinAmount(drive.repairCost(10)));
+      $('towFuelRow').hidden = drive.fuel > 0;
+      $('towFuel').replaceChildren(coinAmount(FUEL_PRICE));
       const call = $<HTMLButtonElement>('towCall');
-      call.disabled = drive.coins < cost;
-      call.replaceChildren(...(cost === 0 ? ['Вызвать помощь · бесплатно по КАСКО']
-        : [call.disabled ? 'Эвакуация · нужно ' : 'Вызвать помощь · ', coinAmount(cost)]));
+      call.disabled = drive.coins < minimum;
+      call.replaceChildren(...(call.disabled ? ['Для выезда нужно ', coinAmount(minimum)]
+        : cost === 0 ? ['Вызвать помощь по КАСКО'] : ['Вызвать помощь · ', coinAmount(cost)]));
       show('hud', 'breakdown');
       call.disabled ? $('towEnd').focus() : call.focus();
       return;
@@ -964,6 +973,7 @@ async function main() {
     const q = (e.target as HTMLElement).dataset.q as QualityName | undefined;
     if (!q) return;
     renderer.setQuality(q);
+    renderedBackdrop = undefined;
     drive.setShadowMapSize(renderer.quality.shadowMap);
     markQuality();
   });
@@ -1052,6 +1062,14 @@ async function main() {
   const dateLabel = $('calendarDate');
   const frame = (dt: number, elapsed = dt) => {
     time += dt;
+    if (state === 'pause' || state === 'over' || state === 'yearReport' || state === 'renewal') {
+      if (renderedBackdrop !== state) {
+        renderer.render(drive.scene, drive.camera, time);
+        renderedBackdrop = state;
+      }
+      return;
+    }
+    renderedBackdrop = undefined;
     if (state === 'garage' || state === 'loading') {
       if (startingDrive && state === 'loading') return;
       if (garage) {
@@ -1060,7 +1078,7 @@ async function main() {
       } else if (drive) renderer.render(drive.scene, drive.camera, time);
       return;
     }
-    if (state === 'station' || state === 'over' || state === 'protocol' || state === 'breakdown') {
+    if (state === 'station' || state === 'protocol' || state === 'breakdown') {
       // мир живёт: трафик едет мимо, машина стоит
       drive.update(dt, { throttle: 0, brake: 0, laneShift: 0 }, time);
       updateHud();
@@ -1105,13 +1123,22 @@ async function main() {
     return;
   }
 
-  await prepareDrive();
   enterGarage();
   renderer.gl.setAnimationLoop((t) => {
     clock.update(t);
     const elapsed = Math.max(0, clock.getDelta());
     frame(Math.min(elapsed, 0.1), elapsed);
   });
+  await nextFrame();
+  await nextFrame();
+  if (!startingDrive && $('garage').classList.contains('show')) {
+    try {
+      const scene = await prepareDrive();
+      if (!startingDrive && $('garage').classList.contains('show')) scene.previewRoad(car, cfg);
+    } catch (error) {
+      console.error(error);
+    }
+  }
 }
 
 main().catch((e) => {

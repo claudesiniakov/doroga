@@ -217,7 +217,7 @@ export async function runShot(kind: string, ctx: {
     log.push(`повторно в том же заезде: phase=${d.phase}, списано ${c1 - d.coins}`);
     console.warn('POLICE ' + log.join(' | '));
   } else if (kind === 'kbmtest') {
-    // годы: без ДТП с ОСАГО → с 2 ДТП с ОСАГО → 3 ДТП без ОСАГО (класс не меняется)
+    // Досрочный перезапуск: без ДТП с ОСАГО → с 2 ДТП с ОСАГО → с 3 ДТП без ОСАГО.
     localStorage.removeItem('doroga.kbm');
     const log: string[] = [];
     const cls = () => KBM[loadKbm()].cls + ' (ОСАГО ' + document.getElementById('osagoPrice')!.textContent + ')';
@@ -230,7 +230,7 @@ export async function runShot(kind: string, ctx: {
     for (const [crashes, withOsago] of [[0, true], [2, true], [3, false]] as const) {
       if (osago.classList.contains('on') !== withOsago) { osago.click(); if (withOsago) document.getElementById('kbmBuy')!.click(); }
       await ctx.startDrive(true, 300);
-      log.push(`год: ОСАГО=${withOsago}, взнос ${ctx.drive.insurance.osago ? ctx.drive.insurance.osagoPrice : 0}, монет на старте ${ctx.drive.coins}`);
+      log.push(`заезд: ОСАГО=${withOsago}, взнос ${ctx.drive.insurance.osago ? ctx.drive.insurance.osagoPrice : 0}, монет на старте ${ctx.drive.coins}`);
       ctx.drive.crashes = crashes;
       (document.getElementById('restart') as HTMLElement).click();
       await new Promise((r) => setTimeout(r, 50));

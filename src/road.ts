@@ -410,6 +410,7 @@ const RAIL_PROFILE: [number, number][] = [
 
 class Chunk {
   readonly group = new THREE.Group();
+  build?: Generator<void, void, void>;
   scattered = false;
   constructor(readonly index: number) {}
   dispose() {
@@ -478,11 +479,16 @@ export class RoadWorld {
     const stats = RoadWorld.stats;
     let preparedChunk = false;
     for (let k = first; k <= last; k++) {
-      const c = this.chunks.get(k);
+      let c = this.chunks.get(k);
       if (c?.scattered) continue;
       const t0 = stats ? performance.now() : 0;
       if (!c) {
-        this.chunks.set(k, this.buildChunk(k));
+        c = new Chunk(k);
+        c.build = this.buildChunk(c);
+        this.chunks.set(k, c);
+      }
+      if (c.build) {
+        if (c.build.next().done) c.build = undefined;
         stats?.base.push(performance.now() - t0);
       } else {
         this.scatter(c);
@@ -491,11 +497,12 @@ export class RoadWorld {
       preparedChunk = true;
       break;
     }
-    if (!preparedChunk || this.priming) {
+    if (!preparedChunk) {
       const tf = stats ? performance.now() : 0;
       this.far.update(carPos, this.priming);
       stats?.far.push(performance.now() - tf);
     }
+    return preparedChunk;
   }
   private priming = false;
   /** Замеры стадий постройки (включаются только в режиме проверки). */
@@ -512,9 +519,10 @@ export class RoadWorld {
     p.point(i, so, 0, out);
     const roadLevel = out.y - 0.15;
     const ditch = -0.9 * Math.exp(-(((oRel - (half + 3.6)) / 1.6) ** 2)) * (1 - flat);
-    const t = biomeTerrain(p, i, out.x, out.z, so);
     const blend = smoothstep(half + 6, 80, oRel) * (1 - flat * (1 - smoothstep(half + 46, half + 95, o)));
-    out.y = roadLevel + (t - roadLevel) * blend + ditch * (1 - blend);
+    out.y = blend === 0
+      ? roadLevel + ditch
+      : roadLevel + (biomeTerrain(p, i, out.x, out.z, so) - roadLevel) * blend + ditch * (1 - blend);
     return out;
   }
 
@@ -554,15 +562,18 @@ export class RoadWorld {
   /** Сразу построить всё (для старта). */
   prime(s: number, carPos: THREE.Vector3) {
     this.priming = true;
-    for (let n = 0; n < 80; n++) this.update(s, carPos);
-    this.priming = false;
+    try {
+      while (this.update(s, carPos)) { /* Построить все участки перед первым кадром. */ }
+    } finally {
+      this.priming = false;
+    }
   }
 
-  private buildChunk(k: number): Chunk {
+  private *buildChunk(c: Chunk): Generator<void, void, void> {
+    const k = c.index;
     const p = this.path;
     const i0 = k * CHUNK_STEPS, i1 = i0 + CHUNK_STEPS;
     p.ensure((i1 + 2) * STEP);
-    const c = new Chunk(k);
     const origin = new THREE.Vector3(p.x[i0], p.y[i0], p.z[i0]);
     c.group.position.copy(origin);
     const half = ROAD.half;
@@ -597,7 +608,15 @@ export class RoadWorld {
       // лента рельефа: кювет у дороги → плавный переход к естественному рельефу
       const NC = GROUND_OFFS.length;
       const oAt = (j: number) => GROUND_OFFS[side < 0 ? NC - 1 - j : j];
-      const oAtI = (i: number, j: number) => this.groundOffs(i, side)[side < 0 ? NC - 1 - j : j];
+      let offsetRow = -1;
+      let offsets = GROUND_OFFS;
+      const oAtI = (i: number, j: number) => {
+        if (offsetRow !== i) {
+          offsets = this.groundOffs(i, side);
+          offsetRow = i;
+        }
+        return offsets[side < 0 ? NC - 1 - j : j];
+      };
       const groundPos: PosFn = (i, j, out) => this.groundRaw(i, side * oAtI(i, j), out);
       const ground = ribbon(i0, i1, NC, origin, groundPos,
         (i, j) => [oAt(j) / 6, vOf(i, 6)],
@@ -648,6 +667,7 @@ export class RoadWorld {
       posts.receiveShadow = true;
       posts.computeBoundingSphere();
       c.group.add(posts);
+      yield;
     }
 
     // 5) полоса съезда: асфальт, сплошная линия по её краю, разрывы основной краевой линии
@@ -678,7 +698,6 @@ export class RoadWorld {
     }
 
     this.group.add(c.group);
-    return c;
   }
 }
 
@@ -716,6 +735,7 @@ export class FarTerrain {
   private readonly sampleCount = (this.segs + 1) ** 2;
   private readonly staging = {
     P: new Float32Array(this.sampleCount * 3),
+    N: new Float32Array(this.sampleCount * 3),
     C: new Float32Array(this.sampleCount * 4),
     U: new Float32Array(this.sampleCount * 2),
     M: new Uint8Array(this.sampleCount * 4),
@@ -735,7 +755,9 @@ export class FarTerrain {
     this.seaMask.needsUpdate = true;
   }
 
-  private job: { cx: number; cz: number; row: number; P: Float32Array; C: Float32Array; U: Float32Array; M: Uint8Array; level: number } | null = null;
+  private job: ({ cx: number; cz: number; row: number; level: number } & FarTerrain['staging']) | null = null;
+  private readonly edgeA = new THREE.Vector3();
+  private readonly edgeB = new THREE.Vector3();
   /**
    * Маска моря на ту же сетку (1 — вода): вода только со стороны моря у участков побережья,
    * иначе плоскость моря затапливала бы низины и дорогу на подъезде к побережью.
@@ -746,14 +768,44 @@ export class FarTerrain {
   readonly seaCenter = new THREE.Vector2();
   readonly gridSize = 2400;
 
+  private accumulateNormals(row: number, positions: Float32Array, normals: Float32Array) {
+    // PlaneGeometry хранит по два треугольника на ячейку, строки идут подряд.
+    const indices = this.geo.index!.array;
+    const start = row * this.segs * 6;
+    for (let i = start; i < start + this.segs * 6; i += 3) {
+      const a = indices[i] * 3, b = indices[i + 1] * 3, c = indices[i + 2] * 3;
+      const cb = this.edgeA.set(positions[c] - positions[b], positions[c + 1] - positions[b + 1], positions[c + 2] - positions[b + 2]);
+      const ab = this.edgeB.set(positions[a] - positions[b], positions[a + 1] - positions[b + 1], positions[a + 2] - positions[b + 2]);
+      cb.cross(ab);
+      for (let j = i; j < i + 3; j++) {
+        const k = indices[j] * 3;
+        normals[k] += cb.x;
+        normals[k + 1] += cb.y;
+        normals[k + 2] += cb.z;
+      }
+    }
+  }
+
+  private normalizeRow(row: number, normals: Float32Array) {
+    const start = row * (this.segs + 1) * 3;
+    for (let i = start; i < start + (this.segs + 1) * 3; i += 3) {
+      const n = this.edgeA.fromArray(normals, i).normalize();
+      normals[i] = n.x;
+      normals[i + 1] = n.y;
+      normals[i + 2] = n.z;
+    }
+  }
+
   /** Пересчёт сетки — порциями по рядам, чтобы не было рывка в кадре; full — сразу целиком. */
   update(car: THREE.Vector3, full = false) {
     const snap = 120;
     const cx = Math.round(car.x / snap) * snap, cz = Math.round(car.z / snap) * snap;
+    if (full && this.job && (this.job.cx !== cx || this.job.cz !== cz)) this.job = null;
     if (!this.job) {
       if (cx === this.center.x && cz === this.center.y) return;
       const pi = this.path.indexAtZ(car.z);
       const level = this.path.seaLevelNear(pi * 2, 1300);
+      this.staging.N.fill(0);
       this.job = { cx, cz, row: 0, ...this.staging, level: level ?? NaN };
     }
     const job = this.job;
@@ -790,13 +842,18 @@ export class FarTerrain {
         const mk = ((this.segs - r) * (this.segs + 1) + c) * 4;
         job.M[mk] = job.M[mk + 1] = job.M[mk + 2] = water; job.M[mk + 3] = 255;
       }
+      if (r > 0) {
+        this.accumulateNormals(r - 1, job.P, job.N);
+        this.normalizeRow(r - 1, job.N);
+      }
+      if (r === this.segs) this.normalizeRow(r, job.N);
     } while (job.row < rEnd && performance.now() < deadline);
     if (job.row <= this.segs) return;
     // готово — подменяем данные сетки разом
     (this.geo.getAttribute('position') as THREE.BufferAttribute).copyArray(job.P).needsUpdate = true;
     (this.geo.getAttribute('color') as THREE.BufferAttribute).copyArray(job.C).needsUpdate = true;
     (this.geo.getAttribute('uv') as THREE.BufferAttribute).copyArray(job.U).needsUpdate = true;
-    this.geo.computeVertexNormals();
+    (this.geo.getAttribute('normal') as THREE.BufferAttribute).copyArray(job.N).needsUpdate = true;
     this.mesh.position.set(job.cx, 0, job.cz);
     this.center.set(job.cx, job.cz);
     this.seaMask.image.data!.set(job.M);

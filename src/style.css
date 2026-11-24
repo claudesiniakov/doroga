@@ -689,12 +689,14 @@ html, body { height: 100dvh; }
 }
 #over h2, #breakdown h2 { margin: 0; overflow-wrap: anywhere; }
 #breakdown .st-row { gap: 8px; }
+#breakdown .st-row[hidden] { display: none; }
 #breakdown .st-row b { min-width: 0; overflow-wrap: anywhere; text-align: right; }
 .result-details, .result-actions { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 8px; min-width: 0; }
 .result-details { min-height: 0; overflow-y: auto; padding-right: 3px; touch-action: pan-y; }
 .result-details .st-row[hidden] { display: none; }
 .result-payouts { border-top: 1px solid var(--line); padding-top: 6px; }
-.result-payouts p { margin: 5px 2px 0; font-size: 12px; color: var(--ink-2); }
+.result-payouts .st-row { gap: 8px; }
+.result-payouts b { flex-shrink: 0; }
 .result-actions > button, #breakdown .menu button { min-height: 44px; height: auto; padding: 7px 10px; }
 .result-actions .record-form { min-width: 0; grid-template-columns: minmax(0, 1fr); }
 .result-actions .record-fields > * { min-height: 40px; }

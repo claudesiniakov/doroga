@@ -81,7 +81,7 @@ export class DriveScene {
   month = 0;
   monthTime = 0;
   coinsCollected = 0;
-  payouts = { osago: 0, kasko: 0, own: 0, hadOsago: false, hadKasko: false };
+  payouts = { osago: 0, kasko: 0, ownVictims: 0, ownService: 0, hadOsago: false, hadKasko: false };
   private readonly roadCoins: RoadCoins;
   private previewing = false;
   private snowAmount = 0;
@@ -333,7 +333,7 @@ export class DriveScene {
     // страховки покупаются на старте из стартовых монет
     // монеты на поездку (страховки уже оплачены из кошелька)
     this.coins = this.startCoins;
-    this.payouts = { osago: 0, kasko: 0, own: 0, hadOsago: this.insurance.osago, hadKasko: this.insurance.kasko };
+    this.payouts = { osago: 0, kasko: 0, ownVictims: 0, ownService: 0, hadOsago: this.insurance.osago, hadKasko: this.insurance.kasko };
     this.startS = startS;
     this.kaskoRepairUsed = false;
     this.pitExit = null;
@@ -816,7 +816,7 @@ export class DriveScene {
       this.kaskoRepairUsed = true;
     } else {
       this.coins -= value;
-      this.payouts.own += value;
+      this.payouts.ownService += value;
     }
     this.health = Math.min(100, this.health + want);
     return want;
@@ -824,18 +824,22 @@ export class DriveScene {
 
   get assistanceCost() { return this.insurance.kasko ? 0 : ROADSIDE_ASSISTANCE_PRICE; }
 
+  get assistanceMinimumCost() {
+    return this.assistanceCost + this.repairCost(10) + (this.fuel <= 0 ? FUEL_PRICE : 0);
+  }
+
   get assistanceDestination() { return this.world.path.nearestExit(this.s); }
 
   /** Эвакуация не добавляет километраж и сохраняет состояние машины. */
   towToService(): boolean {
-    if (this.phase !== 'stopped' || this.endReason !== 'wreck' || this.coins < this.assistanceCost) return false;
+    if (this.phase !== 'stopped' || this.endReason !== 'wreck' || this.coins < this.assistanceMinimumCost) return false;
     const exit = this.assistanceDestination;
     if (this.insurance.kasko) {
       this.payouts.kasko += ROADSIDE_ASSISTANCE_PRICE;
       this.kaskoRepairUsed = true;
     } else {
       this.coins -= ROADSIDE_ASSISTANCE_PRICE;
-      this.payouts.own += ROADSIDE_ASSISTANCE_PRICE;
+      this.payouts.ownService += ROADSIDE_ASSISTANCE_PRICE;
     }
     this.pitExit = exit;
     this.s = exit.sStop;
@@ -900,7 +904,7 @@ export class DriveScene {
     if (covered) this.payouts.osago += paidToVictim;
     else {
       this.coins -= paidToVictim;
-      this.payouts.own += paidToVictim;
+      this.payouts.ownVictims += paidToVictim;
     }
     this.onDamage?.({ ownDamage, thirdPartyDamage, paidToVictim, covered });
     this.onCrash?.(e);

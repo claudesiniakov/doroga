@@ -17,7 +17,7 @@ export interface Quality {
 }
 
 export const QUALITY: Record<QualityName, Quality> = {
-  low: { name: 'low', pixelRatio: 1.25, shadowMap: 1024, bloom: false, msaa: 0, textureSize: 512 },
+  low: { name: 'low', pixelRatio: 1.25, shadowMap: 512, bloom: false, msaa: 0, textureSize: 512 },
   medium: { name: 'medium', pixelRatio: 1.75, shadowMap: 2048, bloom: true, msaa: 4, textureSize: 1024 },
   high: { name: 'high', pixelRatio: 2.5, shadowMap: 4096, bloom: true, msaa: 4, textureSize: 1024 },
 };
@@ -30,8 +30,14 @@ export function detectQuality(): QualityName {
     if (saved === 'low' || saved === 'medium' || saved === 'high') return saved;
   } catch { /* хранилище недоступно */ }
   const mobile = matchMedia('(pointer: coarse)').matches;
-  return mobile ? 'medium' : 'high';
+  return mobile ? 'low' : 'high';
 }
+
+const sanitizeColor = /* glsl */ `
+  vec4 sanitizeColor(vec4 c) {
+    if (any(isnan(c)) || any(isinf(c))) return vec4(0.0, 0.0, 0.0, 1.0);
+    return vec4(min(c.rgb, vec3(64.0)), c.a);
+  }`;
 
 /** Финальная цветокоррекция в линейном HDR: виньетка, лёгкий «тёплый» сплит-тон, зерно. */
 const GradeShader = {
@@ -40,6 +46,7 @@ const GradeShader = {
     uTime: { value: 0 },
     uVignette: { value: 0.32 },
     uAspect: { value: 1 },
+    uSanitize: { value: false },
   },
   vertexShader: /* glsl */`
     varying vec2 vUv;
@@ -49,10 +56,13 @@ const GradeShader = {
     uniform float uTime;
     uniform float uVignette;
     uniform float uAspect;
+    uniform bool uSanitize;
     varying vec2 vUv;
+    ${sanitizeColor}
     float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
     void main() {
       vec4 c = texture2D(tDiffuse, vUv);
+      if (uSanitize) c = sanitizeColor(c);
       vec2 d = (vUv - 0.5) * vec2(uAspect, 1.0);
       float v = 1.0 - uVignette * smoothstep(0.35, 1.05, length(d));
       c.rgb *= v;
@@ -69,6 +79,7 @@ export class Renderer {
   readonly composer: EffectComposer;
   private renderPass: RenderPass;
   private bloom: UnrealBloomPass;
+  private sanitize: ShaderPass;
   private grade: ShaderPass;
   quality: Quality;
   exposure = 0.95;
@@ -89,17 +100,14 @@ export class Renderer {
     this.renderPass = new RenderPass(new THREE.Scene(), new THREE.PerspectiveCamera());
     this.composer.addPass(this.renderPass);
     // страховка: NaN/Inf в HDR-кадре не должны попадать в свечение (оно размывает их в чёрные прямоугольники)
-    this.composer.addPass(new ShaderPass({
+    this.sanitize = new ShaderPass({
       uniforms: { tDiffuse: { value: null } },
       vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
       fragmentShader: `uniform sampler2D tDiffuse; varying vec2 vUv;
-        void main() {
-          vec4 c = texture2D(tDiffuse, vUv);
-          bvec4 bad = bvec4(isnan(c.r) || isinf(c.r), isnan(c.g) || isinf(c.g), isnan(c.b) || isinf(c.b), isnan(c.a) || isinf(c.a));
-          if (any(bad)) c = vec4(0.0, 0.0, 0.0, 1.0);
-          gl_FragColor = vec4(min(c.rgb, vec3(64.0)), c.a);
-        }`,
-    }));
+        ${sanitizeColor}
+        void main() { gl_FragColor = sanitizeColor(texture2D(tDiffuse, vUv)); }`,
+    });
+    this.composer.addPass(this.sanitize);
     this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.32, 0.55, 1.6);
     this.composer.addPass(this.bloom);
     this.grade = new ShaderPass(GradeShader);
@@ -121,6 +129,8 @@ export class Renderer {
   private applyQuality() {
     this.gl.setPixelRatio(Math.min(devicePixelRatio || 1, this.quality.pixelRatio));
     this.bloom.enabled = this.quality.bloom;
+    this.sanitize.enabled = this.quality.bloom;
+    this.grade.uniforms.uSanitize.value = !this.quality.bloom;
     this.composer.renderTarget1.samples = this.quality.msaa;
     this.composer.renderTarget2.samples = this.quality.msaa;
   }

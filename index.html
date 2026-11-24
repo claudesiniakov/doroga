@@ -171,6 +171,9 @@
       <h2>Машина сломалась</h2>
       <div class="st-row"><span>Ближайшая остановка</span><b id="towDestination"></b></div>
       <div class="st-row"><span>Монеты</span><b><span class="coin"></span><span id="towWallet"></span></b></div>
+      <div class="st-row"><span>Эвакуация</span><b id="towPrice"></b></div>
+      <div class="st-row"><span>Минимальный ремонт</span><b id="towRepair"></b></div>
+      <div class="st-row" id="towFuelRow" hidden><span>Топливо · 1 л</span><b id="towFuel"></b></div>
       <button id="towCall" class="go">Вызвать помощь</button>
       <button id="towEnd" class="ghost">Закончить заезд</button>
     </div>
@@ -189,8 +192,8 @@
         <div class="result-payouts" id="ovPayouts">
           <div class="st-row" id="ovOsagoRow"><span>Выплатило ОСАГО</span><b id="ovOsago"></b></div>
           <div class="st-row" id="ovKaskoRow"><span>Выплатило КАСКО</span><b id="ovKasko"></b></div>
-          <div class="st-row"><span>Вы оплатили</span><b id="ovOwn"></b></div>
-          <p>Выплаты пострадавшим, ремонт и эвакуация</p>
+          <div class="st-row"><span>Вы выплатили пострадавшим</span><b id="ovOwnVictims"></b></div>
+          <div class="st-row"><span>Ваш ремонт и эвакуация</span><b id="ovOwnService"></b></div>
         </div>
         <div class="st-row" id="ovRewardRow"><span>Награда</span><b><span class="coin"></span>+<span id="ovReward">100</span></b></div>
         <div class="st-row" id="ovWalletRow" hidden><span>Кошелёк на новый заезд</span><b><span class="coin"></span><span id="ovCoins">100</span></b></div>

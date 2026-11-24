@@ -226,3 +226,15 @@
   .home-launch { right: auto; width: min(46vw, 290px); }
   #garage .home-nav { min-height: calc(83px + var(--safe-t)); }
 }
+
+@media (max-width: 850px) and (orientation: portrait) {
+  #garage .insurance-slide {
+    max-height: calc(100dvh - 228px - var(--safe-t) - var(--safe-b));
+  }
+  #garage .insurance-slide .kbm-link {
+    min-height: 44px;
+    margin-top: 0;
+    text-align: left;
+  }
+  #garage .insurance-slide .startcoins { margin-top: 4px; }
+}

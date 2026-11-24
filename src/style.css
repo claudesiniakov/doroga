@@ -104,13 +104,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .hud-row { display: flex; align-items: center; gap: 8px; }
 .hud-row .chips { flex-direction: column; align-items: flex-end; gap: 4px; margin: 0; }
 .hud-row .chips:empty { display: none; }
-/* узкий экран (телефон вертикально): компактные плашки топлива/состояния */
-@media (max-width: 480px) {
-  .hud-top { left: calc(14px + var(--safe-l)); right: calc(14px + var(--safe-r)); }
-  .fuel, .coins { padding: 6px 10px; gap: 6px; }
-  .fbar { width: 64px; }
-  .fuel b, .coins b { font-size: 15px; }
-}
 /* одометр под спидометром: барабаны с цифрами, десятые — инверсные */
 .odo { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); width: max-content; display: grid; gap: 5px; }
 .odo-row { display: flex; align-items: center; gap: 6px; }
@@ -206,19 +199,24 @@ kbd {
 .seg button { height: 36px; border: 0; border-radius: 9px; background: transparent; color: var(--ink-2); font-size: 13px; text-transform: none; letter-spacing: 0; }
 .seg button.on { background: rgba(255, 255, 255, .12); color: var(--ink); }
 
-#rotate { display: none; place-items: center; background: #07080a; font-size: 18px; color: var(--ink-2); }
 #fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity .6s ease; }
 #fade.on { opacity: 1; }
 
 /* ——— сенсорные устройства ——— */
+.touch-hint { display: none; }
 @media (pointer: coarse) {
   .pedal { display: block; }
   .controls-hint { display: none; }
+  #hud.show .touch-hint {
+    display: grid;
+    top: calc(114px + var(--safe-t)); bottom: auto; gap: 4px;
+    width: max-content; max-width: calc(100% - 36px); padding: 8px 12px;
+    border-radius: 10px; background: rgba(14, 15, 18, .82);
+    white-space: normal; text-align: center; color: var(--ink);
+  }
+  body:has(.screen.show:is(#pause, #station, #protocol, #breakdown, #over)) .touch-hint { visibility: hidden; }
   .speedo { right: 50%; transform: translateX(50%) scale(.8); transform-origin: bottom center; }
   .hint.drag-hint { display: none; }
-}
-@media (pointer: coarse) and (orientation: portrait) {
-  #rotate.show { display: grid; }
 }
 @media (max-width: 720px) {
   .car-card { left: 16px; right: 16px; width: auto; bottom: calc(16px + var(--safe-b)); padding: 20px; }
@@ -478,9 +476,38 @@ html, body { height: 100dvh; }
 .calendar-month:empty { display: none; }
 
 .service-tabs { display: flex; margin: 0; }
-#station .menu, #breakdown .menu {
+#pause .menu, #station .menu, #breakdown .menu {
   max-height: calc(100dvh - 20px - var(--safe-t) - var(--safe-b));
   overflow-y: auto;
+  touch-action: pan-y;
+}
+.station-details, .station-actions { display: grid; gap: 12px; }
+@media (max-width: 480px) {
+  .hud-top { left: calc(10px + var(--safe-l)); right: calc(10px + var(--safe-r)); gap: 6px; }
+  .hud-left .fuel, .hud-right .coins { padding: 5px 7px; gap: 4px; }
+  .hud-left .fbar { width: clamp(28px, 14vw, 58px); }
+  .hud-left .fuel b, .hud-right .coins b { font-size: 14px; }
+  .hud-right { min-width: 0; flex: 1; }
+  .hud-right .coins { margin-right: 52px; }
+  .hud-row { min-height: 30px; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+  #pauseBtn { position: absolute; top: 0; right: 0; }
+}
+@media (max-height: 440px) and (orientation: landscape) {
+  #pause .menu, #station .menu { padding: 12px 16px; gap: 8px; }
+  #pause .menu h2, #station .menu h2 { margin: 0; font-size: 21px; }
+  #pause .quality { margin: 0; gap: 4px; }
+  #pause .seg button { height: 42px; }
+  #station .menu {
+    padding-block: 8px;
+    gap: 6px;
+    width: min(520px, calc(100% - 24px - var(--safe-l) - var(--safe-r)));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+  #station .menu > :is(.eyebrow, h2, .service-tabs) { grid-column: 1 / -1; }
+  #station .service-tabs { padding-block: 2px; }
+  .station-details, .station-actions { gap: 6px; }
+  #station .station-actions > button { height: 44px; }
 }
 #stEnd[hidden] { display: none; }
 

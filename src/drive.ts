@@ -354,24 +354,6 @@ export class DriveScene {
     if (this.endless && (this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'policeOut' ||
       this.phase === 'pitIn' || this.phase === 'policeIn')) {
       this.monthTime += elapsed;
-      // Въезд на АЗС или остановка ДПС завершаются перед обновлением полиса.
-      if (this.monthTime >= MONTH_DURATION && this.phase === 'drive') {
-        this.monthTime %= MONTH_DURATION;
-        this.month = (this.month + 1) % 12;
-        const winter = this.winterForMonth();
-        if (winter !== this.world.snow) {
-          this.world.setSnow(winter);
-          this.snowTarget = Number(winter);
-        }
-        this.traffic.motoSeason = !winter;
-        this.traffic.summer = this.month >= 5 && this.month <= 7;
-        if (this.month === 0) {
-          this.phase = 'yearBreak';
-          this.endReason = 'year';
-          this.onYearEnd?.();
-          return;
-        }
-      }
     }
     if (this.snowAmount !== this.snowTarget) {
       const distance = this.snowTarget - this.snowAmount;
@@ -477,7 +459,7 @@ export class DriveScene {
     if (this.phase !== 'intro') {
       this.fuel = Math.max(0, this.fuel - (ds / 1000) * LITERS_PER_KM);
       if (this.fuel <= 0 && (this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'policeOut' || this.phase === 'policeIn')) this.phase = 'empty';
-      if (this.health <= 0 && (this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'empty')) this.phase = 'wrecked';
+      if (this.health <= 0 && (this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'policeOut' || this.phase === 'empty')) this.phase = 'wrecked';
       // финиш поездки
       if (!this.endless && this.s >= this.finishS && (this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'policeOut' || this.phase === 'empty')) this.phase = 'finish';
     }
@@ -534,6 +516,25 @@ export class DriveScene {
     this.sky.material.uniforms.time.value = time;
     this.updateCamera(dt, time);
     this.updateFar(time);
+
+    // Смена месяца после расхода топлива и столкновений. Въезд на АЗС и остановка ДПС завершаются первыми.
+    if (this.endless && this.phase === 'drive' && this.monthTime >= MONTH_DURATION &&
+      this.health > 0 && this.fuel > 0) {
+      this.monthTime %= MONTH_DURATION;
+      this.month = (this.month + 1) % 12;
+      const winter = this.winterForMonth();
+      if (winter !== this.world.snow) {
+        this.world.setSnow(winter);
+        this.snowTarget = Number(winter);
+      }
+      this.traffic.motoSeason = !winter;
+      this.traffic.summer = this.month >= 5 && this.month <= 7;
+      if (this.month === 0) {
+        this.phase = 'yearBreak';
+        this.endReason = 'year';
+        this.onYearEnd?.();
+      }
+    }
   }
 
   private shiftLane(direction: number) {

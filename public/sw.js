@@ -4,14 +4,18 @@ self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
 self.addEventListener('fetch', (e) => {
   const req = e.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
-  if (new URL(req.url).pathname.endsWith('/api/records')) return;
-  e.respondWith(
-    fetch(req)
-      .then((res) => {
-        if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
-        return res;
-      })
-      .catch(() => caches.match(req).then((r) => r || caches.match('./'))),
-  );
+  const url = new URL(req.url);
+  if (req.method !== 'GET' || url.origin !== location.origin || url.pathname.endsWith('/api/records')) return;
+  const network = fetch(req);
+  e.waitUntil(network.then((res) => {
+    if (!res.ok) return;
+    const copy = res.clone();
+    return caches.open(CACHE).then((cache) => cache.put(req, copy));
+  }).catch(() => undefined));
+  e.respondWith(network.catch(async () => {
+    const cached = await caches.match(req);
+    if (cached) return cached;
+    if (req.mode === 'navigate') return await caches.match('./') || Response.error();
+    return Response.error();
+  }));
 });

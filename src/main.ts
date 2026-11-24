@@ -12,7 +12,7 @@ import { START_COINS, LITERS_PER_KM, FUEL_PRICE, KASKO, REPAIR_PRICE, POLICE_FIN
 import { Input } from './input';
 import { formatRecordDistance, loadRecords, MAX_NICKNAME_LENGTH, newRecordSubmission, saveRecord } from './records';
 
-type State = 'loading' | 'garage' | 'drive' | 'pause' | 'station' | 'over' | 'protocol' | 'renewal' | 'breakdown' | 'yearReport';
+type State = 'loading' | 'garage' | 'drive' | 'pause' | 'station' | 'over' | 'protocol' | 'renewal' | 'breakdown' | 'yearReport' | 'returningHome';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const params = new URLSearchParams(location.search);
@@ -234,6 +234,8 @@ async function main() {
     });
   }
 
+  const touchControls = matchMedia('(pointer: coarse)');
+  const portrait = matchMedia('(orientation: portrait)');
   const input = new Input($('touch'), $('pedGas'), $('pedBrake'));
   let state: State = 'loading';
   const clock = new THREE.Timer();
@@ -245,7 +247,6 @@ async function main() {
     renderer.resize();
     garage?.resize(innerWidth / innerHeight);
     drive?.resize(innerWidth / innerHeight);
-    $('rotate').classList.toggle('show', state === 'drive' && innerHeight > innerWidth);
   };
   addEventListener('resize', resize);
   resize();
@@ -318,6 +319,7 @@ async function main() {
       state = 'drive';
       show('hud');
       $('ctrlHint').classList.remove('hide');
+      $('touchHint').classList.remove('hide');
       hintTimer = 0;
       clock.update();
     } catch (error) {
@@ -379,6 +381,9 @@ async function main() {
     show('hud');
     clock.update();
   };
+  portrait.addEventListener('change', (event) => {
+    if (touchControls.matches && event.matches) pause();
+  });
   input.onCamera = () => drive.toggleCamera();
 
   // ——— страховки (покупаются перед заездом из стартовых монет) ———
@@ -646,6 +651,7 @@ async function main() {
   $('ovAgain').addEventListener('click', () => { if (state === 'over') startDrive(); });
   $('ovGarage').addEventListener('click', async () => {
     if (state !== 'over') return;
+    state = 'returningHome';
     await fade(true);
     enterGarage();
     if (recordSaved) openRecordsTab();
@@ -672,16 +678,22 @@ async function main() {
       }
       return;
     }
+    const focusedControl = e.target instanceof Element &&
+      e.target.closest('button, a, input, select, textarea, [contenteditable]');
     if (state === 'station') {
-      if (e.code === 'Enter') $('stFull').click();
-      if (e.code === 'Escape' || e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') $('stLeave').click();
+      if (e.defaultPrevented || (focusedControl && e.code !== 'Escape')) return;
+      if (e.code === 'Enter' || e.code === 'Escape' || e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
+        e.preventDefault();
+        if (!e.repeat) $(e.code === 'Enter' ? 'stFull' : 'stLeave').click();
+      }
+      return;
     }
-    if (state === 'over' && e.code === 'Enter' && !(e.target instanceof Element && e.target.closest('input, button'))) {
+    if (state === 'over' && e.code === 'Enter' && !focusedControl) {
       $('ovAgain').click();
     }
     if (state === 'protocol' && (e.code === 'Enter' || e.code === 'Space')) $('prSign').click();
     if (state === 'garage' || state === 'renewal') {
-      if (e.target instanceof Element && e.target.closest('button, a, input, select, textarea, [contenteditable]')) return;
+      if (focusedControl) return;
       if (e.code === 'Enter' || e.code === 'Space') $('go').click();
     }
   });
@@ -730,7 +742,7 @@ async function main() {
     }
     if (state !== 'garage') return;
     // на телефоне — сразу на весь экран и горизонтально (нажатие — жест пользователя, браузер разрешит)
-    if (matchMedia('(pointer: coarse)').matches) enterFs(true);
+    if (touchControls.matches) enterFs(true);
     startDrive();
   });
   $('pauseBtn').addEventListener('click', pause);
@@ -822,7 +834,7 @@ async function main() {
       const urgent = kind === 'repair' ? hp < 0.35 : f < 0.2;
       setBanner(!drive.exitOpen
         ? `${place} через ${r50(toExit)} м<small>перестройтесь в правую полосу</small>`
-        : `${place}: съезд открыт<small>${innerWidth < 720 ? 'свайп' : '→'} — съехать</small>`, urgent);
+        : `${place}: съезд открыт<small>${touchControls.matches ? 'свайп вправо' : '→'} — съехать</small>`, urgent);
     } else if (hp < 0.35 && ph === 'drive') {
       setBanner(`Машина повреждена: ${Math.round(drive.health)} %<small>ремонт через ${(toStation / 1000).toFixed(1)} км</small>`, true);
     } else if (f < 0.2 && ph === 'drive') {
@@ -854,8 +866,11 @@ async function main() {
       drive.update(dt, { throttle: input.throttle, brake: input.brake, laneShift: input.take() }, time, elapsed);
       updateHud();
       if (drive.phase === 'drive' && !input.enabled) input.enabled = true;
-      hintTimer += dt;
-      if (hintTimer > 7) $('ctrlHint').classList.add('hide');
+      if (drive.phase === 'drive') hintTimer += dt;
+      if (hintTimer > 7) {
+        $('ctrlHint').classList.add('hide');
+        $('touchHint').classList.add('hide');
+      }
       const kmh = Math.round(drive.speedKmh);
       if (kmh !== lastSpeed) {
         lastSpeed = kmh;

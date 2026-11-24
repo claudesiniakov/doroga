@@ -43,7 +43,7 @@
             </div>
             <button class="home-secondary" id="homeInsurance" type="button">Выбрать страховку <span aria-hidden="true">→</span></button>
           </section>
-          <section class="slide" data-name="Страховка">
+          <section class="slide insurance-slide" data-name="Страховка">
             <h2 class="home-section-title" id="insuranceHeading">Страховка на год</h2>
             <div class="ins">
               <button class="ins-opt" id="insKasko"><span class="chk"></span><span class="t"><b>КАСКО · <span id="kaskoPrice">40</span></b><small>Защищает ваш автомобиль (добровольно): от угона, повреждения или полной гибели.</small></span></button>
@@ -123,6 +123,10 @@
     <div class="controls-hint" id="ctrlHint">
       <span><kbd>←</kbd><kbd>→</kbd> полоса</span><span><kbd>↑</kbd> газ</span><span><kbd>↓</kbd> тормоз</span><span><kbd>C</kbd> камера</span>
     </div>
+    <div id="touchHint" class="controls-hint touch-hint">
+      <span>Свайп в сторону — сменить полосу</span>
+      <span>Потяните «Газ» вверх — разогнаться</span>
+    </div>
     <button class="pedal brake" id="pedBrake" aria-label="Тормоз">ТОРМОЗ</button>
     <div class="pedal gas collapsed" id="pedGas" role="slider" aria-label="Газ" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="gas-fill"></div><div class="gas-ticks"></div><div class="gas-val"><div><b>0</b>%</div><span>ГАЗ</span></div></div>
   </section>
@@ -150,13 +154,17 @@
         <button id="stFuelTab" type="button" aria-pressed="true">Заправка</button>
         <button id="stRepairTab" type="button" aria-pressed="false">Ремонт</button>
       </div>
-      <div class="tank-big"><span class="fbar big" id="stBarWrap"><i id="stTankBar"></i></span><div class="tank-nums"><b id="stTank">0</b> <span id="stUnit">/ 60 л</span></div></div>
-      <div class="st-row"><span>Монеты</span><b><span class="coin"></span><span id="stCoins">100</span></b></div>
-      <div class="st-row"><span>Цена</span><b id="stPrice">1 монета за литр</b></div>
-      <button id="stFull" class="go">Полный бак</button>
-      <button id="stTen" class="ghost">+10 л</button>
-      <button id="stLeave" class="ghost">Уехать</button>
-      <button id="stEnd" class="ghost" hidden>Закончить заезд</button>
+      <div class="station-details">
+        <div class="tank-big"><span class="fbar big" id="stBarWrap"><i id="stTankBar"></i></span><div class="tank-nums"><b id="stTank">0</b> <span id="stUnit">/ 60 л</span></div></div>
+        <div class="st-row"><span>Монеты</span><b><span class="coin"></span><span id="stCoins">100</span></b></div>
+        <div class="st-row"><span>Цена</span><b id="stPrice">1 монета за литр</b></div>
+      </div>
+      <div class="station-actions">
+        <button id="stFull" class="go">Полный бак</button>
+        <button id="stTen" class="ghost">+10 л</button>
+        <button id="stLeave" class="ghost">Уехать</button>
+        <button id="stEnd" class="ghost" hidden>Закончить заезд</button>
+      </div>
     </div>
   </section>
 
@@ -242,7 +250,6 @@
     </div>
   </section>
 
-  <section id="rotate" class="screen"><div>Поверните телефон горизонтально</div></section>
   <div id="hit"></div>
   <div id="fade"></div>
   <script type="module" src="./src/main.ts"></script>

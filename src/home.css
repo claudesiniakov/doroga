@@ -100,25 +100,6 @@
   line-height: 1.2;
   font-weight: 800;
 }
-.home-policies { display: grid; gap: 8px; margin-bottom: 16px; }
-.home-policies > div, .home-secondary {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 10px;
-  border: 1px solid var(--home-line);
-  font-size: 13px;
-}
-.home-policies b { color: var(--home-muted); }
-.home-policies b.on { color: var(--home-accent); }
-.home-secondary {
-  width: 100%;
-  background: rgba(200, 240, 193, .11);
-  color: var(--home-accent);
-  text-align: left;
-}
-.home-secondary:hover { background: rgba(200, 240, 193, .18); }
 #garage .ins { margin: 0; gap: 7px; }
 #garage .ins-opt {
   padding: 9px;
@@ -262,8 +243,6 @@
   #garage .home-launch { bottom: calc(var(--home-launch-bottom) + var(--safe-b)); }
   #garage #homeMode { font-size: 22px; margin-bottom: 12px; }
   #garage .home-section-title { margin-bottom: 20px; font-size: clamp(24px, 2.4vw, 36px); }
-  #garage .home-policies { gap: 12px; margin-bottom: 20px; }
-  #garage .home-policies > div, #garage .home-secondary { padding: 14px 18px; font-size: 17px; }
   #garage .ins { gap: 12px; }
   #garage .ins-opt { padding: 14px 18px; }
   #garage .ins-opt b { font-size: 17px; }

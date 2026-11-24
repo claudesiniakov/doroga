@@ -208,9 +208,8 @@ async function main() {
   }
 
   let openInsuranceTab = () => {};
-  let openHomeTab = () => {};
   let openRecordsTab = () => {};
-  // На десктопе вкладки переключают панели, на сенсорном экране доступен свайп.
+  // Вкладки переключают панели; стрелки перемещают фокус между вкладками.
   {
     const slidesEl = $('slides');
     const slides = [...slidesEl.querySelectorAll<HTMLElement>('.slide')];
@@ -232,14 +231,9 @@ async function main() {
         slides[i].classList.toggle('active', i === index);
       });
     };
-    markSlide(0);
     const insuranceIndex = slides.findIndex((slide) => slide.dataset.name === 'Страховка');
     openInsuranceTab = () => markSlide(insuranceIndex);
-    openHomeTab = () => markSlide(0);
-    $('homeInsurance').addEventListener('click', () => {
-      openInsuranceTab();
-      tabs[insuranceIndex].focus();
-    });
+    openInsuranceTab();
     const recordsIndex = slides.findIndex((slide) => slide.dataset.name === 'Рекорды');
     openRecordsTab = () => markSlide(recordsIndex);
     tabsEl.addEventListener('click', (e) => {
@@ -293,8 +287,7 @@ async function main() {
     $('garage').classList.remove('is-renewal');
     $('homeMode').hidden = true;
     $('insuranceHeading').textContent = 'Страховка на год';
-    if (SHOT) openInsuranceTab();
-    else openHomeTab();
+    openInsuranceTab();
     renderer.setExposure(garage ? 1.0 : 0.6);
     renderer.setBloom(0.22, 3.0, 0.4);
     renderer.setVignette(0.45);
@@ -431,10 +424,6 @@ async function main() {
     $('kaskoPrice').textContent = String(kaskoPrice);
     $('insKasko').classList.toggle('on', ins.kasko);
     $('insOsago').classList.toggle('on', ins.osago);
-    for (const [id, on] of [['homeOsago', ins.osago], ['homeKasko', ins.kasko]] as const) {
-      $(id).textContent = on ? 'Выбрано' : 'Без полиса';
-      $(id).classList.toggle('on', on);
-    }
     $('insKasko').setAttribute('aria-pressed', String(ins.kasko));
     $('insOsago').setAttribute('aria-pressed', String(ins.osago));
     $('osagoPrice').textContent = String(osagoPrice(kbm));

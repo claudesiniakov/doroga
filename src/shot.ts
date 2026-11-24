@@ -176,7 +176,7 @@ export async function runShot(kind: string, ctx: {
     d.fuel = 0.01;
     runTo(() => d.phase === 'stopped');
     log.push(`поездка 3: «${txt('ovTitle')}», кнопка «${txt('ovAgain')}»`);
-    log.push(`статистика: следующая ${txt('gsTrip')}, всего ${txt('gsKm')}, столкновений ${txt('gsCrashes')}, завершено ${txt('gsDone')}, последняя «${txt('gsLast')}»`);
+    log.push(`статистика: всего ${txt('gsKm')}, столкновений ${txt('gsCrashes')}, заездов ${txt('gsRuns')}, последний «${txt('gsLast')}»`);
     // ДПС — внутри поездки
     const kasko2 = document.getElementById('insOsago')!;
     if (kasko2.classList.contains('on')) kasko2.click();

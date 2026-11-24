@@ -114,6 +114,8 @@
 #garage .startcoins { margin: 10px 0 0; font-size: 12px; }
 #garage .gstats { gap: 8px; margin: 0; }
 #garage .gstats > div { padding: 7px 8px; border: 1px solid var(--home-line); }
+#garage .analytics-feature { background: rgba(200, 240, 193, .08); }
+#garage .analytics-feature b { color: var(--home-accent); }
 #garage .records-scroll { max-height: min(300px, 34dvh); }
 #garage .own-record td { background: rgba(200, 240, 193, .13); }
 #garage .own-record td:first-child { box-shadow: inset 3px 0 var(--home-accent); }
@@ -211,6 +213,7 @@
 }
 
 @media (max-width: 850px) and (orientation: portrait) {
+  #garage .analytics-slide { max-height: calc(100dvh - 186px - var(--safe-t) - var(--safe-b)); }
   #garage .insurance-slide {
     max-height: calc(100dvh - 228px - var(--safe-t) - var(--safe-b));
   }

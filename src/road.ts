@@ -331,6 +331,7 @@ export interface RoadMaterials {
   rail: THREE.MeshStandardMaterial;
   post: THREE.MeshStandardMaterial;
   setSnow(amount: number): void;
+  setAutumnGrass(enabled: boolean): void;
 }
 
 export function makeRoadMaterials(tex: RoadTextures, ground: { map: THREE.Texture; normalMap: THREE.Texture },
@@ -358,16 +359,25 @@ export function makeRoadMaterials(tex: RoadTextures, ground: { map: THREE.Textur
     map: ground.map, normalMap: ground.normalMap, roughness: 0.97, vertexColors: true,
     normalScale: new THREE.Vector2(0.8, 0.8),
   });
-  // трава ↔ песок по альфе цвета вершин
+  const autumnGrass = { value: 0 };
+  // Трава ↔ песок по альфе цвета вершин. Осенью меняем только траву.
   groundM.onBeforeCompile = (sh) => {
     sh.uniforms.sandMap = { value: sand.map };
+    sh.uniforms.autumnGrass = autumnGrass;
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform sampler2D sandMap;')
+      .replace('#include <common>', '#include <common>\nuniform sampler2D sandMap;\nuniform float autumnGrass;')
       .replace('#include <map_fragment>',
-        'vec4 gC = texture2D( map, vMapUv ); vec4 sC = texture2D( sandMap, vMapUv * 0.6 );\n diffuseColor *= mix( gC, sC * 1.15, clamp( vColor.a, 0.0, 1.0 ) );')
+        /* glsl */ `
+          vec4 grassColor = texture2D(map, vMapUv);
+          vec4 sandColor = texture2D(sandMap, vMapUv * 0.6);
+          float grassShade = dot(grassColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+          vec3 dryGrass = grassShade * vec3(1.85, 1.30, 0.37);
+          grassColor.rgb = mix(grassColor.rgb, dryGrass, autumnGrass);
+          diffuseColor *= mix(grassColor, sandColor * 1.15, clamp(vColor.a, 0.0, 1.0));
+        `)
       .replace('#include <color_fragment>', 'diffuseColor.rgb *= vColor.rgb;');
   };
-  groundM.customProgramCacheKey = () => 'ground-sand';
+  groundM.customProgramCacheKey = () => 'ground-seasonal-grass';
   const rail = new THREE.MeshStandardMaterial({ color: 0xb4b9bc, metalness: 0.85, roughness: 0.36, side: THREE.DoubleSide });
   const post = new THREE.MeshStandardMaterial({ color: 0x8d9295, metalness: 0.7, roughness: 0.55 });
   // разрывы краевой линии у съезда: полоса асфальта поверх линии с альфа-маской 6 м / 6 м
@@ -388,7 +398,8 @@ export function makeRoadMaterials(tex: RoadTextures, ground: { map: THREE.Textur
   });
   const exitLine = new THREE.MeshStandardMaterial({ color: 0xc9c8c1, roughness: 0.62, polygonOffset: true, polygonOffsetFactor: -2 });
   const setSnow = addSnowCover([road, dashCover], gravelM, groundM);
-  return { road, gravel: gravelM, ground: groundM, rail, post, exitLine, dashCover, setSnow };
+  const setAutumnGrass = (enabled: boolean) => { autumnGrass.value = Number(enabled); };
+  return { road, gravel: gravelM, ground: groundM, rail, post, exitLine, dashCover, setSnow, setAutumnGrass };
 }
 
 // поперечный профиль W-образного отбойника: (вбок от дороги, вверх), м
@@ -427,6 +438,7 @@ export class RoadWorld {
   setSeason(season: TreeSeason) {
     if (this.treeSeason === season) return;
     this.treeSeason = season;
+    this.mats.setAutumnGrass(season === 'autumn');
     for (const chunk of this.chunks.values()) {
       for (const object of chunk.group.children) {
         if (object.userData.winterOnly) object.visible = this.snow;

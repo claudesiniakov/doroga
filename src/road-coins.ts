@@ -3,7 +3,10 @@ import { mulberry32 } from './noise';
 import type { RoadPath } from './road';
 import { ROAD } from './textures';
 
-export const ROAD_COIN_VALUE = 2;
+export const ROAD_COIN_VALUE = 1;
+// В среднем 354 м: при 90 км/ч полный сбор покрывает топливо и ожидаемые штрафы ДПС.
+const MIN_COIN_GAP_M = 220;
+const COIN_GAP_VARIATION_M = 268;
 
 export class RoadCoins {
   readonly group = new THREE.Group();
@@ -27,7 +30,7 @@ export class RoadCoins {
   }
 
   private schedule(s: number) {
-    this.at = s + 180 + this.random() * 270;
+    this.at = s + MIN_COIN_GAP_M + this.random() * COIN_GAP_VARIATION_M;
     this.lane = (Math.floor(this.random() * 3) - 1) * ROAD.laneWidth;
     const f = this.path.frame(this.at);
     this.coin.position.copy(f.pos).addScaledVector(f.right, this.lane).addScaledVector(f.up, 0.85);

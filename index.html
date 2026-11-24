@@ -39,8 +39,10 @@
             <h2 class="home-section-title" id="insuranceHeading">Страховка на год</h2>
             <div class="ins">
               <button class="ins-opt" id="insKasko"><span class="chk"></span><span class="t"><b>КАСКО · <span class="coin-amount"><span id="kaskoPrice">40</span><span class="coin" role="img" aria-label="монет"></span></span></b><small>В игре оплачивает ремонт вашей машины независимо от виновника ДТП и эвакуацию, если машина разбита.</small></span></button>
-              <button class="ins-opt" id="insOsago"><span class="chk"></span><span class="t"><b>ОСАГО · <span class="coin-amount"><span id="osagoPrice">10</span><span class="coin" role="img" aria-label="монет"></span></span></b><small>Если вы виноваты в ДТП, ОСАГО возмещает каждому потерпевшему ущерб имуществу до 400 000 ₽ и вред жизни или здоровью до 500 000 ₽.</small></span></button>
-              <button class="kbm-link" id="kbmLink">Как рассчитывается ОСАГО? · КБМ <b id="kbmNow">1,17</b>, класс <b id="kbmCls">3</b></button>
+              <div class="osago-option">
+                <button class="ins-opt" id="insOsago"><span class="chk"></span><span class="t"><b>ОСАГО · <span class="coin-amount"><span id="osagoPrice">10</span><span class="coin" role="img" aria-label="монет"></span></span></b><small>Если вы виноваты в ДТП, ОСАГО возмещает каждому потерпевшему ущерб имуществу до 400 000 ₽ и вред жизни или здоровью до 500 000 ₽.</small></span></button>
+                <button class="osago-help" id="kbmLink" type="button">Как рассчитывается цена?</button>
+              </div>
             </div>
             <div class="startcoins">В кошельке <span class="coin"></span><b id="walletCard">100</b> · на поездку останется <b class="coin-amount"><span id="startCoins">100</span><span class="coin" role="img" aria-label="монет"></span></b></div>
           </section>
@@ -100,7 +102,7 @@
       </div>
     </div>
     <div class="banner" id="banner"></div>
-    <div class="toast" id="toast"></div>
+    <div class="toast" id="toast" role="status"></div>
     <div class="speedo">
       <svg viewBox="0 0 200 120" class="arc">
         <path d="M20 110 A80 80 0 0 1 180 110" class="track" />
@@ -174,26 +176,38 @@
     </div>
   </section>
 
-  <section id="over" class="screen">
+  <section id="over" class="screen" aria-labelledby="ovTitle">
     <div class="panel menu">
-      <div class="eyebrow" id="ovEyebrow">Поездка</div>
-      <h2 id="ovTitle">Топливо кончилось</h2>
-      <div class="st-row"><span>Проехали</span><b id="ovKm">0 км</b></div>
-      <div class="st-row" id="ovDaysRow"><span>В заезде</span><b id="ovDays">0 дней</b></div>
-      <div class="st-row" id="ovRewardRow"><span>Награда</span><b><span class="coin"></span>+<span id="ovReward">100</span></b></div>
-      <div class="st-row"><span>Столкновений</span><b id="ovCrashes">0</b></div>
-      <div class="st-row"><span>Кошелёк на новый заезд</span><b><span class="coin"></span><span id="ovCoins">100</span></b></div>
-            <div class="st-row" id="ovKbmRow"><span>КБМ на следующий год</span><b id="ovKbm"></b></div>
-      <form id="recordForm" class="record-form" hidden>
-        <label for="recordNickname">Ник для таблицы рекордов</label>
-        <div class="record-fields">
-          <input id="recordNickname" type="text" placeholder="Ваш ник" required>
-          <button id="recordSave" type="submit">Сохранить</button>
+      <header class="result-heading">
+        <div class="eyebrow" id="ovEyebrow" hidden>Поездка</div>
+        <h2 id="ovTitle">Топливо кончилось</h2>
+      </header>
+      <div class="result-details">
+        <div class="st-row" id="ovKmRow" hidden><span>Проехали</span><b id="ovKm">0 км</b></div>
+        <div class="st-row" id="ovDaysRow"><span>Дней в заезде</span><b id="ovDays">0 дней</b></div>
+        <div class="st-row"><span>Столкновений</span><b id="ovCrashes">0</b></div>
+        <div class="result-payouts" id="ovPayouts">
+          <div class="st-row" id="ovOsagoRow"><span>Выплатило ОСАГО</span><b id="ovOsago"></b></div>
+          <div class="st-row" id="ovKaskoRow"><span>Выплатило КАСКО</span><b id="ovKasko"></b></div>
+          <div class="st-row"><span>Вы оплатили</span><b id="ovOwn"></b></div>
+          <p>Выплаты пострадавшим, ремонт и эвакуация</p>
         </div>
-        <p id="recordStatus" role="status" hidden></p>
-      </form>
-      <button id="ovAgain" class="go">Ещё раз</button>
-      <button id="ovGarage" class="ghost">На главную</button>
+        <div class="st-row" id="ovRewardRow"><span>Награда</span><b><span class="coin"></span>+<span id="ovReward">100</span></b></div>
+        <div class="st-row" id="ovWalletRow" hidden><span>Кошелёк на новый заезд</span><b><span class="coin"></span><span id="ovCoins">100</span></b></div>
+        <div class="st-row" id="ovKbmRow"><span>КБМ на следующий год</span><b id="ovKbm"></b></div>
+      </div>
+      <div class="result-actions">
+        <form id="recordForm" class="record-form" hidden>
+          <label for="recordNickname">Ник для таблицы рекордов</label>
+          <div class="record-fields">
+            <input id="recordNickname" type="text" placeholder="Ваш ник" required>
+            <button id="recordSave" type="submit">Сохранить</button>
+          </div>
+          <p id="recordStatus" role="status" hidden></p>
+        </form>
+        <button id="ovAgain" class="go">Ещё раз</button>
+        <button id="ovGarage" class="ghost">На главную</button>
+      </div>
     </div>
   </section>
 

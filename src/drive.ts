@@ -81,6 +81,7 @@ export class DriveScene {
   month = 0;
   monthTime = 0;
   coinsCollected = 0;
+  payouts = { osago: 0, kasko: 0, own: 0, hadOsago: false, hadKasko: false };
   private readonly roadCoins: RoadCoins;
   private previewing = false;
   private snowAmount = 0;
@@ -107,6 +108,8 @@ export class DriveScene {
 
   renewInsurance(insurance: DriveScene['insurance'], coins: number) {
     this.insurance = insurance;
+    this.payouts.hadOsago ||= insurance.osago;
+    this.payouts.hadKasko ||= insurance.kasko;
     this.coins = coins;
     this.startS = this.s;
     this.periodStartOdometer = this.odometer;
@@ -147,7 +150,7 @@ export class DriveScene {
   onEmpty?: () => void;
   onYearEnd?: () => void;
   /** Удар: потеря здоровья и (без ОСАГО) списанные монеты. */
-  onDamage?: (info: { damage: number; fine: number; covered: boolean }) => void;
+  onDamage?: (info: { ownDamage: number; thirdPartyDamage: number; paidToVictim: number; covered: boolean }) => void;
   get stationKind(): ExitKind | null { return this.pitExit?.kind ?? null; }
   private pitExit: Exit | null = null;
   odometer = 0;
@@ -330,6 +333,7 @@ export class DriveScene {
     // страховки покупаются на старте из стартовых монет
     // монеты на поездку (страховки уже оплачены из кошелька)
     this.coins = this.startCoins;
+    this.payouts = { osago: 0, kasko: 0, own: 0, hadOsago: this.insurance.osago, hadKasko: this.insurance.kasko };
     this.startS = startS;
     this.kaskoRepairUsed = false;
     this.pitExit = null;
@@ -793,9 +797,11 @@ export class DriveScene {
     this.phase = 'policeOut';
   }
 
+  private repairValue(pct: number) { return Math.ceil(pct / 10 - 1e-6) * REPAIR_PRICE; }
+
   /** Цена ремонта на pct процентов (с КАСКО — бесплатно). */
   repairCost(pct: number) {
-    return this.insurance.kasko ? 0 : Math.ceil(pct / 10 - 1e-6) * REPAIR_PRICE;
+    return this.insurance.kasko ? 0 : this.repairValue(pct);
   }
 
   /** Отремонтировать до pct процентов (шагами по 10 %, сколько хватит монет). Возвращает восстановленные %. */
@@ -804,8 +810,14 @@ export class DriveScene {
     if (want <= 0) return 0;
     if (!this.insurance.kasko) want = Math.min(want, Math.floor(this.coins / REPAIR_PRICE) * 10);
     if (want <= 0) return 0;
-    this.coins -= this.repairCost(want);
-    if (this.insurance.kasko) this.kaskoRepairUsed = true;
+    const value = this.repairValue(want);
+    if (this.insurance.kasko) {
+      this.payouts.kasko += value;
+      this.kaskoRepairUsed = true;
+    } else {
+      this.coins -= value;
+      this.payouts.own += value;
+    }
     this.health = Math.min(100, this.health + want);
     return want;
   }
@@ -818,8 +830,13 @@ export class DriveScene {
   towToService(): boolean {
     if (this.phase !== 'stopped' || this.endReason !== 'wreck' || this.coins < this.assistanceCost) return false;
     const exit = this.assistanceDestination;
-    this.coins -= this.assistanceCost;
-    if (this.insurance.kasko) this.kaskoRepairUsed = true;
+    if (this.insurance.kasko) {
+      this.payouts.kasko += ROADSIDE_ASSISTANCE_PRICE;
+      this.kaskoRepairUsed = true;
+    } else {
+      this.coins -= ROADSIDE_ASSISTANCE_PRICE;
+      this.payouts.own += ROADSIDE_ASSISTANCE_PRICE;
+    }
     this.pitExit = exit;
     this.s = exit.sStop;
     this.lane = 2;
@@ -875,15 +892,17 @@ export class DriveScene {
     this.shakeAmp = 0.35 + e.severity * 0.65;
     this.pitchV += (e.side ? 0 : 0.5) * e.severity;
     this.rollV += (e.side ? 0.9 : 0.25) * (Math.random() - 0.5) * 2;
-    // повреждения: 15–35 % по силе удара; без ОСАГО — платим за чужую машину
-    const damage = Math.round(e.side ? 12 + 10 * e.severity : 12 + 23 * e.severity);
-    this.health = Math.max(0, this.health - damage);
-    let fine = 0;
-    if (!this.insurance.osago) {
-      fine = Math.min(this.coins, Math.round(e.side ? 4 + 10 * e.severity : 5 + 25 * e.severity));
-      this.coins -= fine;
+    const ownDamage = Math.min(this.health, Math.round(e.side ? 12 + 10 * e.severity : 12 + 23 * e.severity));
+    this.health -= ownDamage;
+    const thirdPartyDamage = Math.round(e.side ? 4 + 10 * e.severity : 5 + 25 * e.severity);
+    const covered = this.insurance.osago;
+    const paidToVictim = covered ? thirdPartyDamage : Math.min(this.coins, thirdPartyDamage);
+    if (covered) this.payouts.osago += paidToVictim;
+    else {
+      this.coins -= paidToVictim;
+      this.payouts.own += paidToVictim;
     }
-    this.onDamage?.({ damage, fine, covered: this.insurance.osago });
+    this.onDamage?.({ ownDamage, thirdPartyDamage, paidToVictim, covered });
     this.onCrash?.(e);
   }
 

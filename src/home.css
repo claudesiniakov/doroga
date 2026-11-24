@@ -110,7 +110,33 @@
 #garage .ins-opt:hover, #garage .ins-opt.on { border-color: var(--home-accent); }
 #garage .ins-opt.on { background: rgba(200, 240, 193, .1); }
 #garage .ins-opt small { font-size: 12px; line-height: 1.35; }
-#garage .kbm-link { margin: 2px 0 0; }
+#garage .osago-option {
+  --osago-inset: 9px;
+  display: grid;
+  border: 1px solid var(--home-line);
+  border-radius: 2px;
+  background: rgba(225, 244, 234, .05);
+}
+#garage .osago-option:hover, #garage .osago-option:has(.ins-opt.on) { border-color: var(--home-accent); }
+#garage .osago-option:has(.ins-opt.on) { background: rgba(200, 240, 193, .1); }
+#garage .osago-option .ins-opt { border: 0; background: transparent; padding-bottom: 4px; }
+#garage .osago-option small { display: block; }
+#garage .osago-help {
+  justify-self: start;
+  min-height: 32px;
+  margin: 0 8px 4px calc(var(--osago-inset) + 30px);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--home-accent);
+  text-align: left;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+@media (pointer: coarse) {
+  #garage .osago-help { min-height: 44px; }
+}
 #garage .startcoins { margin: 10px 0 0; font-size: 12px; }
 #garage .gstats { gap: 8px; margin: 0; }
 #garage .gstats > div { padding: 7px 8px; border: 1px solid var(--home-line); }
@@ -217,11 +243,6 @@
   #garage .insurance-slide {
     max-height: calc(100dvh - 228px - var(--safe-t) - var(--safe-b));
   }
-  #garage .insurance-slide .kbm-link {
-    min-height: 44px;
-    margin-top: 0;
-    text-align: left;
-  }
   #garage .insurance-slide .startcoins { margin-top: 4px; }
 }
 
@@ -250,7 +271,8 @@
   #garage .ins-opt { padding: 14px 18px; }
   #garage .ins-opt b { font-size: 17px; }
   #garage .ins-opt small { display: block; font-size: 15px; }
-  #garage .kbm-link, #garage .startcoins, #garage #recordsEmpty { font-size: 15px; }
+  #garage .osago-option { --osago-inset: 18px; }
+  #garage .osago-help, #garage .startcoins, #garage #recordsEmpty { font-size: 15px; }
   #garage .gstats { gap: 12px; }
   #garage .gstats > div { padding: 12px 14px; }
   #garage .gstats > div > span { font-size: 13px; }

@@ -1,3 +1,4 @@
+import { KBM, loadKbm } from './kbm';
 import * as THREE from 'three';
 import type { DriveScene } from './drive';
 import type { GarageScene } from './garage';
@@ -219,7 +220,7 @@ export async function runShot(kind: string, ctx: {
     // годы: без ДТП с ОСАГО → с 2 ДТП с ОСАГО → 3 ДТП без ОСАГО (класс не меняется)
     localStorage.removeItem('doroga.kbm');
     const log: string[] = [];
-    const cls = () => document.getElementById('kbmCls')!.textContent + ' (ОСАГО ' + document.getElementById('osagoPrice')!.textContent + ')';
+    const cls = () => KBM[loadKbm()].cls + ' (ОСАГО ' + document.getElementById('osagoPrice')!.textContent + ')';
     log.push('старт: класс ' + cls());
     const osago = document.getElementById('insOsago')!;
     if (osago.classList.contains('on')) osago.click();
@@ -295,8 +296,8 @@ export async function runShot(kind: string, ctx: {
       setIns(false, osago);
       await ctx.startDrive(true, 300);
       d.fuel = 60;
-      const fines: number[] = [];
-      d.onDamage = (inf) => fines.push(inf.fine);
+      const payouts: number[] = [];
+      d.onDamage = ({ paidToVictim }) => payouts.push(paidToVictim);
       let nextShift = 0;
       while (d.crashes < 6 && d.phase !== 'stopped' && t < 3000) {
         let sh = 0;
@@ -304,7 +305,7 @@ export async function runShot(kind: string, ctx: {
         t += 1 / 60;
         d.update(1 / 60, { throttle: 1, brake: 0, laneShift: sh }, t);
       }
-      log.push(`ОСАГО=${osago}: ударов ${d.crashes}, штрафы [${fines.join(',')}], монет ${d.coins}, здоровье ${d.health}, phase=${d.phase}, причина=${d.endReason}`);
+      log.push(`ОСАГО=${osago}: ударов ${d.crashes}, выплаты [${payouts.join(',')}], монет ${d.coins}, здоровье ${d.health}, phase=${d.phase}, причина=${d.endReason}`);
     }
     console.warn('REPAIR ' + log.join(' | '));
   } else if (kind === 'pit') {

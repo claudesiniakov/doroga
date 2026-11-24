@@ -39,12 +39,6 @@ export async function saveRecord(nickname: string, run: string): Promise<{ place
   return postRecord({ action: 'submit', run, nickname });
 }
 
-const distanceFormat = new Intl.NumberFormat('ru', { maximumFractionDigits: 3 });
-
-export function formatRecordDistance(meters: number) {
-  return `${distanceFormat.format(meters / 1000)} км`;
-}
-
 const daysFormat = new Intl.NumberFormat('ru', { style: 'unit', unit: 'day', unitDisplay: 'long' });
 
 export function formatRecordDays(durationMs: number) {

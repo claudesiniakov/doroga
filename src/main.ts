@@ -11,7 +11,7 @@ import type { DriveScene } from './drive';
 import { START_COINS, LITERS_PER_KM, FUEL_PRICE, KASKO, REPAIR_PRICE, POLICE_FINE } from './drive-rules';
 import { Input } from './input';
 import { OSAGO_LESSON } from './osago-lesson';
-import { finishRecordRun, formatRecordDistance, formatRecordDays, loadRecords, MAX_NICKNAME_LENGTH, saveRecord, startRecordRun } from './records';
+import { finishRecordRun, formatRecordDays, loadRecords, MAX_NICKNAME_LENGTH, saveRecord, startRecordRun } from './records';
 
 type State = 'loading' | 'garage' | 'drive' | 'pause' | 'station' | 'over' | 'protocol' | 'renewal' | 'breakdown' | 'yearReport' | 'returningHome';
 
@@ -466,8 +466,6 @@ async function main() {
     $('insKasko').setAttribute('aria-pressed', String(ins.kasko));
     $('insOsago').setAttribute('aria-pressed', String(ins.osago));
     $('osagoPrice').textContent = String(osagoPrice(kbm));
-    $('kbmNow').textContent = fmtK(KBM[kbm].k);
-    $('kbmCls').textContent = KBM[kbm].cls;
     $('startCoins').textContent = String(wallet - insCost());
     applyLivery();
     updateEconomyUI();
@@ -690,15 +688,18 @@ async function main() {
   });
   // ——— удары: здоровье и ОСАГО ———
   let toastTimer = 0;
-  const onDamage: NonNullable<DriveScene['onDamage']> = ({ damage, fine, covered }) => {
+  const onDamage: NonNullable<DriveScene['onDamage']> = ({ ownDamage, thirdPartyDamage, paidToVictim, covered }) => {
     const t = $('toast');
-    t.replaceChildren(`−${damage} % здоровья`);
-    if (covered) t.append(' · ущерб покрыло ОСАГО');
-    else if (fine > 0) t.append(' · ущерб другой машине ', coinAmount(`−${fine}`));
+    const damage = document.createElement('div');
+    damage.textContent = `Урон вашей машине: −${ownDamage} %`;
+    const payout = document.createElement('div');
+    payout.append(covered ? 'По ОСАГО выплатили пострадавшему: ' : 'Вы выплатили пострадавшему из своих: ', coinAmount(paidToVictim));
+    if (paidToVictim < thirdPartyDamage) payout.append(' из ', coinAmount(thirdPartyDamage));
+    t.replaceChildren(damage, payout);
     t.classList.toggle('ok', covered);
     t.classList.add('on');
     clearTimeout(toastTimer);
-    toastTimer = window.setTimeout(() => t.classList.remove('on'), 2600);
+    toastTimer = window.setTimeout(() => t.classList.remove('on'), 3600);
   };
   $('stLeave').addEventListener('click', () => {
     if (state !== 'station' || !drive.leaveStation()) return;
@@ -712,7 +713,8 @@ async function main() {
     state = 'over';
     input.enabled = false;
     const t = lastTrip;
-    $('ovEyebrow').textContent = SHOT ? `Поездка №${t.num} · ${tripKm(t.num)} км` : 'Итоги игры';
+    $('ovEyebrow').hidden = drive.endless;
+    $('ovEyebrow').textContent = `Поездка №${t.num} · ${tripKm(t.num)} км`;
     $('ovTitle').textContent = drive.endReason === 'wreck' ? 'Машина разбита'
       : drive.endReason === 'fuel' ? 'Топливо кончилось' : 'Заезд завершён';
     const durationMs = drive.endless ? Math.floor(activeRunSeconds * 1000) : 0;
@@ -744,16 +746,24 @@ async function main() {
       });
     }
     $('ovGarage').textContent = 'На главную';
-    $('ovKm').textContent = drive.endless ? formatRecordDistance(Math.round(drive.odometer)) : fmtKm(t.km);
+    $('ovKmRow').hidden = drive.endless;
+    $('ovKm').textContent = fmtKm(t.km);
     $('ovDaysRow').hidden = !drive.endless;
     $('ovDays').textContent = formatRecordDays(durationMs);
     $('ovRewardRow').style.display = t.finished ? '' : 'none';
     $('ovReward').textContent = String(t.reward);
-    $('ovCrashes').textContent = String(t.crashes);
+    $('ovCrashes').textContent = String(runCrashes);
+    const { osago, kasko, own, hadOsago, hadKasko } = drive.payouts;
+    $('ovOsagoRow').hidden = !hadOsago;
+    $('ovKaskoRow').hidden = !hadKasko;
+    $('ovOsago').replaceChildren(coinAmount(osago));
+    $('ovKasko').replaceChildren(coinAmount(kasko));
+    $('ovOwn').replaceChildren(coinAmount(own));
+    $('ovWalletRow').hidden = drive.endless;
     $('ovCoins').textContent = String(wallet);
     $('ovAgain').textContent = 'Начать новый заезд';
     const ch = lastKbmChange;
-    $('ovKbmRow').style.display = ch ? '' : 'none';
+    $('ovKbmRow').hidden = !ch || drive.endless;
     if (ch) $('ovKbm').replaceChildren(...(ch.from === ch.to ? [`класс ${KBM[ch.to].cls} (без изменений)`]
       : [`класс ${KBM[ch.from].cls} → ${KBM[ch.to].cls} · ОСАГО `, coinAmount(osagoPrice(ch.from)), ' → ', coinAmount(osagoPrice(ch.to))]));
     show('hud', 'over');

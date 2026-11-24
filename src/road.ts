@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { fbm1, fbm2, clamp, smoothstep, lerp, mulberry32 } from './noise';
 import { ROAD, RoadTextures } from './textures';
 import { BiomeMap, Weights } from './biomes';
-import { PropKit } from './props';
+import { PropKit, type TreeSeason } from './props';
 import { scatterChunk } from './scatter';
 import { addSnowCover } from './snow';
 
@@ -420,17 +420,19 @@ export class RoadWorld {
   private chunks = new Map<number, Chunk>();
   private postGeo: THREE.BufferGeometry;
   readonly far: FarTerrain;
-  snow = false;
+  treeSeason: TreeSeason = 'summer';
 
-  setSnow(on: boolean) {
-    if (this.snow === on) return;
-    this.snow = on;
+  get snow() { return this.treeSeason === 'winter'; }
+
+  setSeason(season: TreeSeason) {
+    if (this.treeSeason === season) return;
+    this.treeSeason = season;
     for (const chunk of this.chunks.values()) {
       for (const object of chunk.group.children) {
-        if (object.userData.winterOnly) object.visible = on;
+        if (object.userData.winterOnly) object.visible = this.snow;
         if (object instanceof THREE.InstancedMesh && object.userData.seasonalGeometry) {
           const geometries = object.userData.seasonalGeometry;
-          object.geometry = on ? geometries.winter : geometries.summer;
+          object.geometry = geometries[season];
         }
       }
     }

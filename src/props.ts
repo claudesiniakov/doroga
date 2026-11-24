@@ -178,7 +178,9 @@ function bareTree(lo: boolean, birch: boolean) {
   return merge(parts);
 }
 
-function blobTree(trunkCol: number, leafCol: number, lo: boolean, slim = false) {
+type LeafPalettes = { spring: readonly number[]; autumn: readonly number[] };
+
+function blobTree(trunkCol: number, leafCol: number, palettes: LeafPalettes, lo: boolean, slim = false) {
   const parts: THREE.BufferGeometry[] = [];
   const th = slim ? 4.2 : 3.2;
   parts.push(prep(at(new THREE.CylinderGeometry(slim ? 0.1 : 0.16, slim ? 0.16 : 0.28, th, lo ? 5 : 8), 0, th / 2, 0), slim
@@ -189,6 +191,7 @@ function blobTree(trunkCol: number, leafCol: number, lo: boolean, slim = false) 
       parts.push(prep(at(new THREE.CylinderGeometry(0.05, 0.1, 1.8, 5), 0, th - 0.4, 0, 0, ry, rz).translate(0, 0, 0), trunkCol));
     }
   }
+  const firstLeaf = parts.length;
   const rnd = mulberry32(slim ? 11 : 5);
   const blobs = lo ? 3 : 6;
   for (let b = 0; b < blobs; b++) {
@@ -202,7 +205,27 @@ function blobTree(trunkCol: number, leafCol: number, lo: boolean, slim = false) 
     parts.push(prep(at(g, Math.cos(a) * spread, y, Math.sin(a) * spread, 0, 0, 0, [1, slim ? 1.5 : 0.85, 1]),
       shade(leafCol, 0.55, 1.2, yc - r, yc + r, 0.3, b)));
   }
-  return merge(parts);
+  const summer = merge(parts);
+  const leafGreen = new THREE.Color(leafCol).g;
+  const recolor = (palette: readonly number[]) => {
+    const variant = summer.clone();
+    const colors = variant.getAttribute('color');
+    const tint = new THREE.Color();
+    let vertex = 0;
+    parts.forEach((part, index) => {
+      const end = vertex + part.getAttribute('position').count;
+      if (index >= firstLeaf) {
+        tint.set(palette[(index - firstLeaf) % palette.length]);
+        for (; vertex < end; vertex++) {
+          const shade = colors.getY(vertex) / leafGreen;
+          colors.setXYZ(vertex, tint.r * shade, tint.g * shade, tint.b * shade);
+        }
+      }
+      vertex = end;
+    });
+    return variant;
+  };
+  return { summer, spring: recolor(palettes.spring), autumn: recolor(palettes.autumn) };
 }
 
 function bush(col: number, lo: boolean) {
@@ -520,11 +543,14 @@ export function repairShop(out: BuildingParts, m: THREE.Matrix4) {
   for (const x of [-3, 3]) S(new THREE.BoxGeometry(0.15, 0.02, 3.2).translate(x, 0.025, 3.6), 0xe8d24a);
 }
 
+export type TreeSeason = 'spring' | 'summer' | 'autumn' | 'winter';
+type SeasonalTree = Record<TreeSeason, THREE.BufferGeometry>;
+
 export class PropKit {
   readonly geo: Record<PropId, THREE.BufferGeometry>;
   readonly mat: THREE.MeshStandardMaterial;
   readonly coniferMat: THREE.MeshStandardMaterial;
-  readonly bare: Partial<Record<PropId, THREE.BufferGeometry>>;
+  readonly seasonalTrees: Partial<Record<PropId, SeasonalTree>>;
   private readonly snowOnBranches = { value: 0 };
 
   setTreeSnow(amount: number) { this.snowOnBranches.value = amount; }
@@ -537,10 +563,27 @@ export class PropKit {
   readonly ads: THREE.Material[];
 
   constructor() {
+    const oakPalette = {
+      spring: [0x86b84c, 0x9ac65c, 0x76a943, 0x9cbf57],
+      autumn: [0xaf651e, 0xbb7f29, 0x9d4920, 0x95813a],
+    };
+    const birchPalette = {
+      spring: [0xafd268, 0xc1da76, 0x96bd53, 0xaecb5d],
+      autumn: [0xcc9c30, 0xe2b94c, 0xc38a26, 0xbfa644],
+    };
+    const oak = blobTree(0x4a3a2a, 0x3f6a2e, oakPalette, false);
+    const oakLo = blobTree(0x4a3a2a, 0x3f6a2e, oakPalette, true);
+    const birch = blobTree(0xe8e6df, 0x6f9a3e, birchPalette, false, true);
+    const birchLo = blobTree(0xe8e6df, 0x6f9a3e, birchPalette, true, true);
+    this.seasonalTrees = {
+      oak: { ...oak, winter: bareTree(false, false) },
+      oakLo: { ...oakLo, winter: bareTree(true, false) },
+      birch: { ...birch, winter: bareTree(false, true) },
+      birchLo: { ...birchLo, winter: bareTree(true, true) },
+    };
     this.geo = {
       pine: pine(false), pineLo: pine(true),
-      oak: blobTree(0x4a3a2a, 0x3f6a2e, false), oakLo: blobTree(0x4a3a2a, 0x3f6a2e, true),
-      birch: blobTree(0xe8e6df, 0x6f9a3e, false, true), birchLo: blobTree(0xe8e6df, 0x6f9a3e, true, true),
+      oak: oak.summer, oakLo: oakLo.summer, birch: birch.summer, birchLo: birchLo.summer,
       bush: bush(0x41652f, false), dryBush: bush(0x8a7a52, true),
       spruce: spruce(false), spruceLo: spruce(true), festiveLights: festiveLights(),
       cactus: cactus(false), cactusLo: cactus(true),
@@ -548,12 +591,10 @@ export class PropKit {
       delineator: delineator(), lamp: lamp(), powerPole: powerPole(), lifeguard: lifeguard(), fence: fence(),
     };
     this.mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.86, metalness: 0 });
-    this.bare = { oak: bareTree(false, false), oakLo: bareTree(true, false),
-      birch: bareTree(false, true), birchLo: bareTree(true, true) };
-    // Одинаковая сфера для обеих крон: при переключении уже созданных инстансов отсечение остаётся корректным.
-    for (const [id, geometry] of Object.entries(this.bare) as [PropId, THREE.BufferGeometry][]) {
-      const bounds = this.geo[id].boundingSphere!.union(geometry.boundingSphere!);
-      geometry.boundingSphere!.copy(bounds);
+    // Общая сфера гарантирует корректное отсечение после смены сезона у готовых инстансов.
+    for (const tree of Object.values(this.seasonalTrees)) {
+      const bounds = tree.summer.boundingSphere!.union(tree.winter.boundingSphere!);
+      for (const geometry of Object.values(tree)) geometry.boundingSphere!.copy(bounds);
     }
     this.coniferMat = this.mat.clone();
     this.coniferMat.customProgramCacheKey = () => 'snow-on-conifers';

@@ -4,8 +4,8 @@ import type { RoadPath } from './road';
 import { ROAD } from './textures';
 
 export const ROAD_COIN_VALUE = 1;
-// В среднем 354 м: при 90 км/ч полный сбор покрывает топливо и ожидаемые штрафы ДПС.
-const MIN_COIN_GAP_M = 220;
+// В среднем 389 м: при 90 км/ч полный сбор покрывает топливо и ожидаемые штрафы ДПС.
+const MIN_COIN_GAP_M = 255;
 const COIN_GAP_VARIATION_M = 268;
 
 export class RoadCoins {

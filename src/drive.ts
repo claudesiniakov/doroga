@@ -22,7 +22,8 @@ const SUN_ELEVATION = 6.5;   // градусы — «золотой час»
 const SUN_AZIMUTH = 62;
 const CRUISE = 25;           // м/с = 90 км/ч
 const MIN_SPEED = 11;
-const MONTH_DURATION = 21;
+// Одна секунда заезда соответствует одному дню невисокосного года.
+const MONTH_SECONDS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 const POLICE_APPROACH_RATE = 1.7;
 const LEFT_SHOULDER = -2;
 const RIGHT_SHOULDER = 4;
@@ -85,7 +86,7 @@ export class DriveScene {
   private snowTarget = 0;
   private readonly warmSun = new THREE.Color(0xffd2a0);
   private readonly coldSun = new THREE.Color(0xe4efff);
-  private winterForMonth() { return this.month <= 2 || this.month >= 10; }
+  private winterForMonth() { return this.month < 2 || this.month === 11; }
 
   renewInsurance(insurance: DriveScene['insurance'], coins: number) {
     this.insurance = insurance;
@@ -217,7 +218,7 @@ export class DriveScene {
   }
 
   setSnow(on: boolean) {
-    this.world.setSnow(on);
+    this.world.setSeason(on ? 'winter' : 'summer');
     this.snowTarget = Number(on);
     this.applySnow(this.snowTarget);
   }
@@ -518,18 +519,20 @@ export class DriveScene {
     this.updateFar(time);
 
     // Смена месяца после расхода топлива и столкновений. Въезд на АЗС и остановка ДПС завершаются первыми.
-    if (this.endless && this.phase === 'drive' && this.monthTime >= MONTH_DURATION &&
+    if (this.endless && this.phase === 'drive' && this.monthTime >= MONTH_SECONDS[this.month] &&
       this.health > 0 && this.fuel > 0) {
-      this.monthTime %= MONTH_DURATION;
-      this.month = (this.month + 1) % 12;
+      do {
+        this.monthTime -= MONTH_SECONDS[this.month];
+        this.month = (this.month + 1) % MONTH_SECONDS.length;
+      } while (this.month !== 0 && this.monthTime >= MONTH_SECONDS[this.month]);
       const winter = this.winterForMonth();
-      if (winter !== this.world.snow) {
-        this.world.setSnow(winter);
-        this.snowTarget = Number(winter);
-      }
+      const season = winter ? 'winter' : this.month < 5 ? 'spring' : this.month < 8 ? 'summer' : 'autumn';
+      this.world.setSeason(season);
+      this.snowTarget = Number(winter);
       this.traffic.motoSeason = !winter;
-      this.traffic.summer = this.month >= 5 && this.month <= 7;
+      this.traffic.summer = season === 'summer';
       if (this.month === 0) {
+        this.monthTime = 0;
         this.phase = 'yearBreak';
         this.endReason = 'year';
         this.onYearEnd?.();

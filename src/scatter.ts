@@ -357,11 +357,12 @@ export function scatterChunk(world: RoadWorld, k: number, i0: number, i1: number
 
   // ——— сборка мешей ———
   for (const [id, e] of inst) {
-    const summerGeometry = kit.geo[id], winterGeometry = kit.bare[id];
+    const summerGeometry = kit.geo[id];
+    const seasonalGeometry = kit.seasonalTrees[id];
     const material = id === 'festiveLights' ? kit.festiveMat
       : summerGeometry.hasAttribute('snowMask') ? kit.coniferMat : kit.mat;
-    const im = new THREE.InstancedMesh((world.snow && winterGeometry) || summerGeometry, material, e.m.length);
-    if (winterGeometry) im.userData.seasonalGeometry = { summer: summerGeometry, winter: winterGeometry };
+    const im = new THREE.InstancedMesh(seasonalGeometry ? seasonalGeometry[world.treeSeason] : summerGeometry, material, e.m.length);
+    if (seasonalGeometry) im.userData.seasonalGeometry = seasonalGeometry;
     for (let n = 0; n < e.m.length; n++) { im.setMatrixAt(n, e.m[n]); im.setColorAt(n, e.c[n]); }
     im.userData.sharedGeo = true;
     if (id === 'festiveLights') {

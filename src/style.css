@@ -28,7 +28,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* прозрачные для касаний (свайпы смены полосы проходят сквозь них к слою #touch) */
 .screen.show > .hint, .screen.show > .controls-hint, .screen.show > .speedo, .screen.show > .top,
 .screen.show > .hud-top, .screen.show > .banner, .screen.show > .toast { pointer-events: none; }
-.hud-left { pointer-events: none; }
+.hud-left { pointer-events: none; position: relative; }
 .hud-right { pointer-events: none; }
 #hud.show #pauseBtn { pointer-events: auto; }
 
@@ -313,6 +313,14 @@ kbd {
   .banner { top: auto; bottom: calc(130px + var(--safe-b)); white-space: normal; width: calc(100vw - 48px); font-size: 16px; padding: 12px 18px; }
   .banner small { font-size: 13.5px; }
 }
+
+/* Подпись под индикаторами: ремонт/заправка в игровых днях. */
+.hud-note {
+  position: absolute; left: 0; top: calc(100% + 4px);
+  font-size: 11px; font-weight: 700; letter-spacing: .02em;
+  color: #ffd6a6; text-shadow: 0 1px 6px rgba(0, 0, 0, .75); white-space: nowrap;
+}
+.hud-note:empty { display: none; }
 
 /* ——— здоровье, страховки, уведомления ——— */
 .fuel.hp .fbar i { background: linear-gradient(90deg, #4aa8ff, #7ad0ff); }

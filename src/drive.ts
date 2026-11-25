@@ -110,6 +110,14 @@ export class DriveScene {
     this.insuranceStartDay = this.calendarDay - 1;
     for (let m = 0; m < this.month; m++) this.insuranceStartDay += MONTH_SECONDS[m];
     this.insuranceDays = 0;
+    // Четыре случайные проверки за страховой год, не ближе 25 дней друг к другу.
+    const marks: number[] = [];
+    while (marks.length < 4) {
+      const day = 20 + Math.random() * 320;
+      if (marks.every((m) => Math.abs(m - day) > 25)) marks.push(day);
+    }
+    this.policeDays = marks.sort((a, b) => a - b);
+    this.policeIndex = 0;
     this.updateCalendarSeason(true);
   }
 
@@ -167,6 +175,9 @@ export class DriveScene {
   /** Где стоит патруль (null — в этом заезде проверки нет). */
   policeS: number | null = null;
   policeFine = 0;
+  /** Дни года (0…365), в которые патруль выходит на дорогу. */
+  private policeDays: number[] = [];
+  private policeIndex = 0;
   onPolice?: () => void;
   /** Подобрали монеты, топливо или ремкомплект. */
   onPickup?: (kind: RoadPickupKind, amount: number) => void;
@@ -482,6 +493,13 @@ export class DriveScene {
       this.phase === 'pitIn' || this.phase === 'policeIn')) {
       this.advanceCalendar(elapsed);
     }
+    if (this.endless && this.phase === 'drive' && this.policeS === null && !this.chase.active && this.policeFine === 0) {
+      const mark = this.policeDays[this.policeIndex];
+      if (mark !== undefined && this.insuranceDays >= mark) {
+        this.policeIndex++;
+        if (!this.insurance.osago) this.policeS = this.s + 240 + Math.random() * 80;
+      }
+    }
     if (this.snowAmount !== this.snowTarget) {
       const distance = this.snowTarget - this.snowAmount;
       this.applySnow(this.snowAmount + Math.sign(distance) * Math.min(Math.abs(distance), elapsed / 2.5));
@@ -664,6 +682,8 @@ export class DriveScene {
       this.health > 0 && this.fuel > 0) {
       this.phase = 'yearBreak';
       this.endReason = 'year';
+      // Страховой год кончился — погоня прекращается.
+      this.stopChase();
       this.onYearEnd?.();
     }
   }
@@ -866,6 +886,7 @@ export class DriveScene {
   /** Патруль на случайном километре (вдали от съездов) — только если нет ОСАГО, с вероятностью ~65 %. */
   private schedulePolice() {
     this.policeS = null;
+    if (this.endless) return;
     if (this.insurance.osago || Math.random() > 0.65) return;
     const path = this.world.path;
     for (let tries = 0; tries < 20; tries++) {
@@ -903,6 +924,16 @@ export class DriveScene {
   leavePolice() {
     if (this.phase !== 'protocol') return;
     this.phase = 'policeOut';
+    this.policeS = null;
+    this.policeFine = 0;
+  }
+
+  /** Погоня прекращается, когда заканчивается страховой год. */
+  stopChase() {
+    if (!this.chase.active && this.chase.catchT < 0) return;
+    this.chase.active = false;
+    this.chase.catchT = -1;
+    if (this.chaseCar) this.chaseCar.vis.root.visible = false;
   }
 
   /** Игрок решил остановиться: сразу протокол и штраф. */
@@ -937,6 +968,10 @@ export class DriveScene {
 
   private updateChase(dt: number, time: number) {
     const c = this.chase;
+    if (this.phase === 'yearBreak' && c.active) {
+      this.stopChase();
+      return;
+    }
     if (c.catchT >= 0) {
       c.catchT += dt;
       this.placeChaseCar(this.s + 7, 0, true, time);

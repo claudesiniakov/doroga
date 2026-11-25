@@ -9,7 +9,7 @@ import { buildPlayerCar } from './player-car';
 import { KBM, loadKbm, saveKbm, osagoPrice, osagoFactors, kbmNext, fmtK } from './kbm';
 import { GarageScene } from './garage';
 import type { DriveScene } from './drive';
-import { START_COINS, LITERS_PER_KM, FUEL_PRICE, KASKO, REPAIR_PRICE, POLICE_FINE } from './drive-rules';
+import { START_COINS, FUEL_PRICE, KASKO, REPAIR_PRICE, POLICE_FINE } from './drive-rules';
 import { Input } from './input';
 import { OSAGO_LESSON } from './osago-lesson';
 import { finishRecordRun, formatRecordDays, loadRecords, MAX_NICKNAME_LENGTH, saveRecord, startRecordRun } from './records';
@@ -1098,7 +1098,7 @@ async function main() {
   let lastSpeed = -1;
 
   const fuelBox = $('fuelBox'), fuelBar = $('fuelBar'), fuelL = $('fuelL'), coinsEl = $('coins'), banner = $('banner');
-  const hpBox = $('hpBox'), hpBar = $('hpBar'), hpVal = $('hpVal');
+  const hpBox = $('hpBox'), hpBar = $('hpBar'), hpVal = $('hpVal'), hudNote = $('hudNote');
   let chipsKey = '';
   let bannerKey = '';
   const setBanner = (html: string, warn = false) => {
@@ -1125,32 +1125,33 @@ async function main() {
       $('insChips').innerHTML = (drive.insurance.kasko ? '<i>КАСКО</i>' : '') + (drive.insurance.osago ? '<i>ОСАГО</i>' : '');
     }
     const ph = drive.phase;
+    // Игровое время: одна секунда = один день, поэтому расстояние переводим в дни по текущей скорости.
+    const daysFor = (meters: number) => Math.max(1, Math.round(meters / Math.max(10, drive.v)));
     const toExit = drive.nextExitStartDist, toStation = drive.nextServiceDist;
-    const r50 = (m: number) => Math.max(50, Math.round(m / 50) * 50);
     const kind = drive.nextExitKind;
     const place = kind === 'repair' ? '🔧 Автосервис' : '⛽ Заправка';
     const toPlace = toStation;
     const toPolice = drive.policeS !== null && drive.policeFine === 0 ? drive.policeS - drive.s : Infinity;
     const toFinish = drive.finishS - drive.s;
+    const notes: string[] = [];
+    if (ph === 'drive' && hp < 0.35) notes.push(`Ремонт через ${daysFor(toStation)} дн.`);
+    if (ph === 'drive' && f < 0.2) notes.push(`Заправка через ${daysFor(toStation)} дн.`);
+    hudNote.textContent = notes.join(' · ');
     if (ph === 'finish') setBanner('🏁 Финиш!');
-    else if (!drive.endless && ph === 'drive' && toFinish > 0 && toFinish < 500) setBanner(`🏁 Финиш через ${r50(toFinish)} м`);
+    else if (!drive.endless && ph === 'drive' && toFinish > 0 && toFinish < 500) setBanner(`🏁 Финиш через ${daysFor(toFinish)} дн.`);
     else if (ph === 'policeIn' || ph === 'protocol') setBanner('🚓 Остановка ДПС<small>проверка документов</small>', true);
-    else if (ph === 'drive' && toPolice > 0 && toPolice < 450) setBanner(`🚓 Впереди пост ДПС<small>через ${r50(toPolice)} м · полиса ОСАГО нет</small>`, true);
+    else if (ph === 'drive' && toPolice > 0 && toPolice < 450) setBanner(`🚓 Впереди пост ДПС<small>через ${daysFor(toPolice)} дн. · полиса ОСАГО нет</small>`, true);
     else if (ph === 'pitIn' || ph === 'refuel') setBanner(drive.stationKind === 'repair' ? '🔧 Заезжаем в автосервис' : '⛽ Заезжаем на заправку');
     else if (drive.waitingToMerge) setBanner('Ждём свободную полосу');
     else if (ph === 'pitOut' || ph === 'policeOut') setBanner('Выезжаем на дорогу');
     else if (ph === 'empty') setBanner('Топливо кончилось', true);
     else if (ph === 'wrecked') setBanner('Машина разбита', true);
-    else if (ph === 'drive' && drive.lane === 2) setBanner(`${place}<small>${kind === 'repair' ? 'бокс' : 'колонка'} через ${r50(toPlace)} м</small>`);
+    else if (ph === 'drive' && drive.lane === 2) setBanner(`${place}<small>${kind === 'repair' ? 'бокс' : 'колонка'} через ${daysFor(toPlace)} дн.</small>`);
     else if (ph === 'drive' && toExit < 700 && toPlace > 30) {
       const urgent = kind === 'repair' ? hp < 0.35 : f < 0.2;
       setBanner(!drive.exitOpen
-        ? `${place} через ${r50(toExit)} м<small>перестройтесь в правую полосу</small>`
+        ? `${place} через ${daysFor(toExit)} дн.<small>перестройтесь в правую полосу</small>`
         : `${place}: съезд открыт<small>${touchControls.matches ? 'свайп вправо' : '→'} — съехать</small>`, urgent);
-    } else if (hp < 0.35 && ph === 'drive') {
-      setBanner(`Машина повреждена: ${Math.round(drive.health)} %<small>ремонт через ${(toStation / 1000).toFixed(1)} км</small>`, true);
-    } else if (f < 0.2 && ph === 'drive') {
-      setBanner(`Мало топлива: ${Math.ceil(drive.fuel)} л<small>до заправки ${(toStation / 1000).toFixed(1)} км · хватит на ${(drive.fuel / LITERS_PER_KM).toFixed(1)} км</small>`, true);
     } else setBanner('');
   };
 

@@ -19,7 +19,7 @@ export interface Quality {
 export const QUALITY: Record<QualityName, Quality> = {
   low: { name: 'low', pixelRatio: 1.25, shadowMap: 512, bloom: false, msaa: 0, textureSize: 512 },
   medium: { name: 'medium', pixelRatio: 1.75, shadowMap: 2048, bloom: true, msaa: 4, textureSize: 1024 },
-  high: { name: 'high', pixelRatio: 2.5, shadowMap: 4096, bloom: true, msaa: 4, textureSize: 1024 },
+  high: { name: 'high', pixelRatio: 2, shadowMap: 4096, bloom: true, msaa: 4, textureSize: 1024 },
 };
 
 export function detectQuality(): QualityName {
@@ -30,7 +30,7 @@ export function detectQuality(): QualityName {
     if (saved === 'low' || saved === 'medium' || saved === 'high') return saved;
   } catch { /* хранилище недоступно */ }
   const mobile = matchMedia('(pointer: coarse)').matches;
-  return mobile ? 'low' : 'high';
+  return mobile ? 'low' : 'medium';
 }
 
 const sanitizeColor = /* glsl */ `
@@ -84,8 +84,20 @@ export class Renderer {
   quality: Quality;
   exposure = 0.95;
   setExposure(e: number) { this.exposure = e; this.gl.toneMappingExposure = e; }
+  /** Вызываются при потере/восстановлении WebGL-контекста (драйвер, сон, переключение GPU). */
+  onContextLost?: () => void;
+  onContextRestored?: () => void;
+  private readonly canvas: HTMLCanvasElement;
+  private readonly lost = (event: Event) => {
+    event.preventDefault();
+    this.onContextLost?.();
+  };
+  private readonly restored = () => { this.onContextRestored?.(); };
 
   constructor(canvas: HTMLCanvasElement, q: QualityName) {
+    this.canvas = canvas;
+    canvas.addEventListener('webglcontextlost', this.lost, false);
+    canvas.addEventListener('webglcontextrestored', this.restored, false);
     this.quality = QUALITY[q];
     this.gl = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', stencil: false });
     this.gl.outputColorSpace = THREE.SRGBColorSpace;
@@ -119,9 +131,10 @@ export class Renderer {
 
   get anisotropy() { return Math.min(16, this.gl.capabilities.getMaxAnisotropy()); }
 
-  setQuality(q: QualityName) {
+  /** persist=false — авто-понижение по FPS, выбор игрока не перезаписываем. */
+  setQuality(q: QualityName, persist = true) {
     this.quality = QUALITY[q];
-    try { localStorage.setItem('doroga.quality', q); } catch { /* нет хранилища */ }
+    if (persist) try { localStorage.setItem('doroga.quality', q); } catch { /* нет хранилища */ }
     this.applyQuality();
     this.resize();
   }
@@ -150,6 +163,14 @@ export class Renderer {
   }
 
   setVignette(v: number) { this.grade.uniforms.uVignette.value = v; }
+
+  /** Полное освобождение контекста и цепочки постобработки (выгрузка страницы). */
+  dispose() {
+    this.canvas.removeEventListener('webglcontextlost', this.lost, false);
+    this.canvas.removeEventListener('webglcontextrestored', this.restored, false);
+    this.composer.dispose();
+    this.gl.dispose();
+  }
 
   render(scene: THREE.Scene, camera: THREE.Camera, time: number) {
     this.renderPass.scene = scene;

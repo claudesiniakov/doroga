@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { disposeObject } from './dispose';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
 import { RoadWorld, RoadFrame, makeRoadMaterials, EXIT_W, Exit, ExitKind } from './road';
 import { ROAD, makeRoadTextures, makeGroundTextures, makeGravelTextures, makeSandTextures } from './textures';
@@ -980,5 +981,13 @@ export class DriveScene {
       this.previewLeft = previewLeft;
       this.frameRoadPreview();
     }
+  }
+
+  /** Освобождает ресурсы сцены: выгрузка страницы или пересоздание заезда. */
+  dispose() {
+    this.world.dispose();
+    disposeObject(this.scene);
+    this.scene.clear();
+    this.waterNormal.dispose();
   }
 }

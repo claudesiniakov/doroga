@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { CarModel } from './car';
 import { damp } from './noise';
+import { disposeObject } from './dispose';
 
 /** Студия-гараж: подиум, световые панели, отражения. Камера медленно облетает машину, можно вращать. */
 export class GarageScene {
@@ -136,4 +137,10 @@ export class GarageScene {
   }
 
   get hasCar() { return !!this.vehicle; }
+
+  /** Освобождает геометрию, материалы и текстуры студии. */
+  dispose() {
+    disposeObject(this.scene);
+    this.scene.clear();
+  }
 }

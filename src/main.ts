@@ -51,6 +51,25 @@ async function main() {
   const canvas = $<HTMLCanvasElement>('gl');
   const quality: QualityName = detectQuality();
   const renderer = new Renderer(canvas, quality);
+  let noticeTimer = 0;
+  const notify = (text: string) => {
+    const toast = $('toast');
+    const line = document.createElement('div');
+    line.textContent = text;
+    toast.replaceChildren(line);
+    toast.classList.remove('ok');
+    toast.classList.add('on');
+    clearTimeout(noticeTimer);
+    noticeTimer = window.setTimeout(() => toast.classList.remove('on'), 3200);
+  };
+  renderer.onContextLost = () => {
+    if (state === 'drive') pause();
+    notify('Видеокарта пересоздаёт контекст — игра на паузе');
+  };
+  renderer.onContextRestored = () => {
+    renderer.resize();
+    notify('Графика восстановлена');
+  };
   const pmrem = new THREE.PMREMGenerator(renderer.gl);
   if (!SHOT) {
     const built = new Date(__BUILD_TIME__);
@@ -337,7 +356,11 @@ async function main() {
     garage?.resize(innerWidth / innerHeight);
     drive?.resize(innerWidth / innerHeight, previewLeft());
   };
-  addEventListener('resize', resize);
+  let resizeTimer = 0;
+  addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = window.setTimeout(resize, 120);
+  });
   resize();
 
   const fade = async (on: boolean) => {
@@ -1192,10 +1215,46 @@ async function main() {
   }
 
   enterGarage();
+  // Долгие просадки FPS — понижаем качество на шаг; выбор игрока при этом не перезаписываем.
+  let fpsWindow = 0, fpsFrames = 0, slowSeconds = 0, qualityNoticeShown = false;
+  const adaptQuality = (elapsed: number) => {
+    if (SHOT || !elapsed || (state !== 'drive' && state !== 'pause')) return;
+    fpsWindow += elapsed;
+    fpsFrames++;
+    if (fpsWindow < 1) return;
+    const fps = fpsFrames / fpsWindow;
+    fpsWindow = 0;
+    fpsFrames = 0;
+    slowSeconds = fps < 42 ? slowSeconds + 1 : 0;
+    if (slowSeconds < 3 || renderer.quality.name === 'low') return;
+    const next: QualityName = renderer.quality.name === 'high' ? 'medium' : 'low';
+    renderer.setQuality(next, false);
+    drive?.setShadowMapSize(renderer.quality.shadowMap);
+    markQuality();
+    slowSeconds = 0;
+    if (!qualityNoticeShown) {
+      qualityNoticeShown = true;
+      notify('Графика снижена, чтобы заезд шёл плавно');
+    }
+  };
   renderer.gl.setAnimationLoop((t) => {
     clock.update(t);
     const elapsed = Math.max(0, clock.getDelta());
     frame(Math.min(elapsed, 0.1), elapsed);
+    adaptQuality(elapsed);
+  });
+
+  // Выгрузка страницы: гасим цикл и освобождаем GPU-ресурсы (bfcache не трогаем).
+  const teardown = () => {
+    renderer.gl.setAnimationLoop(null);
+    drive?.dispose();
+    garage?.dispose();
+    drive = undefined as unknown as DriveScene;
+    renderer.dispose();
+  };
+  addEventListener('pagehide', (event) => {
+    if ((event as PageTransitionEvent).persisted) return;
+    teardown();
   });
   await nextFrame();
   await nextFrame();

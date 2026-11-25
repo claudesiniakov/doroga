@@ -467,6 +467,12 @@ export class RoadWorld {
     this.group.add(this.far.mesh);
   }
 
+  /** Освобождает все загруженные чанки (дальний рельеф и материалы — disposeObject сцены). */
+  dispose() {
+    for (const chunk of this.chunks.values()) chunk.dispose();
+    this.chunks.clear();
+  }
+
   /** Подгрузка/выгрузка чанков вокруг позиции s. */
   update(s: number, carPos: THREE.Vector3) {
     this.path.ensure(s + AHEAD + CHUNK_LEN * 2);

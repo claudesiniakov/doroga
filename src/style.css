@@ -410,11 +410,6 @@ kbd {
 .slides { display: grid; gap: 14px; }
 .slide { min-width: 0; }
 .slide + .slide { border-top: 1px solid var(--line); padding-top: 14px; }
-.gstats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin-top: 10px; }
-.gstats div { display: grid; gap: 2px; }
-.gstats .wide { grid-column: 1 / -1; }
-.gstats > div > span { color: var(--ink-3); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
-.gstats b { font-size: 15px; font-variant-numeric: tabular-nums; }
 .car-card .go { margin-top: 14px; }
 .odo { position: relative; padding-bottom: 12px !important; }
 .tripbar { position: absolute; left: 14px; right: 14px; bottom: 7px; height: 3px; border-radius: 3px; background: rgba(255,255,255,.14); overflow: hidden; }
@@ -438,8 +433,6 @@ kbd {
   .car-card h1 { font-size: 22px; margin: 4px 0 2px; }
   .tankline { margin: 0 0 8px; font-size: 12px; }
   .ins-opt { padding: 6px 10px; }
-  .gstats { gap: 6px 10px; margin-top: 6px; }
-  .gstats b { font-size: 13px; }
   .car-card .go { margin-top: 10px; height: 44px; }
   .tabs { margin-bottom: 8px; }
 }
@@ -495,7 +488,6 @@ html, body { height: 100dvh; }
   #garage .top { top: calc(10px + var(--safe-t)); }
   .car-card .tabs { margin-bottom: 5px; }
   .car-card .go { margin-top: 7px; height: 38px; }
-  .car-card .gstats { gap: 5px 10px; }
 }
 
 .calendar-month {
@@ -588,8 +580,6 @@ html, body { height: 100dvh; }
   .car-card .ins-opt small { font-size: 14px; line-height: 1.42; }
   .car-card .startcoins { font-size: 14px; }
   .car-card .startcoins { display: block; }
-  .gstats > div > span { font-size: 12px; }
-  .gstats b { font-size: 18px; }
   .records-table { font-size: 15px; }
   .records-table th, .records-table td { padding: 9px 8px; }
   .records-scroll { max-height: min(255px, 32dvh); }

@@ -124,36 +124,10 @@ async function main() {
   const TRIP_REWARD = 100;
   /** Первая поездка — 4 км, каждая следующая на 2 км длиннее. */
   const tripKm = (n: number) => 4 + 2 * (n - 1);
-  const gstats = {
-    km: 0, crashes: 0, done: 0, collected: 0,
-    runs: 0, durationMs: 0, bestMs: 0,
-    lastRun: null as { durationMs: number; km: number; crashes: number } | null,
-  };
-  try {
-    const saved = JSON.parse(localStorage.getItem('doroga.stats') || '{}');
-    for (const key of ['km', 'crashes', 'done', 'collected', 'runs', 'durationMs', 'bestMs'] as const) {
-      if (Number.isFinite(saved?.[key]) && saved[key] >= 0) gstats[key] = saved[key];
-    }
-    const last = saved?.lastRun;
-    if (last && [last.durationMs, last.km, last.crashes].every((value) => Number.isFinite(value) && value >= 0)) {
-      gstats.lastRun = last;
-    }
-  } catch { /* нет хранилища */ }
   const fmtKm = (km: number) => `${km.toFixed(1).replace('.', ',')} км`;
   const updateEconomyUI = () => {
     $('walletTop').textContent = String(wallet);
     $('walletCard').textContent = String(wallet);
-    $('gsDays').textContent = formatRecordDays(gstats.durationMs);
-    $('gsBest').textContent = gstats.runs ? formatRecordDays(gstats.bestMs) : '—';
-    $('gsRuns').textContent = String(gstats.runs);
-    $('gsYears').textContent = String(gstats.done);
-    $('gsKm').textContent = fmtKm(gstats.km);
-    $('gsCrashes').textContent = String(gstats.crashes);
-    $('gsCoins').textContent = String(gstats.collected);
-    const last = gstats.lastRun;
-    $('gsLast').textContent = last
-      ? `${formatRecordDays(last.durationMs)} · ${fmtKm(last.km)} · столкновений: ${last.crashes}`
-      : '—';
     $('go').textContent = state === 'renewal'
       ? (ins.osago || ins.kasko ? 'Продолжить путь' : 'Продолжить без страховки') : 'Поехать';
   };
@@ -173,7 +147,6 @@ async function main() {
   let recordSaved = false;
   let rankingRun: Promise<string | undefined> | undefined;
   let activeRunSeconds = 0;
-  let accountedRunMs = 0;
   let runCrashes = 0;
   let rankedSummary: { durationMs: number; run: Promise<string | undefined>; finished: Promise<boolean> } | undefined;
   let savingRecord = false;
@@ -429,7 +402,6 @@ async function main() {
       runClosed = false;
       activeRunSeconds = 0;
       setOdo(0);
-      accountedRunMs = 0;
       runCrashes = 0;
       rankingRun = drive.endless ? startRecordRun().catch(() => undefined) : undefined;
       state = 'drive';
@@ -463,23 +435,12 @@ async function main() {
     const km = drive.tripDone / 1000;
     lastTrip = { finished, km, crashes: drive.crashes, reward, num: trip };
     wallet = renewingInsurance || SHOT ? Math.max(0, drive.coins) + reward : START_COINS;
-    gstats.km += km;
-    gstats.crashes += drive.crashes;
-    gstats.collected += drive.coinsCollected;
-    if (finished) { gstats.done++; trip++; }
-    const durationMs = Math.floor(activeRunSeconds * 1000);
-    gstats.durationMs += durationMs - accountedRunMs;
-    accountedRunMs = durationMs;
     runCrashes += drive.crashes;
-    if (!renewingInsurance) {
-      gstats.runs++;
-      gstats.bestMs = Math.max(gstats.bestMs, durationMs);
-      gstats.lastRun = { durationMs, km: drive.endless ? drive.odometer / 1000 : km, crashes: runCrashes };
-    }
+    if (finished) trip++;
     if (drive.insurance.kasko) {
       kaskoPrice = Math.round(Math.min(200, Math.max(10, kaskoPrice * (drive.kaskoRepairUsed ? 1.1 + Math.random() * 0.2 : 0.95 - Math.random() * 0.15))));
     }
-    lsSet('doroga.wallet', wallet); lsSet('doroga.trip', trip); lsSet('doroga.kaskoPrice', kaskoPrice); lsSet('doroga.stats', gstats);
+    lsSet('doroga.wallet', wallet); lsSet('doroga.trip', trip); lsSet('doroga.kaskoPrice', kaskoPrice);
     lastKbmChange = null;
     if (drive.insurance.osago && (renewingInsurance || drive.crashes > 0)) {
       const to = kbmNext(kbm, drive.crashes);

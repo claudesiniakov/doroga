@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import './style.css';
+import './interface.css';
 import './home.css';
 import cars from './cars.json';
 import { Renderer, detectQuality, QualityName } from './render';

@@ -357,17 +357,18 @@ export function scatterChunk(world: RoadWorld, k: number, i0: number, i1: number
   // ——— редкие звери у отбойника снаружи ———
   {
     const wild = mulberry32((p.seed * 6607 + k * 811 + 13) >>> 0);
-    if (wild() < 0.03) {
+    if (wild() < 0.06) {
       const i = i0 + Math.floor(wild() * (i1 - i0));
       const side = wild() < 0.5 ? -1 : 1;
       const kind: PropId = wild() < 0.7 ? 'elk' : 'bear';
-      const o = half + 3.4 + wild() * 6;
+      const o = half + 1.4 + wild() * 3.2;
       const s = i * STEP;
       if (seaSideAt(i) !== side && !blocked(side, s, o, 2)) {
         const g = ground(i, side * o, tmp, 0.04);
         if (Number.isNaN(p.sea[i]) || g.y > p.sea[i] + 0.4) {
-          const ang = wild() * Math.PI * 2;
-          put(kind, g, quatZ(_z.set(Math.sin(ang), 0, Math.cos(ang)).clone()), 0.95 + wild() * 0.15);
+          // Боком к дороге: водителю виден силуэт, а не хвост или морда в профиль.
+          const facing = right(i, r).multiplyScalar(-side);
+          put(kind, g, quatZ(facing), 0.98 + wild() * 0.14);
         }
       }
     }

@@ -680,17 +680,28 @@ html, body { height: 100dvh; }
 .osago-lesson h3, .osago-lesson p, .osago-confirm p { margin: 0; }
 .osago-lesson p { font-size: 14px; line-height: 1.45; }
 .osago-formula { display: grid; gap: 6px; font-size: 13px; color: var(--ink-2); }
-.osago-factors { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
-.osago-factors > * { padding: 4px 6px; border-radius: 5px; color: var(--ink); background: rgba(255,255,255,.06); }
-.osago-factors > :not(:last-child)::after { content: ' ×'; color: var(--ink-3); margin-left: 4px; }
-.osago-factors mark { background: var(--accent-2); color: #1a0d04; font-weight: 750; }
-.osago-factors mark::after { color: inherit; }
+.osago-factors { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; }
+.osago-factor {
+  padding: 5px 9px; border-radius: 6px; border: 1px solid rgba(255,255,255,.16);
+  background: rgba(255,255,255,.06); color: var(--ink); font: inherit; font-size: 13px;
+  cursor: pointer; transition: border-color .15s, background .15s;
+}
+.osago-factor:hover { border-color: rgba(255,255,255,.34); }
+.osago-factor.current { background: var(--accent-2); border-color: transparent; color: #1a0d04; font-weight: 750; }
+.osago-factor:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+.osago-times { padding: 0 3px; color: var(--ink-3); font-size: 15px; line-height: 1; }
 .osago-game-value { color: var(--accent-2); font-weight: 700; }
 .osago-table-scroll { max-height: min(280px, 36dvh); overflow: auto; touch-action: pan-x pan-y; }
 .osago-table-scroll td:not(:first-child), .osago-table-scroll th:not(:first-child) { white-space: nowrap; }
 .osago-lesson summary { cursor: pointer; margin-bottom: 6px; font-size: 14px; }
-.osago-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.osago-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .osago-actions .ghost { background: #35373b; font-size: 13px; }
+.osago-skip {
+  justify-self: center; margin: 2px 0 0; padding: 6px 8px; border: 0; background: none;
+  color: var(--ink-3); font: inherit; font-size: 13px; cursor: pointer;
+  text-decoration: underline dotted; text-underline-offset: 3px;
+}
+.osago-skip:hover { color: var(--ink-2); }
 .osago-actions .ghost:disabled { opacity: .45; }
 @media (max-width: 520px), (max-height: 520px) {
   #kbm .kbm-panel { padding: 16px; gap: 8px; }

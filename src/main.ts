@@ -531,11 +531,29 @@ async function main() {
     confirmation.hidden = true;
     $('kbmTitle').textContent = 'Как рассчитывается стоимость ОСАГО?';
     $('osagoCount').textContent = `${lessonIndex + 1} / ${OSAGO_LESSON.length}`;
-    $('osagoFactors').replaceChildren(...OSAGO_LESSON.map(({ factor }, index) => {
-      const chip = document.createElement(index === lessonIndex ? 'mark' : 'span');
+    const factors = document.createDocumentFragment();
+    OSAGO_LESSON.forEach(({ factor }, index) => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = `osago-factor${index === lessonIndex ? ' current' : ''}`;
       chip.textContent = factor;
-      return chip;
-    }));
+      chip.setAttribute('aria-current', String(index === lessonIndex));
+      chip.addEventListener('click', () => {
+        if (index === lessonIndex) return;
+        lessonIndex = index;
+        renderOsagoCard();
+        document.querySelector<HTMLButtonElement>('#osagoFactors .osago-factor.current')?.focus({ preventScroll: true });
+      });
+      factors.append(chip);
+      if (index < OSAGO_LESSON.length - 1) {
+        const times = document.createElement('span');
+        times.className = 'osago-times';
+        times.textContent = '×';
+        times.setAttribute('aria-hidden', 'true');
+        factors.append(times);
+      }
+    });
+    $('osagoFactors').replaceChildren(factors);
     $('osagoCardTitle').textContent = card.title;
     $('osagoExplanation').textContent = card.explanation;
     const example = formatFactor(osagoFactors(kbm)[lessonIndex]);

@@ -148,9 +148,6 @@
   inherits: true;
   initial-value: 0;
 }
-.drum.units { background: linear-gradient(#d9e8f5, #fff 42%, #fff 58%, #d9e8f5); }
-.drum.units > span { color: var(--ui-ink); }
-.drum.units::after { background: linear-gradient(rgba(16, 44, 81, .16), transparent 30%, transparent 70%, rgba(16, 44, 81, .16)); }
 #hud .controls-hint { border-radius: 12px; }
 #hud kbd { background: rgba(122, 208, 255, .12); }
 #hud .pedal.brake.on { background: #155990; color: #fff; border-color: var(--ui-sky); }

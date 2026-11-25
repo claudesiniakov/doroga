@@ -15,7 +15,7 @@ import { OSAGO_LESSON } from './osago-lesson';
 import { finishRecordRun, formatRecordDays, loadRecords, MAX_NICKNAME_LENGTH, saveRecord, startRecordRun } from './records';
 import { checkNickname } from '../server/nickname-rules.mjs';
 
-type State = 'loading' | 'garage' | 'drive' | 'pause' | 'station' | 'over' | 'protocol' | 'renewal' | 'breakdown' | 'yearReport' | 'returningHome';
+type State = 'loading' | 'garage' | 'drive' | 'pause' | 'station' | 'over' | 'protocol' | 'renewal' | 'breakdown' | 'yearReport' | 'returningHome' | 'policeCheck' | 'caught';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const coinAmount = (value: string | number) => {
@@ -33,7 +33,7 @@ const params = new URLSearchParams(location.search);
 const SHOT = params.get('shot'); // служебный режим для автоматических снимков
 if (SHOT) document.documentElement.classList.add('shot');
 
-const screens = ['loading', 'garage', 'hud', 'pause', 'station', 'breakdown', 'over', 'kbm', 'protocol', 'yearReport'] as const;
+const screens = ['loading', 'garage', 'hud', 'pause', 'station', 'breakdown', 'over', 'kbm', 'protocol', 'yearReport', 'policeCheck', 'caught'] as const;
 function show(...ids: string[]) {
   for (const s of screens) $(s).classList.toggle('show', ids.includes(s));
   $('garage').inert = !ids.includes('garage') || ids.includes('kbm');
@@ -109,7 +109,7 @@ async function main() {
     if (SHOT) scene.setSnow(params.get('snow') !== '0');
     scene.setShadowMapSize(renderer.quality.shadowMap);
     scene.resize(innerWidth / innerHeight);
-    Object.assign(scene, { onStation, onPolice, onDamage, onEmpty, onCrash, onYearEnd });
+    Object.assign(scene, { onStation, onPolice, onPoliceCheck, onCaught, onDamage, onEmpty, onCrash, onYearEnd });
     drive = scene;
     return scene;
   };
@@ -385,6 +385,7 @@ async function main() {
       }
       wallet = startCoins;
       lsSet('doroga.wallet', wallet);
+      $('policeFlash').hidden = true;
       runClosed = false;
       activeRunSeconds = 0;
       setOdo(0);
@@ -414,6 +415,7 @@ async function main() {
   let lastTrip = { finished: false, km: 0, crashes: 0, reward: 0, num: 1 };
   const finishRun = (renewingInsurance = false) => {
     if (runClosed) return;
+    $('policeFlash').hidden = true;
     runClosed = true;
     // итог поездки: награда за финиш, кошелёк, статистика
     const finished = drive.endReason === 'finish' || drive.endReason === 'year';
@@ -704,6 +706,48 @@ async function main() {
     $('prSign').replaceChildren('Подписать · ', coinAmount(`−${drive.policeFine}`));
     show('hud', 'protocol');
   };
+  const onPoliceCheck: NonNullable<DriveScene['onPoliceCheck']> = () => {
+    state = 'policeCheck';
+    input.enabled = false;
+    show('hud', 'policeCheck');
+    $('policeStop').focus({ preventScroll: true });
+  };
+  const onCaught: NonNullable<DriveScene['onCaught']> = () => {
+    state = 'caught';
+    input.enabled = false;
+    $('policeFlash').hidden = true;
+    show('hud', 'caught');
+    $('caughtRestart').focus({ preventScroll: true });
+  };
+  $('policeStop').addEventListener('click', () => {
+    if (state !== 'policeCheck') return;
+    drive.stopAtPolice();
+  });
+  $('policeFlee').addEventListener('click', () => {
+    if (state !== 'policeCheck') return;
+    state = 'drive';
+    input.clear();
+    input.enabled = true;
+    show('hud');
+    drive.startChase();
+    $('policeFlash').hidden = false;
+    const toast = $('toast');
+    const warn = document.createElement('div');
+    warn.textContent = 'Нарушать закон плохо!';
+    const chase = document.createElement('div');
+    chase.textContent = 'За вами погоня — не тормозите';
+    toast.replaceChildren(warn, chase);
+    toast.classList.remove('ok');
+    toast.classList.add('on');
+    clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(() => toast.classList.remove('on'), 4500);
+  });
+  $('caughtRestart').addEventListener('click', async () => {
+    if (state !== 'caught') return;
+    $('policeFlash').hidden = true;
+    finishRun();
+    await startDrive();
+  });
   $('prSign').addEventListener('click', () => {
     if (state !== 'protocol') return;
     drive.leavePolice();
@@ -1106,7 +1150,7 @@ async function main() {
   const dateLabel = $('calendarDate');
   const frame = (dt: number, elapsed = dt) => {
     time += dt;
-    if (state === 'pause' || state === 'over' || state === 'yearReport' || state === 'renewal') {
+    if (state === 'pause' || state === 'over' || state === 'yearReport' || state === 'renewal' || state === 'policeCheck' || state === 'caught') {
       if (renderedBackdrop !== state) {
         renderer.render(drive.scene, drive.camera, time);
         renderedBackdrop = state;

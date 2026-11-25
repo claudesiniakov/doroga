@@ -123,6 +123,26 @@
     </div>
   </section>
 
+  <section id="policeCheck" class="screen">
+    <div class="panel menu">
+      <div class="eyebrow">Проверка документов</div>
+      <h2>Вас останавливает полиция проверить полис ОСАГО</h2>
+      <p class="police-note">Полиса у вас нет: остановитесь и подпишите протокол — или попробуйте уехать. Уход от требования об остановке — нарушение.</p>
+      <button id="policeStop" class="go">Остановиться</button>
+      <button id="policeFlee" class="ghost">Поехать дальше</button>
+    </div>
+  </section>
+
+  <section id="caught" class="screen">
+    <div class="panel menu">
+      <div class="eyebrow">Погоня</div>
+      <h2>Вас поймали</h2>
+      <p>Заезд завершён: патруль перегородил дорогу.</p>
+      <p class="police-article">Ст. 12.25 ч. 2 КоАП РФ — невыполнение законного требования сотрудника полиции об остановке транспортного средства: штраф от 500 до 800 ₽. В игре — конец заезда и потеря прогресса года.</p>
+      <button id="caughtRestart" class="go">Начать заезд заново</button>
+    </div>
+  </section>
+
   <section id="station" class="screen">
     <div class="panel menu">
       <div class="eyebrow" id="stEyebrow">Заправка «Топливо 24»</div>
@@ -262,6 +282,7 @@
 
   <div id="hit"></div>
   <div id="fade"></div>
+  <div class="police-flash" id="policeFlash" hidden aria-hidden="true"><i></i><i></i></div>
   <div class="build-tag" id="buildTag" hidden></div>
   <script type="module" src="./src/main.ts"></script>
 </body>

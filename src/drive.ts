@@ -76,7 +76,7 @@ export class DriveScene {
    * intro — заставка; drive — езда; pitIn — заезд к колонке; refuel — стоим у колонки;
    * pitOut — выезд со съезда; empty — бак пуст, машина катится; stopped — заезд окончен.
    */
-  phase: 'intro' | 'drive' | 'pitIn' | 'refuel' | 'pitOut' | 'policeIn' | 'protocol' | 'policeOut' | 'empty' | 'wrecked' | 'finish' | 'yearBreak' | 'stopped' = 'intro';
+  phase: 'intro' | 'drive' | 'pitIn' | 'refuel' | 'pitOut' | 'policeIn' | 'protocol' | 'policeOut' | 'empty' | 'wrecked' | 'finish' | 'yearBreak' | 'caught' | 'stopped' = 'intro';
   // поездка: длина задаётся снаружи, финиш — на startS + tripKm
   tripKm = 4;
   endless = false;
@@ -141,6 +141,14 @@ export class DriveScene {
     this.coinsCollected = 0;
     this.kaskoRepairUsed = false;
     this.policeFine = 0;
+    this.chase.active = false;
+    this.chase.offered = false;
+    this.chase.peak = 0;
+    this.chase.slow = 0;
+    this.chase.catchT = -1;
+    this.chase.done = false;
+    if (this.chaseCar) this.chaseCar.vis.root.visible = false;
+    if (this.police) this.police.vis.root.visible = false;
     this.schedulePolice();
     this.updatePolice(0);
     this.phase = 'drive';
@@ -159,6 +167,12 @@ export class DriveScene {
   policeS: number | null = null;
   policeFine = 0;
   onPolice?: () => void;
+  /** Первая остановка патрулём: игрок выбирает, подчиниться или уехать. */
+  onPoliceCheck?: () => void;
+  onChase?: () => void;
+  onCaught?: () => void;
+  readonly chase = { active: false, offered: false, peak: 0, slow: 0, catchT: -1, done: false };
+  private chaseCar?: { vis: { root: THREE.Group }; red: THREE.MeshStandardMaterial; blue: THREE.MeshStandardMaterial };
   private police!: { vis: { root: THREE.Group }; red: THREE.MeshStandardMaterial; blue: THREE.MeshStandardMaterial };
   // топливо и деньги
   fuel = 0;
@@ -441,8 +455,16 @@ export class DriveScene {
       // Сжимаем прежний путь от начала манёвра до точки остановки, сохраняя зазор до патруля.
       const oldStoppingDistance = 60 + this.v ** 2 / 8 - POLICE_STOP_GAP_M;
       if (policeLeft <= oldStoppingDistance / 4) {
-        this.phase = 'policeIn';
-        this.lane = RIGHT_SHOULDER;
+        if (!this.chase.active && !this.chase.offered) {
+          // Спрашиваем игрока; кадр замирает, пока он выбирает.
+          this.chase.offered = true;
+          this.onPoliceCheck?.();
+          return;
+        }
+        if (!this.chase.active) {
+          this.phase = 'policeIn';
+          this.lane = RIGHT_SHOULDER;
+        }
       }
     }
     const policeApproach = this.phase === 'policeIn';
@@ -495,6 +517,10 @@ export class DriveScene {
         a = clamp((CRUISE - this.v) * 0.35, 0, 3.2);
         if (Math.abs(this.d - ROAD.laneWidth) < 0.4) this.phase = 'drive';
       }
+    } else if (this.phase === 'caught') {
+      a = -9;
+      brake = 1;
+      if (this.v + a * dt <= 0.05) { this.v = 0; a = 0; }
     } else if (this.phase === 'refuel' || this.phase === 'stopped') {
       this.v = 0; a = 0; brake = 1;
     } else if (this.phase === 'empty' || this.phase === 'wrecked' || this.phase === 'finish') {
@@ -601,6 +627,7 @@ export class DriveScene {
     const canCrash = this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'policeOut';
     this.traffic.update(dt, this.playerState(), this.odometer, time, canCrash);
     this.updatePolice(time);
+    this.updateChase(dt, time);
     if (this.endless) {
       const coins = this.roadCoins.update(fromS, this.s, this.d, time, this.phase === 'drive');
       this.coins += coins;
@@ -848,6 +875,74 @@ export class DriveScene {
   leavePolice() {
     if (this.phase !== 'protocol') return;
     this.phase = 'policeOut';
+  }
+
+  /** Игрок решил остановиться: сразу протокол и штраф. */
+  stopAtPolice() {
+    if (this.phase === 'protocol') return;
+    this.v = 0;
+    this.phase = 'protocol';
+    this.policeFine = Math.min(POLICE_FINE, this.coins);
+    this.coins -= this.policeFine;
+    this.onPolice?.();
+  }
+
+  /** Игрок решил уехать: патруль бросается вдогонку. */
+  startChase() {
+    if (this.chase.active) return;
+    this.chase.active = true;
+    this.chase.offered = true;
+    this.chase.peak = this.v;
+    this.chase.slow = 0;
+    this.chase.catchT = -1;
+    this.chase.done = false;
+    if (!this.chaseCar) {
+      this.chaseCar = this.traffic.assets.createPolice() as typeof this.police;
+      this.scene.add(this.chaseCar!.vis.root);
+    }
+    this.chaseCar!.vis.root.visible = true;
+    this.onChase?.();
+  }
+
+  private updateChase(dt: number, time: number) {
+    const c = this.chase;
+    if (c.catchT >= 0) {
+      c.catchT += dt;
+      this.placeChaseCar(this.s + 7, 0, true, time);
+      if (c.catchT > 1.1 && !c.done) {
+        c.done = true;
+        this.onCaught?.();
+      }
+      return;
+    }
+    if (!c.active) return;
+    // Проехали стоящий патруль — убираем его из кадра.
+    if (this.policeS !== null && this.s > this.policeS + 40) this.policeS = null;
+    // Догнали, если скорость просела больше чем на 10 % от лучшей в погоне.
+    c.peak = Math.max(c.peak, this.v);
+    c.slow = this.v < c.peak * 0.9 ? c.slow + dt : 0;
+    if (c.slow > 0.55) {
+      c.catchT = 0;
+      this.phase = 'caught';
+      this.placeChaseCar(this.s + 7, 0, true, time);
+      return;
+    }
+    this.placeChaseCar(Math.max(0, this.s - 14), -ROAD.laneWidth * 0.55, false, time);
+  }
+
+  private placeChaseCar(s: number, lateral: number, blocking: boolean, time: number) {
+    const car = this.chaseCar;
+    if (!car) return;
+    const f = this.world.path.frame(s);
+    const crown = 0.07 * (1 - (lateral / ROAD.half) ** 2);
+    car.vis.root.position.copy(f.pos).addScaledVector(f.right, lateral).addScaledVector(f.up, crown);
+    const forward = blocking ? f.right : f.fwd;
+    this._x.crossVectors(f.up, forward).normalize();
+    this._m.makeBasis(this._x, f.up, forward);
+    car.vis.root.quaternion.setFromRotationMatrix(this._m);
+    const on = Math.floor(time * 8) % 2 === 0;
+    car.red.emissiveIntensity = on ? 7 : 0.2;
+    car.blue.emissiveIntensity = on ? 0.2 : 7;
   }
 
   private repairValue(pct: number) { return Math.ceil(pct / 10 - 1e-6) * REPAIR_PRICE; }

@@ -315,12 +315,16 @@ async function main() {
   let time = 0;
   let hintTimer = 0;
   let renderedBackdrop: State | undefined;
+  const desktopPreview = matchMedia('(pointer: fine) and (min-width: 900px)');
+  const previewLeft = () => desktopPreview.matches
+    ? (document.querySelector('.home-layout')!.getBoundingClientRect().right + 24) / innerWidth
+    : undefined;
 
   const resize = () => {
     renderedBackdrop = undefined;
     renderer.resize();
     garage?.resize(innerWidth / innerHeight);
-    drive?.resize(innerWidth / innerHeight);
+    drive?.resize(innerWidth / innerHeight, previewLeft());
   };
   addEventListener('resize', resize);
   resize();
@@ -333,7 +337,7 @@ async function main() {
   const enterGarage = () => {
     void renderRecords();
     if (garage) garage.attachCar(car);
-    else drive?.previewRoad(car, cfg);
+    else drive?.previewRoad(car, cfg, previewLeft());
     $('garage').classList.remove('is-renewal');
     $('homeMode').hidden = true;
     $('insuranceHeading').textContent = 'Страховка на год';
@@ -831,7 +835,7 @@ async function main() {
       ins.kasko = ins.osago = false;
       $('garage').classList.add('is-renewal');
       $('homeMode').hidden = false;
-      $('insuranceHeading').textContent = 'Новый страховой год · выберите страховку';
+      $('insuranceHeading').textContent = 'Страховка на новый год';
       openInsuranceTab();
       renderIns();
       show('garage');
@@ -1000,20 +1004,28 @@ async function main() {
 
   const SPEEDO_LEN = 252;
   const speedEl = $('speed'), arcEl = $('speedArc'), odoEl = $('odo');
-  // одометр: барабаны крутятся как настоящие — десятые плавно, старшие разряды докручиваются при переносе
-  const drums = [...odoEl.querySelectorAll<HTMLElement>('.drum')].reverse();   // [десятые, единицы, десятки, сотни]
+  const drums = [...odoEl.querySelectorAll<HTMLElement>('.drum')].reverse();
+  const initialDrumCount = drums.length;
   const drumPos = drums.map(() => -1);
+  const drumAnimations: (Animation | undefined)[] = [];
   let lastOdo = -1;
-  function setOdo(tenths: number) {
-    const v = Math.max(0, tenths);
+  function setOdo(value: number) {
+    const v = Math.max(0, value);
     if (v === lastOdo) return;
+    const animate = !SHOT && v === lastOdo + 1 && lastOdo >= 0 &&
+      !matchMedia('(prefers-reduced-motion: reduce)').matches;
     lastOdo = v;
     if (!SHOT) {
+      if (v === 0) {
+        for (const drum of drums.splice(initialDrumCount)) drum.remove();
+        drumPos.length = drumAnimations.length = initialDrumCount;
+      }
       while (v >= 10 ** drums.length) {
         const drum = drums[1].cloneNode(true) as HTMLElement;
+        drum.style.setProperty('--p', '0');
         odoEl.prepend(drum);
         drums.push(drum);
-        drumPos.push(-1);
+        drumPos.push(0);
       }
       odoEl.setAttribute('aria-label', formatRecordDays(v * 1000));
     }
@@ -1023,7 +1035,19 @@ async function main() {
       const digit = Math.floor(v / unit) % 10;
       const rolling = i === 0 ? frac : (v % unit) >= unit - 1 ? frac : 0;   // все младшие на «9» — переносим
       const p = Math.round((digit + rolling) * 100) / 100;
-      if (p !== drumPos[i]) { drumPos[i] = p; drums[i].style.setProperty('--p', String(p)); }
+      const previous = drumPos[i];
+      if (p === previous) continue;
+      const drum = drums[i];
+      drumAnimations[i]?.cancel();
+      drum.style.setProperty('--p', String(p));
+      if (animate) {
+        // Последний ноль на ленте дублирует первый и даёт прокрутку вперёд через девятку.
+        drumAnimations[i] = drum.animate(
+          [{ '--p': String(previous) }, { '--p': String(previous === 9 && p === 0 ? 10 : p) }],
+          { duration: 240, easing: 'ease-out' },
+        );
+      }
+      drumPos[i] = p;
     }
   }
   setOdo(0);
@@ -1090,7 +1114,7 @@ async function main() {
   $('tripBar').parentElement!.hidden = !SHOT;
   if (!SHOT) {
     odoEl.querySelector('.dot')?.remove();
-    drums[0].classList.remove('tenth');
+    drums[0].classList.replace('tenth', 'units');
     $('odoGoal').textContent = 'дн.';
   }
   const dateLabel = $('calendarDate');
@@ -1167,7 +1191,7 @@ async function main() {
   if (!startingDrive && $('garage').classList.contains('show')) {
     try {
       const scene = await prepareDrive();
-      if (!startingDrive && $('garage').classList.contains('show')) scene.previewRoad(car, cfg);
+      if (!startingDrive && $('garage').classList.contains('show')) scene.previewRoad(car, cfg, previewLeft());
     } catch (error) {
       console.error(error);
     }

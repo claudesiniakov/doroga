@@ -29,51 +29,53 @@
       <div class="tabs" id="tabs" role="tablist" aria-label="Меню игры"></div>
       <div class="top-right">
         <button class="icon-btn fs-btn" id="fsBtn" aria-label="На весь экран" hidden><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
-        <div class="wallet-top" aria-label="Монеты"><span class="coin" aria-hidden="true"></span><b id="walletTop">100</b></div>
+        <div class="wallet-top"><b class="coin-amount"><span id="walletTop">100</span><span class="coin" role="img" aria-label="монет"></span></b></div>
       </div>
     </header>
-    <div class="home-content">
-      <div class="slides" id="slides">
-          <section class="slide insurance-slide" data-name="Страховка">
-            <h2 class="home-section-title" id="insuranceHeading">Страховка на год</h2>
-            <div class="ins">
-              <button class="ins-opt" id="insKasko"><span class="chk"></span><span class="t"><b>КАСКО · <span class="coin-amount"><span id="kaskoPrice">40</span><span class="coin" role="img" aria-label="монет"></span></span></b><small>В игре оплачивает ремонт вашей машины независимо от виновника ДТП и эвакуацию, если машина разбита.</small></span></button>
-              <div class="osago-option">
-                <button class="ins-opt" id="insOsago"><span class="chk"></span><span class="t"><b>ОСАГО · <span class="coin-amount"><span id="osagoPrice">10</span><span class="coin" role="img" aria-label="монет"></span></span></b><small>Если вы виноваты в ДТП, ОСАГО возмещает каждому потерпевшему ущерб имуществу до 400 000 ₽ и вред жизни или здоровью до 500 000 ₽.</small></span></button>
-                <button class="osago-help" id="kbmLink" type="button">Как рассчитывается цена?</button>
+    <div class="home-layout">
+      <div class="home-content">
+        <div class="slides" id="slides">
+            <section class="slide insurance-slide" data-name="Страховка">
+              <h2 class="home-section-title" id="insuranceHeading">Страховка на год</h2>
+              <div class="ins">
+                <button class="ins-opt" id="insKasko"><span class="chk"></span><span class="t"><b>КАСКО · <span class="coin-amount"><span id="kaskoPrice">40</span><span class="coin" role="img" aria-label="монет"></span></span></b><small>В игре оплачивает ремонт вашей машины независимо от виновника ДТП и эвакуацию, если машина разбита.</small></span></button>
+                <div class="osago-option">
+                  <button class="ins-opt" id="insOsago"><span class="chk"></span><span class="t"><b>ОСАГО · <span class="coin-amount"><span id="osagoPrice">10</span><span class="coin" role="img" aria-label="монет"></span></span></b><small>Если вы виноваты в ДТП, ОСАГО возмещает каждому потерпевшему ущерб имуществу до 400 000 ₽ и вред жизни или здоровью до 500 000 ₽.</small></span></button>
+                  <button class="osago-help" id="kbmLink" type="button">Как рассчитывается цена?</button>
+                </div>
               </div>
-            </div>
-            <div class="startcoins">В кошельке <span class="coin"></span><b id="walletCard">100</b> · на поездку останется <b class="coin-amount"><span id="startCoins">100</span><span class="coin" role="img" aria-label="монет"></span></b></div>
-          </section>
-          <section class="slide analytics-slide" data-name="Аналитика">
-            <h2 class="home-section-title">Аналитика</h2>
-            <div class="gstats">
-              <div class="analytics-feature"><span>Дней за рулём</span><b id="gsDays">0 дней</b></div>
-              <div class="analytics-feature"><span>Лучший заезд</span><b id="gsBest">—</b></div>
-              <div><span>Заездов завершено</span><b id="gsRuns">0</b></div>
-              <div><span>Смен страхового года</span><b id="gsYears">0</b></div>
-              <div><span>Общий пробег</span><b id="gsKm">0 км</b></div>
-              <div><span>Столкновений</span><b id="gsCrashes">0</b></div>
-              <div class="wide"><span>Подобрано монет</span><b class="coin-amount"><span id="gsCoins">0</span><span class="coin" role="img" aria-label="монет"></span></b></div>
-              <div class="wide"><span>Последний заезд</span><b id="gsLast">—</b></div>
-            </div>
-            <button class="reset-all" id="resetAll">Начать сначала</button>
-          </section>
-          <section class="slide" data-name="Рекорды">
-            <h2 class="home-section-title" id="recordsTitle">Топ-100 по дням</h2>
-            <p id="recordsEmpty">Здесь будут результаты завершённых заездов.</p>
-            <div class="records-scroll" id="recordsScroll" hidden>
-              <table class="records-table" aria-labelledby="recordsTitle">
-                <thead><tr><th scope="col">Место</th><th scope="col">Ник</th><th scope="col">Дни</th></tr></thead>
-                <tbody id="recordsBody"></tbody>
-              </table>
-            </div>
-          </section>
+              <div class="startcoins">В кошельке <b class="coin-amount"><span id="walletCard">100</span><span class="coin" role="img" aria-label="монет"></span></b> · на поездку останется <b class="coin-amount"><span id="startCoins">100</span><span class="coin" role="img" aria-label="монет"></span></b></div>
+            </section>
+            <section class="slide analytics-slide" data-name="Аналитика">
+              <h2 class="home-section-title">Аналитика</h2>
+              <div class="gstats">
+                <div class="analytics-feature"><span>Дней за рулём</span><b id="gsDays">0 дней</b></div>
+                <div class="analytics-feature"><span>Лучший заезд</span><b id="gsBest">—</b></div>
+                <div><span>Заездов завершено</span><b id="gsRuns">0</b></div>
+                <div><span>Смен страхового года</span><b id="gsYears">0</b></div>
+                <div><span>Общий пробег</span><b id="gsKm">0 км</b></div>
+                <div><span>Столкновений</span><b id="gsCrashes">0</b></div>
+                <div class="wide"><span>Подобрано монет</span><b class="coin-amount"><span id="gsCoins">0</span><span class="coin" role="img" aria-label="монет"></span></b></div>
+                <div class="wide"><span>Последний заезд</span><b id="gsLast">—</b></div>
+              </div>
+              <button class="reset-all" id="resetAll">Начать сначала</button>
+            </section>
+            <section class="slide" data-name="Рекорды">
+              <h2 class="home-section-title" id="recordsTitle">Топ-100 по дням</h2>
+              <p id="recordsEmpty">Здесь будут результаты завершённых заездов.</p>
+              <div class="records-scroll" id="recordsScroll" hidden>
+                <table class="records-table" aria-labelledby="recordsTitle">
+                  <thead><tr><th scope="col">Место</th><th scope="col">Ник</th><th scope="col">Дни</th></tr></thead>
+                  <tbody id="recordsBody"></tbody>
+                </table>
+              </div>
+            </section>
+        </div>
       </div>
-    </div>
-    <div class="home-launch">
-      <h2 id="homeMode" hidden>Новый страховой год</h2>
-      <button id="go" class="go">Поехать</button>
+      <div class="home-launch">
+        <h2 id="homeMode" hidden>Новый страховой год</h2>
+        <button id="go" class="go">Поехать</button>
+      </div>
     </div>
     <div class="ios-tip" id="iosTip" hidden>
       <b>На весь экран</b> — нажмите <span class="share">⬆︎</span> «Поделиться» → «На экран „Домой“» и запускайте игру с иконки.

@@ -3,6 +3,11 @@
   --home-muted: #37546c;
   --home-accent: var(--ui-blue);
   --home-gutter: clamp(22px, 4vw, 76px);
+  --home-coin-size: 14px;
+  --home-ins-inset: 9px;
+  --home-ins-check: 18px;
+  --home-ins-gap: 12px;
+  --home-ins-title-line: 20px;
   isolation: isolate;
 }
 #garage::before {
@@ -72,6 +77,7 @@
   background: var(--ui-pale);
   color: var(--ui-blue);
 }
+.home-layout { display: contents; }
 .home-content {
   position: absolute;
   top: calc(clamp(100px, 16vh, 158px) + var(--safe-t));
@@ -100,16 +106,25 @@
 }
 #garage .ins { margin: 0; gap: 7px; }
 #garage .ins-opt {
-  padding: 9px;
+  align-items: flex-start;
+  gap: var(--home-ins-gap);
+  padding: 9px var(--home-ins-inset);
   border: 1px solid var(--home-line);
   border-radius: 14px;
   background: var(--ui-soft);
 }
+#garage .ins-opt .chk {
+  width: var(--home-ins-check);
+  height: var(--home-ins-check);
+  margin-top: calc((var(--home-ins-title-line) - var(--home-ins-check)) / 2);
+}
+#garage .ins-opt b { line-height: var(--home-ins-title-line); }
+#garage .coin-amount { vertical-align: baseline; }
+#garage .coin-amount .coin { width: var(--home-coin-size); height: var(--home-coin-size); }
 #garage .ins-opt:hover, #garage .ins-opt.on { border-color: var(--home-accent); }
 #garage .ins-opt.on { background: var(--ui-pale); }
 #garage .ins-opt small { font-size: 12px; line-height: 1.35; }
 #garage .osago-option {
-  --osago-inset: 9px;
   display: grid;
   border: 1px solid var(--home-line);
   border-radius: 14px;
@@ -122,7 +137,7 @@
 #garage .osago-help {
   justify-self: start;
   min-height: 32px;
-  margin: 0 8px 4px calc(var(--osago-inset) + 30px);
+  margin: 0 8px 4px calc(var(--home-ins-inset) + var(--home-ins-check) + var(--home-ins-gap));
   padding: 0;
   border: 0;
   background: none;
@@ -249,10 +264,17 @@
     --home-panel-top: calc(var(--home-nav-height) + clamp(12px, 2.6dvh, 32px));
     --home-launch-bottom: clamp(14px, 3.4dvh, 40px);
     --home-launch-height: clamp(52px, 8dvh, 86px);
-    --home-launch-clearance: calc(var(--home-launch-height) + 16px);
+    --home-launch-gap: 22px;
+    --home-panel-padding-x: clamp(20px, 2.7vw, 48px);
+    --home-panel-padding-y: clamp(16px, 3dvh, 36px);
+    --home-launch-clearance: calc(var(--home-launch-height) + var(--home-launch-gap) + var(--home-panel-padding-y));
     --home-panel-width: clamp(464px, 53vw, 1040px);
+    --home-coin-size: clamp(16px, 1.1vw, 20px);
+    --home-ins-inset: 20px;
+    --home-ins-check: 24px;
+    --home-ins-gap: 14px;
+    --home-ins-title-line: clamp(26px, 2.15vw, 36px);
   }
-  #garage.is-renewal { --home-launch-clearance: calc(var(--home-launch-height) + 66px); }
   #garage .home-nav { min-height: calc(var(--home-nav-height) + var(--safe-t)); }
   #garage .top-right { gap: 12px; }
   #homeTitle { font-size: clamp(34px, 3.5vw, 60px); }
@@ -260,19 +282,27 @@
   #garage .wallet-top, #garage .fs-btn { min-height: clamp(44px, 6dvh, 62px); }
   #garage .wallet-top { font-size: clamp(18px, 1.5vw, 26px); padding-inline: 16px; }
   #garage .fs-btn { width: clamp(44px, 6dvh, 62px); }
-  #garage .home-content {
+  #garage .home-layout {
+    position: absolute;
+    display: grid;
+    gap: var(--home-launch-gap);
     top: calc(var(--home-panel-top) + var(--safe-t));
     left: calc(var(--home-gutter) + var(--safe-l));
-    right: auto;
     width: var(--home-panel-width);
+    background: var(--ui-paper);
+    border: 1px solid var(--home-line);
+    border-radius: 24px;
+    box-shadow: var(--ui-shadow);
   }
+  #garage .home-content, #garage .home-launch { position: static; width: auto; }
+  #garage .slides { background: transparent; border: 0; box-shadow: none; }
+  #garage .home-launch { padding: 0 var(--home-panel-padding-x) var(--home-panel-padding-y); }
   #garage .slide {
-    max-height: calc(100dvh - var(--home-panel-top) - var(--home-launch-bottom) - var(--home-launch-clearance) - var(--safe-t) - var(--safe-b));
-    padding: clamp(16px, 3dvh, 36px) clamp(20px, 2.7vw, 48px);
+    max-height: calc(100dvh - var(--home-panel-top) - var(--home-launch-bottom) - var(--home-launch-clearance) - var(--safe-t) - var(--safe-b) - 2px);
+    padding: var(--home-panel-padding-y) var(--home-panel-padding-x) 0;
     overflow-y: auto;
   }
-  #garage .home-launch { bottom: calc(var(--home-launch-bottom) + var(--safe-b)); width: var(--home-panel-width); }
-  #garage #homeMode { font-size: clamp(23px, 2.2vw, 38px); margin-bottom: 12px; }
+  #garage #homeMode { display: none; }
   #garage #go {
     max-width: min(100%, 530px);
     height: var(--home-launch-height);
@@ -282,11 +312,9 @@
   #garage #go::after { font-size: 1.35em; }
   #garage .home-section-title { margin-bottom: clamp(12px, 2dvh, 24px); font-size: clamp(30px, 3.3vw, 54px); }
   #garage .ins { gap: clamp(10px, 1.6dvh, 18px); }
-  #garage .ins-opt { padding: clamp(10px, 1.8dvh, 20px) 20px; gap: 14px; }
-  #garage .ins-opt .chk { width: 24px; height: 24px; }
+  #garage .ins-opt { padding: clamp(10px, 1.8dvh, 20px) var(--home-ins-inset); }
   #garage .ins-opt b { font-size: clamp(21px, 1.85vw, 30px); }
   #garage .ins-opt small { display: block; font-size: clamp(16px, 1.35vw, 23px); line-height: 1.4; }
-  #garage .osago-option { --osago-inset: 28px; }
   #garage .osago-option .ins-opt { padding-bottom: 2px; }
   #garage .osago-help, #garage .startcoins, #garage #recordsEmpty, #garage .reset-all {
     font-size: clamp(16px, 1.3vw, 22px);
@@ -319,25 +347,11 @@
 }
 
 @media (pointer: fine) and (min-width: 900px) and (max-height: 780px) {
-  #garage, #garage.is-renewal {
-    --home-panel-width: min(63vw, 1040px);
-    --home-launch-clearance: 0px;
-  }
-  #garage .home-launch {
-    left: calc(var(--home-gutter) + var(--home-panel-width) + 18px + var(--safe-l));
-    right: calc(var(--home-gutter) + var(--safe-r));
-    width: auto;
-  }
-  #garage #go {
-    min-height: var(--home-launch-height);
-    height: auto;
-    padding-block: 10px;
-    gap: 12px;
-    font-size: clamp(18px, 1.8vw, 28px);
-  }
+  #garage { --home-panel-width: min(63vw, 1040px); }
 }
 
 @media (pointer: fine) and (min-width: 900px) and (max-height: 640px) {
-  #garage .gstats > div { padding: 9px 10px; }
+  #garage .gstats { gap: 9px; }
+  #garage .gstats > div { padding: 7px 9px; }
   #garage .gstats > div > span { text-transform: none; letter-spacing: normal; }
 }

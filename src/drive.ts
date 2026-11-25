@@ -87,6 +87,7 @@ export class DriveScene {
   payouts = { osago: 0, kasko: 0, ownVictims: 0, ownService: 0, hadOsago: false, hadKasko: false };
   private readonly roadCoins: RoadCoins;
   private previewing = false;
+  private previewLeft?: number;
   private snowAmount = 0;
   private snowTarget = 0;
   private readonly warmSun = new THREE.Color(0xffd2a0);
@@ -296,8 +297,9 @@ export class DriveScene {
   }
 
   /** Комета припаркована на обочине главного экрана. */
-  previewRoad(car: CarModel, config: CarConfig) {
+  previewRoad(car: CarModel, config: CarConfig, previewLeft?: number) {
     this.previewing = true;
+    this.previewLeft = previewLeft;
     if (this.endless) this.resetCalendar();
     const s = 30;
     const f = this.world.path.frame(s);
@@ -325,6 +327,11 @@ export class DriveScene {
   }
 
   private frameRoadPreview() {
+    if (this.previewLeft !== undefined) {
+      this.frameDesktopRoadPreview(this.previewLeft);
+      return;
+    }
+    this.camera.clearViewOffset();
     const narrow = Math.max(0, 1.15 - this.camera.aspect);
     const wide = smoothstep(1.15, 1.45, this.camera.aspect);
     const view = this.world.path.frame(this.s - lerp(12, 8, wide));
@@ -336,9 +343,41 @@ export class DriveScene {
       .addScaledVector(target.up, 1.5 - narrow * 5.4));
   }
 
+  private frameDesktopRoadPreview(left: number) {
+    const camera = this.camera;
+    const aspect = camera.aspect;
+    const frame = this.world.path.frame(this.s);
+    const bounds = new THREE.Box3().setFromObject(this.car.root);
+    const target = bounds.getCenter(new THREE.Vector3());
+    const direction = frame.right.clone().multiplyScalar(-0.70)
+      .addScaledVector(frame.fwd, -0.72)
+      .addScaledVector(frame.up, 0.31).normalize();
+    const right = 0.98;
+    const centerX = (left + right) / 2;
+    camera.setViewOffset(aspect, 1, (0.5 - centerX) * aspect, -0.08, aspect, 1);
+    const corners = [];
+    for (const x of [bounds.min.x, bounds.max.x]) {
+      for (const y of [bounds.min.y, bounds.max.y]) {
+        for (const z of [bounds.min.z, bounds.max.z]) corners.push(new THREE.Vector3(x, y, z));
+      }
+    }
+    const projected = new THREE.Vector3();
+    for (let distance = 6.5, attempt = 0; attempt < 10; attempt++, distance *= 1.15) {
+      camera.position.copy(target).addScaledVector(direction, distance);
+      camera.lookAt(target);
+      camera.updateMatrixWorld(true);
+      if (corners.every(corner => {
+        projected.copy(corner).project(camera);
+        return projected.x >= 2 * left - 1 && projected.x <= 2 * right - 1 &&
+          projected.y >= -0.82 && projected.y <= 0.62;
+      })) break;
+    }
+  }
+
   /** Новый заезд: машина стоит на обочине, начинается заставка выезда. */
   reset(skipIntro = false, startS = 30) {
     this.previewing = false;
+    this.camera.clearViewOffset();
     this.s = startS;
     this.v = skipIntro ? CRUISE : 0;
     this.lane = 1;
@@ -934,9 +973,12 @@ export class DriveScene {
     this.camera.lookAt(this._look.copy(p).add(this.camLook));
   }
 
-  resize(aspect: number) {
+  resize(aspect: number, previewLeft?: number) {
     this.camera.aspect = aspect;
     this.camera.updateProjectionMatrix();
-    if (this.previewing) this.frameRoadPreview();
+    if (this.previewing) {
+      this.previewLeft = previewLeft;
+      this.frameRoadPreview();
+    }
   }
 }

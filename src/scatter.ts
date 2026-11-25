@@ -39,9 +39,8 @@ const RULES: Record<BiomeId, Rule[]> = {
     { id: 'bush', d: 0.05, o: [8, 20], s: [0.6, 1.0] },
   ],
   desert: [
-    { id: 'cactus', d: 0.03, o: [8, 90], s: [0.6, 1.4] },
-    { id: 'cactusLo', d: 0.018, o: [90, 245], s: [0.8, 1.5] },
-    { id: 'dryBush', d: 0.09, o: [7, 130], s: [0.5, 1.2] },
+    { id: 'bush', d: 0.02, o: [8, 90], s: [0.6, 1.3] },
+    { id: 'dryBush', d: 0.11, o: [7, 130], s: [0.5, 1.2] },
     { id: 'rock', d: 0.03, o: [9, 160], s: [0.5, 2.0] },
     { id: 'redRock', d: 0.006, o: [40, 245], s: [3, 9] },
   ],
@@ -55,8 +54,8 @@ const RULES: Record<BiomeId, Rule[]> = {
     { id: 'rock', d: 0.012, o: [9, 40], s: [0.4, 1.4], sea: 'land' },
   ],
 };
-const NO_SHADOW = new Set<PropId>(['pineLo', 'spruceLo', 'oakLo', 'birchLo', 'cactusLo', 'rockLo', 'delineator', 'dryBush', 'festiveLights']);
-const TREES = new Set<PropId>([...forestTrees, 'pineLo', 'spruceLo', 'oakLo', 'birchLo', 'bush', 'dryBush', 'cactus', 'cactusLo']);
+const NO_SHADOW = new Set<PropId>(['pineLo', 'spruceLo', 'oakLo', 'birchLo', 'rockLo', 'delineator', 'dryBush', 'festiveLights']);
+const TREES = new Set<PropId>([...forestTrees, 'pineLo', 'spruceLo', 'oakLo', 'birchLo', 'bush', 'dryBush']);
 
 function forestShare(species: ForestSpecies, s: number, offset: number, seed: number) {
   // Состав леса меняется по обе стороны дороги и в глубину плавно, независимо от границ чанков.
@@ -350,6 +349,25 @@ export function scatterChunk(world: RoadWorld, k: number, i0: number, i1: number
           const v = 0.85 + rnd() * 0.3;
           col.setRGB(v * (0.95 + rnd() * 0.1), v * (0.95 + rnd() * 0.1), v * (0.92 + rnd() * 0.1));
           put(rule.id, g, q, sc, col.clone());
+        }
+      }
+    }
+  }
+
+  // ——— редкие звери у отбойника снаружи ———
+  {
+    const wild = mulberry32((p.seed * 6607 + k * 811 + 13) >>> 0);
+    if (wild() < 0.03) {
+      const i = i0 + Math.floor(wild() * (i1 - i0));
+      const side = wild() < 0.5 ? -1 : 1;
+      const kind: PropId = wild() < 0.7 ? 'elk' : 'bear';
+      const o = half + 3.4 + wild() * 6;
+      const s = i * STEP;
+      if (seaSideAt(i) !== side && !blocked(side, s, o, 2)) {
+        const g = ground(i, side * o, tmp, 0.04);
+        if (Number.isNaN(p.sea[i]) || g.y > p.sea[i] + 0.4) {
+          const ang = wild() * Math.PI * 2;
+          put(kind, g, quatZ(_z.set(Math.sin(ang), 0, Math.cos(ang)).clone()), 0.95 + wild() * 0.15);
         }
       }
     }

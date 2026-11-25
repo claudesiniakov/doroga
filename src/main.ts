@@ -961,15 +961,6 @@ async function main() {
     $('fsBtn').addEventListener('click', () => (isFs() ? document.exitFullscreen?.() : enterFs(false)));
   }
   for (const ev of ['fullscreenchange', 'webkitfullscreenchange']) document.addEventListener(ev, () => setTimeout(resize, 50));
-  // iPhone: страница не может скрыть Safari — подсказка «на экран Домой» (один раз, можно закрыть)
-  const isIOS = /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  let tipSeen = false;
-  try { tipSeen = localStorage.getItem('doroga.iosTip') === '1'; } catch { /* нет хранилища */ }
-  if (isIOS && !standalone && !tipSeen && !SHOT) $('iosTip').hidden = false;
-  $('iosTipClose').addEventListener('click', () => {
-    $('iosTip').hidden = true;
-    try { localStorage.setItem('doroga.iosTip', '1'); } catch { /* нет хранилища */ }
-  });
   if ('serviceWorker' in navigator && !SHOT && location.protocol === 'https:') navigator.serviceWorker.register('./sw.js').catch(() => undefined);
 
   $('go').addEventListener('click', () => {

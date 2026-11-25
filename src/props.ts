@@ -238,28 +238,41 @@ function bush(col: number, lo: boolean) {
   return merge(parts);
 }
 
-function cactus(lo: boolean) {
-  const ribbed = (r: number, h: number) => {
-    const g = new THREE.CylinderGeometry(r, r * 1.05, h, lo ? 8 : 16, lo ? 1 : 4);
-    if (!lo) {
-      const p = g.getAttribute('position') as THREE.BufferAttribute;
-      for (let i = 0; i < p.count; i++) {
-        const x = p.getX(i), z = p.getZ(i);
-        const a = Math.atan2(z, x), k = 1 + 0.09 * Math.cos(a * 8);
-        p.setX(i, x * k); p.setZ(i, z * k);
-      }
-      g.computeVertexNormals();
-    }
-    return g;
-  };
+function elk() {
+  const hide = 0x6d4a2e, dark = 0x3b2a1d, pale = 0x9a7a55, antler = 0xc9b98f;
   const parts: THREE.BufferGeometry[] = [];
-  const green = shade(0x4f6b38, 0.75, 1.1, 0, 5, 0.15);
-  parts.push(prep(at(ribbed(0.32, 4.6), 0, 2.3, 0), green));
-  parts.push(prep(at(new THREE.SphereGeometry(0.32, lo ? 8 : 14, 6, 0, Math.PI * 2, 0, Math.PI / 2), 0, 4.6, 0), green));
-  for (const [side, y, h] of [[1, 1.8, 1.8], [-1, 2.4, 1.4]] as const) {
-    parts.push(prep(at(ribbed(0.2, 0.8), side * 0.55, y, 0, 0, 0, Math.PI / 2), green));
-    parts.push(prep(at(ribbed(0.2, h), side * 0.92, y + h / 2, 0), green));
-    parts.push(prep(at(new THREE.SphereGeometry(0.2, 10, 5, 0, Math.PI * 2, 0, Math.PI / 2), side * 0.92, y + h, 0), green));
+  // туловище с горбом
+  parts.push(prep(at(new THREE.SphereGeometry(0.52, 12, 8), 0, 1.28, 0, 0, 0, 0, [1.0, 0.86, 1.6]), hide));
+  parts.push(prep(at(new THREE.SphereGeometry(0.34, 10, 7), 0, 1.62, 0.34, 0, 0, 0, [1.0, 0.9, 1.1]), hide));
+  // шея, голова, морда
+  parts.push(prep(at(new THREE.CylinderGeometry(0.17, 0.24, 0.85, 8), 0, 1.78, 0.72, 0.55), hide));
+  parts.push(prep(at(new THREE.SphereGeometry(0.2, 10, 7), 0, 2.03, 0.98, 0, 0, 0, [0.85, 0.9, 1.35]), hide));
+  parts.push(prep(at(new THREE.SphereGeometry(0.13, 8, 6), 0, 1.93, 1.16, 0, 0, 0, [0.9, 0.8, 1.2]), pale));
+  for (const x of [-0.11, 0.11]) parts.push(prep(at(new THREE.ConeGeometry(0.05, 0.16, 5), x, 2.14, 0.9), dark));
+  // ноги
+  for (const [x, z] of [[-0.24, 0.52], [0.24, 0.52], [-0.24, -0.52], [0.24, -0.52]] as const) {
+    parts.push(prep(at(new THREE.CylinderGeometry(0.062, 0.05, 1.24, 6), x, 0.62, z), dark));
+  }
+  // рога: ствол и отростки
+  for (const side of [-1, 1]) {
+    parts.push(prep(at(new THREE.CylinderGeometry(0.035, 0.045, 0.52, 5), side * 0.13, 2.24, 0.86, 0, 0, side * -0.45), antler));
+    for (let t = 0; t < 3; t++) {
+      parts.push(prep(at(new THREE.CylinderGeometry(0.016, 0.024, 0.3, 4), side * (0.24 + t * 0.06), 2.36 + t * 0.06, 0.84 - t * 0.06, 0, 0, side * (0.85 + t * 0.2)), antler));
+    }
+    parts.push(prep(at(new THREE.BoxGeometry(0.24, 0.14, 0.03), side * 0.42, 2.5, 0.8, 0, 0, side * 0.4), antler));
+  }
+  return merge(parts);
+}
+
+function bear() {
+  const fur = 0x2e2620, fur2 = 0x3d332a, muzzle = 0x7a6754;
+  const parts: THREE.BufferGeometry[] = [];
+  parts.push(prep(at(new THREE.SphereGeometry(0.52, 12, 8), 0, 0.98, 0, 0, 0, 0, [1.05, 0.86, 1.45]), fur));
+  parts.push(prep(at(new THREE.SphereGeometry(0.3, 10, 8), 0, 1.32, 0.62, 0, 0, 0, [0.95, 0.9, 1.0]), fur2));
+  parts.push(prep(at(new THREE.SphereGeometry(0.16, 8, 6), 0, 1.26, 0.88, 0, 0, 0, [0.9, 0.8, 1.1]), muzzle));
+  for (const x of [-0.16, 0.16]) parts.push(prep(at(new THREE.SphereGeometry(0.07, 7, 5), x, 1.55, 0.6), fur2));
+  for (const [x, z] of [[-0.3, 0.42], [0.3, 0.42], [-0.3, -0.42], [0.3, -0.42]] as const) {
+    parts.push(prep(at(new THREE.CylinderGeometry(0.11, 0.09, 0.64, 7), x, 0.32, z), fur));
   }
   return merge(parts);
 }
@@ -324,7 +337,7 @@ function fence() {
 
 export type PropId =
   | 'pine' | 'pineLo' | 'spruce' | 'spruceLo' | 'festiveLights' | 'oak' | 'oakLo' | 'birch' | 'birchLo' | 'bush' | 'dryBush'
-  | 'cactus' | 'cactusLo' | 'rock' | 'rockLo' | 'redRock' | 'delineator' | 'lamp' | 'powerPole' | 'lifeguard' | 'fence';
+  | 'rock' | 'rockLo' | 'redRock' | 'elk' | 'bear' | 'delineator' | 'lamp' | 'powerPole' | 'lifeguard' | 'fence';
 
 // ——— текстуры фасадов ———
 function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => void, srgb = true) {
@@ -586,8 +599,8 @@ export class PropKit {
       oak: oak.summer, oakLo: oakLo.summer, birch: birch.summer, birchLo: birchLo.summer,
       bush: bush(0x41652f, false), dryBush: bush(0x8a7a52, true),
       spruce: spruce(false), spruceLo: spruce(true), festiveLights: festiveLights(),
-      cactus: cactus(false), cactusLo: cactus(true),
       rock: rock(0x8d8478, false, 3), rockLo: rock(0x8d8478, true, 3), redRock: rock(0xa8633e, false, 9),
+      elk: elk(), bear: bear(),
       delineator: delineator(), lamp: lamp(), powerPole: powerPole(), lifeguard: lifeguard(), fence: fence(),
     };
     this.mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.86, metalness: 0 });

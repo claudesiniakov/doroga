@@ -497,7 +497,8 @@ export class DriveScene {
       const mark = this.policeDays[this.policeIndex];
       if (mark !== undefined && this.insuranceDays >= mark) {
         this.policeIndex++;
-        if (!this.insurance.osago) this.policeS = this.s + 240 + Math.random() * 80;
+        // Проверка бывает и с полисом: инспектор просто сверяет документы.
+        this.policeS = this.s + 240 + Math.random() * 80;
       }
     }
     if (this.snowAmount !== this.snowTarget) {
@@ -941,7 +942,7 @@ export class DriveScene {
     if (this.phase === 'protocol') return;
     this.v = 0;
     this.phase = 'protocol';
-    this.policeFine = Math.min(POLICE_FINE, this.coins);
+    this.policeFine = this.insurance.osago ? 0 : Math.min(POLICE_FINE, this.coins);
     this.coins -= this.policeFine;
     this.onPolice?.();
   }

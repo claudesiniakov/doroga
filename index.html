@@ -129,7 +129,7 @@
     <div class="panel menu">
       <div class="eyebrow">Проверка документов</div>
       <h2>Вас останавливает полиция проверить полис ОСАГО</h2>
-      <p class="police-note">Полиса у вас нет: остановитесь и подпишите протокол — или попробуйте уехать. Уход от требования об остановке — нарушение.</p>
+      <p class="police-note" id="policeNote">Полиса у вас нет: остановитесь и подпишите протокол — или попробуйте уехать. Уход от требования об остановке — нарушение.</p>
       <button id="policeStop" class="go">Остановиться</button>
       <button id="policeFlee" class="ghost">Поехать дальше</button>
     </div>
@@ -229,15 +229,15 @@
       <div class="p-head">
         <div class="p-emb">ДПС</div>
         <div>
-          <div class="p-title">ПРОТОКОЛ</div>
-          <div class="p-sub">об административном правонарушении</div>
+          <div class="p-title" id="prTitle">ПРОТОКОЛ</div>
+          <div class="p-sub" id="prSub">об административном правонарушении</div>
         </div>
         <div class="p-num" id="prNum">№ 0000000</div>
       </div>
       <dl class="p-fields">
         <dt>Место</dt><dd id="prPlace">трасса, 0,0 км</dd>
         <dt>Транспортное средство</dt><dd id="prCar">—</dd>
-        <dt>Нарушение</dt><dd>управление транспортным средством при заведомо отсутствующем полисе ОСАГО — ч. 2 ст. 12.37 КоАП РФ</dd>
+        <dt>Нарушение</dt><dd id="prViolation">управление транспортным средством при заведомо отсутствующем полисе ОСАГО — ч. 2 ст. 12.37 КоАП РФ</dd>
         <dt>Наказание</dt><dd><b id="prFine">штраф 8 монет</b></dd>
       </dl>
       <div class="p-sign"><span>Инспектор ДПС</span><span class="p-scrawl">Инсп.</span><span>Водитель</span><span class="p-line"></span></div>

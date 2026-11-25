@@ -700,15 +700,30 @@ async function main() {
     $('prNum').textContent = `77 ДР № ${n}`;
     $('prPlace').textContent = `трасса, ${(drive.odometer / 1000).toFixed(1).replace('.', ',')} км`;
     $('prCar').textContent = `${cfg.name}, г/н ${cfg.plate}`;
-    const fine = $('prFine');
-    fine.replaceChildren('штраф ', coinAmount(POLICE_FINE));
-    if (drive.policeFine < POLICE_FINE) fine.append(' (списано ', coinAmount(drive.policeFine), ' — больше нет)');
-    $('prSign').replaceChildren('Подписать · ', coinAmount(`−${drive.policeFine}`));
+    if (drive.insurance.osago) {
+      // Полис в порядке: протокол не составляется, штрафа нет.
+      $('prTitle').textContent = 'ПРОВЕРКА';
+      $('prSub').textContent = 'документов';
+      $('prViolation').textContent = 'полис ОСАГО действует — нарушений не выявлено';
+      $('prFine').textContent = 'нет';
+      $('prSign').replaceChildren('Продолжить');
+    } else {
+      $('prTitle').textContent = 'ПРОТОКОЛ';
+      $('prSub').textContent = 'об административном правонарушении';
+      $('prViolation').textContent = 'управление транспортным средством при заведомо отсутствующем полисе ОСАГО — ч. 2 ст. 12.37 КоАП РФ';
+      const fine = $('prFine');
+      fine.replaceChildren('штраф ', coinAmount(POLICE_FINE));
+      if (drive.policeFine < POLICE_FINE) fine.append(' (списано ', coinAmount(drive.policeFine), ' — больше нет)');
+      $('prSign').replaceChildren('Подписать · ', coinAmount(`−${drive.policeFine}`));
+    }
     show('hud', 'protocol');
   };
   const onPoliceCheck: NonNullable<DriveScene['onPoliceCheck']> = () => {
     state = 'policeCheck';
     input.enabled = false;
+    $('policeNote').textContent = drive.insurance.osago
+      ? 'Полис ОСАГО действует: остановитесь, инспектор сверит документы — или попробуйте уехать. Уход от требования об остановке — нарушение.'
+      : 'Полиса у вас нет: остановитесь и подпишите протокол — или попробуйте уехать. Уход от требования об остановке — нарушение.';
     show('hud', 'policeCheck');
     $('policeStop').focus({ preventScroll: true });
   };
@@ -1140,7 +1155,7 @@ async function main() {
     if (ph === 'finish') setBanner('🏁 Финиш!');
     else if (!drive.endless && ph === 'drive' && toFinish > 0 && toFinish < 500) setBanner(`🏁 Финиш через ${daysFor(toFinish)} дн.`);
     else if (ph === 'policeIn' || ph === 'protocol') setBanner('🚓 Остановка ДПС<small>проверка документов</small>', true);
-    else if (ph === 'drive' && toPolice > 0 && toPolice < 450) setBanner(`🚓 Впереди пост ДПС<small>через ${daysFor(toPolice)} дн. · полиса ОСАГО нет</small>`, true);
+    else if (ph === 'drive' && toPolice > 0 && toPolice < 450) setBanner(`🚓 Впереди пост ДПС<small>через ${daysFor(toPolice)} дн. · ${drive.insurance.osago ? 'проверка документов' : 'полиса ОСАГО нет'}</small>`, true);
     else if (ph === 'pitIn' || ph === 'refuel') setBanner(drive.stationKind === 'repair' ? '🔧 Заезжаем в автосервис' : '⛽ Заезжаем на заправку');
     else if (drive.waitingToMerge) setBanner('Ждём свободную полосу');
     else if (ph === 'pitOut' || ph === 'policeOut') setBanner('Выезжаем на дорогу');

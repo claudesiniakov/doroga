@@ -95,7 +95,8 @@ export class DriveScene {
   private readonly coldSun = new THREE.Color(0xe4efff);
 
   private updateCalendarSeason(immediate = false) {
-    const winter = this.month < 2 || this.month === 11;
+    // Снег с ноября: месяцы 10 (ноябрь), 11 (декабрь), 0 (январь), 1 (февраль).
+    const winter = this.month < 2 || this.month >= 10;
     const season = winter ? 'winter' : this.month < 5 ? 'spring' : this.month < 8 ? 'summer' : 'autumn';
     this.world.setSeason(season);
     this.snowTarget = Number(winter);

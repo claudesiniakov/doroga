@@ -1047,7 +1047,7 @@ async function main() {
   });
 
   const SPEEDO_LEN = 252;
-  const speedEl = $('speed'), arcEl = $('speedArc'), odoEl = $('odo');
+  const speedEl = $('speed'), arcEl = $('speedArc'), odoEl = $('odo'), speedBar = $('speedBar');
   const drums = [...odoEl.querySelectorAll<HTMLElement>('.drum')].reverse();
   const initialDrumCount = drums.length;
   const drumPos = drums.map(() => -1);
@@ -1202,6 +1202,7 @@ async function main() {
         lastSpeed = kmh;
         speedEl.textContent = String(kmh);
         arcEl.style.strokeDashoffset = String(SPEEDO_LEN * (1 - Math.min(1, kmh / cfg.maxSpeedKmh)));
+        speedBar.style.width = `${Math.round(Math.min(1, kmh / cfg.maxSpeedKmh) * 100)}%`;
       }
       if (drive.endless) {
         setOdo(Math.floor(activeRunSeconds));

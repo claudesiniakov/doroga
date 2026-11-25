@@ -155,6 +155,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .arc .fill { stroke: url(#none); stroke: var(--accent); stroke-dasharray: 252; stroke-dashoffset: 252; filter: drop-shadow(0 0 6px rgba(255,140,60,.7)); transition: stroke-dashoffset .08s linear; }
 .num { position: absolute; left: 0; right: 0; top: 54px; text-align: center; text-shadow: 0 2px 14px rgba(0,0,0,.55); }
 .num b { display: block; font-size: 52px; line-height: 1; font-weight: 750; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.speed-bar { display: none; }
 .controls-hint {
   position: absolute; left: 50%; bottom: calc(28px + var(--safe-b)); transform: translateX(-50%);
   display: flex; gap: 22px; color: var(--ink-2); font-size: 13px; transition: opacity 1s; white-space: nowrap;
@@ -764,13 +765,36 @@ html, body { height: 100dvh; }
   .result-actions { min-height: 0; overflow-y: auto; touch-action: pan-y; }
 }
 
-/* Альбомная ориентация: спидометр уходит в левый нижний угол, не закрывая машину и дорогу. */
+/* Альбомная ориентация: спидометр — полоса между топливом и монетами, одометр — под паузой. */
 @media (max-height: 500px) and (orientation: landscape) {
   .speedo {
-    left: calc(10px + var(--safe-l)); right: auto;
-    bottom: calc(118px + var(--safe-b));
-    transform: scale(.66); transform-origin: left bottom;
+    left: calc(27% + var(--safe-l)); right: calc(24% + var(--safe-r));
+    top: calc(10px + var(--safe-t)); bottom: auto;
+    width: auto; height: 40px;
+    transform: none;
+    display: flex; align-items: center; gap: 10px;
   }
+  .speedo .arc { display: none; }
+  .speedo .num { position: static; top: auto; text-align: left; }
+  .speedo .num b { font-size: 25px; line-height: 1; }
+  .speedo .speed-bar {
+    display: block; flex: 1; height: 8px; border-radius: 5px;
+    background: rgba(255, 255, 255, .18);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, .4);
+    overflow: hidden;
+  }
+  .speedo .speed-bar i {
+    display: block; height: 100%; width: 0; border-radius: 5px;
+    background: linear-gradient(90deg, #4aa8ff, #7ad0ff);
+    transition: width .08s linear;
+  }
+  .speedo .odo {
+    position: fixed; left: auto; right: calc(10px + var(--safe-r));
+    top: calc(56px + var(--safe-t)); bottom: auto;
+    transform: none;
+  }
+  .speedo .odo .drums { transform: scale(.7); transform-origin: right top; }
+  .speedo .odo-goal { font-size: 10px; }
   .banner { top: calc(56px + var(--safe-t)); bottom: auto; }
   .toast { top: calc(56px + var(--safe-t)); bottom: auto; }
 }

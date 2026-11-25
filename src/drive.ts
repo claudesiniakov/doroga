@@ -431,6 +431,17 @@ export class DriveScene {
     this.kaskoRepairUsed = false;
     this.pitExit = null;
     this.policeFine = 0;
+    // Сбрасываем погоню и патрули прошлого заезда, иначе они остаются стоять в кадре.
+    this.chase.active = false;
+    this.chase.offered = false;
+    this.chase.peak = 0;
+    this.chase.slow = 0;
+    this.chase.catchT = -1;
+    this.chase.done = false;
+    this.chaseCrashes = 0;
+    this.policeS = null;
+    if (this.chaseCar) this.chaseCar.vis.root.visible = false;
+    if (this.police) this.police.vis.root.visible = false;
     this.placeCar(0);
     this.car.root.visible = true;
     this.traffic.group.visible = true;

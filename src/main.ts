@@ -726,7 +726,6 @@ async function main() {
   $('policeFlee').addEventListener('click', () => {
     if (state !== 'policeCheck') return;
     state = 'drive';
-    input.clear();
     input.enabled = true;
     show('hud');
     drive.startChase();

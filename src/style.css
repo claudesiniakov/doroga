@@ -757,6 +757,17 @@ html, body { height: 100dvh; }
   .result-actions { min-height: 0; overflow-y: auto; touch-action: pan-y; }
 }
 
+/* Альбомная ориентация: спидометр уходит в левый нижний угол, не закрывая машину и дорогу. */
+@media (max-height: 500px) and (orientation: landscape) {
+  .speedo {
+    left: calc(10px + var(--safe-l)); right: auto;
+    bottom: calc(118px + var(--safe-b));
+    transform: scale(.66); transform-origin: left bottom;
+  }
+  .banner { top: calc(56px + var(--safe-t)); bottom: auto; }
+  .toast { top: calc(56px + var(--safe-t)); bottom: auto; }
+}
+
 /* Альбомная ориентация телефона: урок ОСАГО должен влезать без прокрутки */
 @media (max-height: 440px) and (orientation: landscape) {
   #kbm .kbm-panel { padding: 12px 16px; gap: 6px; max-height: calc(100dvh - 16px); }

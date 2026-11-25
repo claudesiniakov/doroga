@@ -174,6 +174,8 @@ export class DriveScene {
   onChase?: () => void;
   onCaught?: () => void;
   readonly chase = { active: false, offered: false, peak: 0, slow: 0, catchT: -1, done: false };
+  /** Скорость в момент проверки: после «Поехать дальше» её не теряем. */
+  private checkSpeed = 0;
   private chaseCar?: { vis: { root: THREE.Group }; red: THREE.MeshStandardMaterial; blue: THREE.MeshStandardMaterial };
   private police!: { vis: { root: THREE.Group }; red: THREE.MeshStandardMaterial; blue: THREE.MeshStandardMaterial };
   // топливо и деньги
@@ -460,6 +462,7 @@ export class DriveScene {
         if (!this.chase.active && !this.chase.offered) {
           // Спрашиваем игрока; кадр замирает, пока он выбирает.
           this.chase.offered = true;
+          this.checkSpeed = this.v;
           this.onPoliceCheck?.();
           return;
         }
@@ -914,6 +917,8 @@ export class DriveScene {
     if (this.chase.active) return;
     this.chase.active = true;
     this.chase.offered = true;
+    // Сохраняем скорость, с которой игрок подъехал к патрулю.
+    this.v = Math.max(this.v, this.checkSpeed);
     this.chase.peak = this.v;
     this.chase.slow = 0;
     this.chase.catchT = -1;
@@ -946,6 +951,7 @@ export class DriveScene {
     if (c.slow > 0.55) {
       c.catchT = 0;
       this.phase = 'caught';
+      this.v = 0;
       this.placeChaseCar(this.s + 7, 0, true, time);
       return;
     }

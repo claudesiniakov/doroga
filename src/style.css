@@ -153,9 +153,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .arc path { fill: none; stroke-width: 6; stroke-linecap: round; }
 .arc .track { stroke: rgba(255, 255, 255, .14); }
 .arc .fill { stroke: url(#none); stroke: var(--accent); stroke-dasharray: 252; stroke-dashoffset: 252; filter: drop-shadow(0 0 6px rgba(255,140,60,.7)); transition: stroke-dashoffset .08s linear; }
-.num { position: absolute; left: 0; right: 0; top: 50px; text-align: center; text-shadow: 0 2px 14px rgba(0,0,0,.55); }
+.num { position: absolute; left: 0; right: 0; top: 54px; text-align: center; text-shadow: 0 2px 14px rgba(0,0,0,.55); }
 .num b { display: block; font-size: 52px; line-height: 1; font-weight: 750; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
-.num span { color: var(--ink-2); font-size: 11px; letter-spacing: .2em; text-transform: uppercase; }
 .controls-hint {
   position: absolute; left: 50%; bottom: calc(28px + var(--safe-b)); transform: translateX(-50%);
   display: flex; gap: 22px; color: var(--ink-2); font-size: 13px; transition: opacity 1s; white-space: nowrap;

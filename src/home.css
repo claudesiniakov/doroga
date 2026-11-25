@@ -311,11 +311,10 @@
   #garage .ins-opt b { font-size: clamp(21px, 1.85vw, 30px); }
   #garage .ins-opt small { display: block; font-size: clamp(16px, 1.35vw, 23px); line-height: 1.4; }
   #garage .osago-option .ins-opt { padding-bottom: 2px; }
-  #garage .osago-help, #garage .startcoins, #garage #recordsEmpty, #garage .reset-all {
+  #garage .osago-help, #garage .startcoins, #garage #recordsEmpty {
     font-size: clamp(16px, 1.3vw, 22px);
   }
   #garage .osago-help { min-height: 36px; }
-  #garage .reset-all { color: var(--home-muted); }
   #garage .records-scroll { max-height: min(46dvh, 580px); }
   #garage .records-table { font-size: clamp(17px, 1.4vw, 24px); }
   #garage .records-table th, #garage .records-table td { padding: 12px 14px; }

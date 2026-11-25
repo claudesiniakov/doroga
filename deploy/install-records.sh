@@ -3,6 +3,7 @@ set -euo pipefail
 
 deploy_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 site=/etc/nginx/sites-available/doroga
+install -D -m 644 "$deploy_dir/../server/nickname-rules.mjs" /usr/local/libexec/nickname-rules.mjs
 install -D -m 644 "$deploy_dir/../server/records.mjs" /usr/local/libexec/doroga-records.mjs
 install -m 644 "$deploy_dir/systemd/doroga-records.service" /etc/systemd/system/
 systemctl daemon-reload

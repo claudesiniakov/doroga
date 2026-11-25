@@ -21,7 +21,14 @@ async function postRecord(body: object) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!response.ok) throw new Error('Не удалось сохранить результат');
+  if (!response.ok) {
+    let reason = '';
+    try {
+      const data = await response.json();
+      if (typeof data?.reason === 'string') reason = data.reason;
+    } catch { /* тело не JSON — оставляем общее сообщение */ }
+    throw new Error(reason || 'Не удалось сохранить результат');
+  }
   return response.json();
 }
 

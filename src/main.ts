@@ -13,6 +13,7 @@ import { START_COINS, LITERS_PER_KM, FUEL_PRICE, KASKO, REPAIR_PRICE, POLICE_FIN
 import { Input } from './input';
 import { OSAGO_LESSON } from './osago-lesson';
 import { finishRecordRun, formatRecordDays, loadRecords, MAX_NICKNAME_LENGTH, saveRecord, startRecordRun } from './records';
+import { checkNickname } from '../server/nickname-rules.mjs';
 
 type State = 'loading' | 'garage' | 'drive' | 'pause' | 'station' | 'over' | 'protocol' | 'renewal' | 'breakdown' | 'yearReport' | 'returningHome';
 
@@ -157,8 +158,7 @@ async function main() {
   const ovGarage = $<HTMLButtonElement>('ovGarage');
   const recordStatus = $('recordStatus');
   recordNickname.maxLength = MAX_NICKNAME_LENGTH;
-  const isValidRecordNickname = (nickname: string) =>
-    nickname.length <= MAX_NICKNAME_LENGTH && !/[\u0000-\u001f\u007f]/u.test(nickname);
+  const isValidRecordNickname = (nickname: string) => checkNickname(nickname).ok;
   recordNickname.addEventListener('input', () => {
     const nickname = recordNickname.value.trim();
     if (!isValidRecordNickname(nickname) || nickname === lastRecordNickname) return;
@@ -202,8 +202,9 @@ async function main() {
     const nickname = recordNickname.value.trim();
     if (!summary || recordSaved || recordNickname.disabled || !nickname) return true;
     recordStatus.hidden = false;
-    if (!isValidRecordNickname(nickname)) {
-      recordStatus.textContent = `Введите ник длиной до ${MAX_NICKNAME_LENGTH} символов.`;
+    const verdict = checkNickname(nickname);
+    if (!verdict.ok) {
+      recordStatus.textContent = `${verdict.reason}. Придумайте другой ник.`;
       recordNickname.focus();
       return false;
     }
@@ -226,8 +227,12 @@ async function main() {
       recordStatus.textContent = place <= 100 ? `Результат сохранён. Место №${place}.`
         : `Результат сохранён. Место №${place} в общем рейтинге.`;
       return true;
-    } catch {
-      recordStatus.textContent = 'Не удалось сохранить результат. Повторите попытку или очистите поле ника, чтобы выйти.';
+    } catch (error) {
+      const reason = error instanceof Error && error.message ? error.message : '';
+      recordStatus.textContent = reason
+        ? `${reason}. Придумайте другой ник или очистите поле, чтобы выйти.`
+        : 'Не удалось сохранить результат. Повторите попытку или очистите поле ника, чтобы выйти.';
+      recordNickname.focus();
       return false;
     } finally {
       savingRecord = false;
@@ -238,25 +243,6 @@ async function main() {
     event.preventDefault();
     ovAgain.click();
   });
-
-  // ——— начать сначала: полный сброс прогресса (в два нажатия) ———
-  {
-    const btn = $('resetAll');
-    let armed = 0;
-    btn.addEventListener('click', () => {
-      if (!armed) {
-        btn.classList.add('confirm');
-        btn.textContent = 'Точно сбросить? Кошелёк, поездки, статистика, КБМ — к началу. Нажмите ещё раз';
-        armed = window.setTimeout(() => { armed = 0; btn.classList.remove('confirm'); btn.textContent = 'Начать сначала'; }, 5000);
-        return;
-      }
-      clearTimeout(armed);
-      for (const k of ['doroga.wallet', 'doroga.trip', 'doroga.stats', 'doroga.kaskoPrice', 'doroga.kbm', 'doroga.ins', 'doroga.car']) {
-        try { localStorage.removeItem(k); } catch { /* нет хранилища */ }
-      }
-      location.reload();
-    });
-  }
 
   let openInsuranceTab = () => {};
   let openRecordsTab = () => {};
@@ -810,9 +796,6 @@ async function main() {
     if (drive.endReason === 'wreck') {
       state = 'breakdown';
       input.enabled = false;
-      const destination = drive.assistanceDestination;
-      const place = destination.kind === 'repair' ? 'Автосервис' : 'Заправка';
-      $('towDestination').textContent = `${place} · ${fmtKm(Math.abs(destination.sStop - drive.s) / 1000)}`;
       $('towWallet').textContent = String(drive.coins);
       const cost = drive.assistanceCost;
       const minimum = drive.assistanceMinimumCost;
@@ -984,7 +967,6 @@ async function main() {
   });
   $('pauseBtn').addEventListener('click', pause);
   $('resume').addEventListener('click', resume);
-  $('restart').addEventListener('click', async () => { finishRun(); await startDrive(); });
   $('toGarage').addEventListener('click', () => {
     if (state !== 'pause') return;
     drive.v = 0;

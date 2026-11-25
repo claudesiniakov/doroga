@@ -143,9 +143,6 @@ export async function runShot(kind: string, ctx: {
       const ex = d.world.path.exits.filter((e) => e.sStop > 30 && e.sStop < 30 + km * 1000);
       log.push(`${km} км: ` + ex.map((e) => `${e.kind === 'repair' ? 'сервис' : 'заправка'} ${((e.sStop - 30) / 1000).toFixed(1)}`).join(', '));
     }
-    const rb = document.getElementById('resetAll')!;
-    rb.click();
-    log.push(`сброс, 1-е нажатие: «${rb.textContent}»`);
     console.warn('STOPS ' + log.join(' | '));
   } else if (kind === 'trip') {
     for (const k of ['doroga.wallet', 'doroga.trip', 'doroga.kaskoPrice', 'doroga.stats', 'doroga.ins']) localStorage.removeItem(k);
@@ -231,8 +228,7 @@ export async function runShot(kind: string, ctx: {
       await ctx.startDrive(true, 300);
       log.push(`заезд: ОСАГО=${withOsago}, взнос ${ctx.drive.insurance.osago ? ctx.drive.insurance.osagoPrice : 0}, монет на старте ${ctx.drive.coins}`);
       ctx.drive.crashes = crashes;
-      (document.getElementById('restart') as HTMLElement).click();
-      await new Promise((r) => setTimeout(r, 50));
+      await ctx.startDrive(true, 30);
       log.push(`  ДТП ${crashes} → класс ${cls()}`);
     }
     console.warn('KBM ' + log.join(' | '));

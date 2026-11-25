@@ -88,17 +88,6 @@
 
 #garage .ins-opt.on .chk { background: var(--ui-blue); border-color: var(--ui-blue); }
 #garage .ins-opt.on .chk::after { border-color: #fff; }
-#garage .ios-tip {
-  background: var(--ui-paper);
-  box-shadow: var(--ui-shadow);
-  backdrop-filter: none;
-}
-#garage .ios-tip button { background: var(--ui-soft); border-radius: 8px; }
-#garage .reset-all.confirm {
-  background: #fff1f0;
-  border-color: #e9aaa7;
-  color: var(--ui-warning);
-}
 .osago-formula {
   background: var(--ui-soft);
   border-radius: 12px;

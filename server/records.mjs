@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { DatabaseSync } from 'node:sqlite';
+import { checkNickname, NICKNAME_MAX } from './nickname-rules.mjs';
 import { pathToFileURL } from 'node:url';
 
 function json(response, status, body) {
@@ -116,9 +117,11 @@ export function openRecords(databasePath) {
       }
 
       const nickname = typeof entry.nickname === 'string' ? entry.nickname.trim() : '';
-      if (entry.action !== 'submit' || !nickname || nickname.length > 24 || /[\u0000-\u001f\u007f]/u.test(nickname)) {
+      if (entry.action !== 'submit' || !nickname || nickname.length > NICKNAME_MAX || /[\u0000-\u001f\u007f]/u.test(nickname)) {
         return json(response, 400, { error: 'invalid_record' });
       }
+      const verdict = checkNickname(nickname);
+      if (!verdict.ok) return json(response, 400, { error: 'nickname_rejected', reason: verdict.reason });
       if (started.score === null) return json(response, 409, { error: 'run_not_finished' });
       const result = insert.run(run, nickname, started.score);
       const stored = bySubmission.get(run);

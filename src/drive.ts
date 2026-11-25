@@ -147,6 +147,7 @@ export class DriveScene {
     this.chase.slow = 0;
     this.chase.catchT = -1;
     this.chase.done = false;
+    this.chaseCrashes = 0;
     if (this.chaseCar) this.chaseCar.vis.root.visible = false;
     if (this.police) this.police.vis.root.visible = false;
     this.schedulePolice();
@@ -174,6 +175,8 @@ export class DriveScene {
   onChase?: () => void;
   onCaught?: () => void;
   readonly chase = { active: false, offered: false, peak: 0, slow: 0, catchT: -1, done: false };
+  /** Сколько ДТП случилось уже во время погони — влияет на статью при поимке. */
+  chaseCrashes = 0;
   /** Скорость в момент проверки: после «Поехать дальше» её не теряем. */
   private checkSpeed = 0;
   private chaseCar?: { vis: { root: THREE.Group }; red: THREE.MeshStandardMaterial; blue: THREE.MeshStandardMaterial };
@@ -921,6 +924,7 @@ export class DriveScene {
     this.v = Math.max(this.v, this.checkSpeed);
     this.chase.peak = this.v;
     this.chase.slow = 0;
+    this.chaseCrashes = 0;
     this.chase.catchT = -1;
     this.chase.done = false;
     if (!this.chaseCar) {
@@ -1063,6 +1067,7 @@ export class DriveScene {
   private crash(e: CrashEvent) {
     if (this.phase !== 'drive' && this.phase !== 'pitOut' && this.phase !== 'policeOut') return;
     this.crashes++;
+    if (this.chase.active) this.chaseCrashes++;
     this.shakeAmp = 0.35 + e.severity * 0.65;
     this.pitchV += (e.side ? 0 : 0.5) * e.severity;
     this.rollV += (e.side ? 0.9 : 0.25) * (Math.random() - 0.5) * 2;

@@ -9,7 +9,7 @@ import { TrafficAssets } from './traffic-models';
 import { mountainRing } from './props';
 import { makeWaterNormal } from './textures';
 import { clamp, damp, lerp, smoothstep } from './noise';
-import { RoadCoins } from './road-coins';
+import { RoadCoins, type RoadPickup, type RoadPickupKind } from './road-coins';
 import { START_COINS, LITERS_PER_KM, FUEL_PRICE, REPAIR_PRICE, POLICE_FINE, ROADSIDE_ASSISTANCE_PRICE } from './drive-rules';
 
 export interface DriveInput {
@@ -167,6 +167,8 @@ export class DriveScene {
   policeS: number | null = null;
   policeFine = 0;
   onPolice?: () => void;
+  /** Подобрали монеты, топливо или ремкомплект. */
+  onPickup?: (kind: RoadPickupKind, amount: number) => void;
   /** Первая остановка патрулём: игрок выбирает, подчиниться или уехать. */
   onPoliceCheck?: () => void;
   onChase?: () => void;
@@ -629,9 +631,8 @@ export class DriveScene {
     this.updatePolice(time);
     this.updateChase(dt, time);
     if (this.endless) {
-      const coins = this.roadCoins.update(fromS, this.s, this.d, time, this.phase === 'drive');
-      this.coins += coins;
-      if (coins) this.coinsCollected++;
+      const pickup = this.roadCoins.update(fromS, this.s, this.d, time, this.phase === 'drive');
+      if (pickup) this.collectPickup(pickup);
     } else this.updateFinishGate();
     this.shakeAmp = Math.max(0, this.shakeAmp - dt * 1.6);
     this.sky.material.uniforms.time.value = time;
@@ -652,6 +653,20 @@ export class DriveScene {
       this.endReason = 'year';
       this.onYearEnd?.();
     }
+  }
+
+  private collectPickup(pickup: RoadPickup) {
+    if (pickup.kind === 'coin') {
+      this.coins += pickup.amount;
+      this.coinsCollected++;
+      return;
+    }
+    if (pickup.kind === 'fuel') {
+      this.fuel = Math.min(this.cfg.tankL, this.fuel + pickup.amount);
+    } else {
+      this.health = Math.min(100, this.health + pickup.amount);
+    }
+    this.onPickup?.(pickup.kind, pickup.amount);
   }
 
   private shiftLane(direction: number) {

@@ -109,7 +109,7 @@ async function main() {
     if (SHOT) scene.setSnow(params.get('snow') !== '0');
     scene.setShadowMapSize(renderer.quality.shadowMap);
     scene.resize(innerWidth / innerHeight);
-    Object.assign(scene, { onStation, onPolice, onPoliceCheck, onCaught, onDamage, onEmpty, onCrash, onYearEnd });
+    Object.assign(scene, { onStation, onPolice, onPoliceCheck, onCaught, onPickup, onDamage, onEmpty, onCrash, onYearEnd });
     drive = scene;
     return scene;
   };
@@ -758,6 +758,16 @@ async function main() {
   });
   // ——— удары: здоровье и ОСАГО ———
   let toastTimer = 0;
+  const onPickup: NonNullable<DriveScene['onPickup']> = (kind, amount) => {
+    const toast = $('toast');
+    const line = document.createElement('div');
+    line.textContent = kind === 'fuel' ? `+${amount} л топлива` : `+${amount} % ремонта`;
+    toast.replaceChildren(line);
+    toast.classList.add('ok');
+    toast.classList.add('on');
+    clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(() => toast.classList.remove('on'), 2600);
+  };
   const onDamage: NonNullable<DriveScene['onDamage']> = ({ ownDamage, thirdPartyDamage, paidToVictim, covered }) => {
     const t = $('toast');
     const damage = document.createElement('div');

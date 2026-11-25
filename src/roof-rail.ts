@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { projectY } from './surface-ray';
 
 export function buildRoofRail(
   roof: THREE.Mesh,
@@ -9,10 +10,9 @@ export function buildRoofRail(
   mountMaterial: THREE.Material,
 ) {
   const rail = new THREE.Group();
-  const ray = new THREE.Raycaster(new THREE.Vector3(), new THREE.Vector3(0, -1, 0));
   const samples = profile.map(([z, rise]) => {
-    ray.ray.origin.set(x, 2.2, z);
-    const surface = ray.intersectObject(roof, false)[0].point.y;
+    const surface = projectY(roof, x, z, true);
+    if (surface === undefined) throw new Error('Рейлинг: не найдена поверхность крыши');
     return { z, surface, rise };
   });
 

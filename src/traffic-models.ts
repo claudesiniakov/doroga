@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { projectX, projectZ } from './surface-ray';
 import { DecalGeometry } from 'three/examples/jsm/geometries/DecalGeometry.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -280,17 +281,13 @@ function buildSedan(variant: 'sedan' | 'police' | 'limo' | 'classic' = 'sedan'):
   // Накладки повторяют поверхность кузова, включая закругления к крыльям.
   const projectionMaterial = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
   const shell = new THREE.Mesh(body, projectionMaterial);
-  const ray = new THREE.Raycaster();
   const panel = (w: number, h: number, x: number, y: number, end: 1 | -1, offset: number) => {
     const geometry = new THREE.PlaneGeometry(w, h, Math.ceil(w / 0.02), Math.ceil(h / 0.02));
     if (end < 0) geometry.rotateY(Math.PI);
     const points = geometry.getAttribute('position');
-    ray.ray.direction.set(0, 0, -end);
     for (let i = 0; i < points.count; i++) {
       const px = x + points.getX(i), py = y + points.getY(i);
-      ray.ray.origin.set(px, py, end * 3);
-      const hit = ray.intersectObject(shell, false)[0];
-      const z = hit?.point.z ?? sh.surfaceZ(px, py, end);
+      const z = projectZ(shell, px, py, end > 0) ?? sh.surfaceZ(px, py, end);
       points.setXYZ(i, px, py, z + end * offset);
     }
     geometry.computeVertexNormals();
@@ -322,9 +319,7 @@ function buildSedan(variant: 'sedan' | 'police' | 'limo' | 'classic' = 'sedan'):
       (side > 0 ? bl : br).add(panel(0.13, 0.043, side * 0.59, 0.69, -1, 0.026), 'head');
       b.add(panel(0.12, 0.043, side * 0.445, 0.69, -1, 0.026), 'chrome');
       const sidePoint = (y: number, z: number, lift: number) => {
-        ray.ray.origin.set(side * 2, y, z);
-        ray.ray.direction.set(-side, 0, 0);
-        const x = ray.intersectObject(shell, false)[0]?.point.x ?? side * sh.xAt(z, y);
+        const x = projectX(shell, y, z, side > 0) ?? side * sh.xAt(z, y);
         return new THREE.Vector3(x + side * lift, y, z);
       };
       const trim = Array.from({ length: 19 }, (_, i) => sidePoint(0.735, -1.74 + i * 3.48 / 18, 0.008));

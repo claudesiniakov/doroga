@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { projectZ } from './surface-ray';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { loft, CarConfig, CarModel } from './car';
 import { makePlateTexture } from './textures';
@@ -46,11 +47,8 @@ export function buildVan(cfg: CarConfig, envIntensity = 1): CarModel {
   add(new THREE.BoxGeometry(1.4, 0.5, 3.9), under, 0, 0.5, -0.05, false);
 
   // Накладки и световые элементы проецируются на фактическую сетку кузова.
-  const endRay = new THREE.Raycaster();
   const surfacePoint = (x: number, y: number, end: 1 | -1, offset: number, mesh = bm) => {
-    endRay.ray.origin.set(x, y, end * 3);
-    endRay.ray.direction.set(0, 0, -end);
-    const z = endRay.intersectObject(mesh, false)[0]?.point.z ?? sh.surfaceZ(x, y, end);
+    const z = projectZ(mesh, x, y, end > 0) ?? sh.surfaceZ(x, y, end);
     return new THREE.Vector3(x, y, z + end * offset);
   };
   const endPanel = (end: 1 | -1, point: (u: number, v: number) => [number, number],

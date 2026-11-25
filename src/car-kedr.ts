@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { projectX, projectY, projectZ } from './surface-ray';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { Shape } from './traffic-models';
 import { loft, spline, CarConfig, CarModel } from './car';
@@ -88,16 +89,13 @@ export function buildKedr(cfg: CarConfig, envIntensity = 1): CarModel {
 
   add(new THREE.BoxGeometry(1.3, 0.5, 2.9), under, 0, 0.66, 0, false);
 
-  const ray = new THREE.Raycaster();
   const endDetail = (geometry: THREE.BufferGeometry, material: THREE.Material, x: number, y: number,
     end: 1 | -1, lift: number) => {
     if (end < 0) geometry.rotateY(Math.PI);
     const positions = geometry.getAttribute('position');
-    ray.ray.direction.set(0, 0, -end);
     for (let i = 0; i < positions.count; i++) {
       const px = x + positions.getX(i), py = y + positions.getY(i);
-      ray.ray.origin.set(px, py, end * 3);
-      const z = ray.intersectObject(bm, false)[0]?.point.z ?? sh.surfaceZ(px, py, end);
+      const z = projectZ(bm, px, py, end > 0) ?? sh.surfaceZ(px, py, end);
       positions.setXYZ(i, px, py, z + end * lift);
     }
     geometry.computeVertexNormals();
@@ -156,18 +154,15 @@ export function buildKedr(cfg: CarConfig, envIntensity = 1): CarModel {
     ], plastic, plastic));
     // Ножка зеркала ставится в основание расширенной передней стойки.
     const mz = 0.55, my = 1.115;
-    ray.ray.origin.set(side * 2, my, mz);
-    ray.ray.direction.set(-side, 0, 0);
-    const mount = ray.intersectObject(ghm, false)[0]?.point.x ?? side * sh.xAt(mz, sh.top(mz) - 0.064);
+    const mount = projectX(ghm, my, mz, side > 0) ?? side * sh.xAt(mz, sh.top(mz) - 0.064);
     const mx = mount + side * 0.115;
     add(new RoundedBoxGeometry(0.15, 0.033, 0.042, 2, 0.012), plastic, mount + side * 0.055, my, mz);
     add(new RoundedBoxGeometry(0.15, 0.103, 0.055, 2, 0.018), plastic, mx, my + 0.047, mz);
     add(new THREE.PlaneGeometry(0.116, 0.075).rotateY(Math.PI), chrome, mx, my + 0.047, mz - 0.029, false);
     // Шов двери и ручка повторяют боковину кузова.
     const doorPoint = (y: number, z: number, offset: number) => {
-      ray.ray.set(new THREE.Vector3(side * 2, y, z), new THREE.Vector3(-side, 0, 0));
-      const surface = ray.intersectObject(bm, false)[0]?.point;
-      return new THREE.Vector3((surface?.x ?? side * sh.xAt(z, y)) + side * offset, y, z);
+      const surface = projectX(bm, y, z, side > 0);
+      return new THREE.Vector3((surface ?? side * sh.xAt(z, y)) + side * offset, y, z);
     };
     const seam: THREE.Vector3[] = [];
     for (let i = 0; i <= 10; i++) seam.push(doorPoint(1.035 - 0.485 * i / 10, 0.64, 0.004));
@@ -182,8 +177,7 @@ export function buildKedr(cfg: CarConfig, envIntensity = 1): CarModel {
     add(new RoundedBoxGeometry(0.03, 0.035, 0.15, 2, 0.01), plastic, handle.x, handle.y, handle.z, false);
   }
   const aerialX = 0.62, aerialZ = 0.89;
-  ray.ray.set(new THREE.Vector3(aerialX, 2, aerialZ), new THREE.Vector3(0, -1, 0));
-  const aerialBase = ray.intersectObject(bm, false)[0]?.point.y;
+  const aerialBase = projectY(bm, aerialX, aerialZ, true);
   if (aerialBase !== undefined) {
     add(new THREE.CylinderGeometry(0.025, 0.035, 0.027, 12), plastic, aerialX, aerialBase + 0.006, aerialZ);
     const mast = new THREE.CylinderGeometry(0.004, 0.007, 0.45, 8).translate(0, 0.225, 0).rotateX(-0.22);

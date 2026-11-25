@@ -5,6 +5,7 @@ import { loft, spline, bodyStations, CarConfig, CarModel } from './car';
 import { makePlateTexture } from './textures';
 import { smoothstep } from './noise';
 import { applyInsuranceStripes, brandTextures } from './brand/insurance-livery';
+import { projectX, projectY, projectZ } from './surface-ray';
 
 /**
  * «Комета» в духе современного среднемоторного американского спорткара (без марок и логотипов):
@@ -116,12 +117,7 @@ export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity =
   body.add(gh);
   add(new THREE.BoxGeometry(1.25, 0.42, 3.4), under, 0, 0.4, -0.05, false);
 
-  const intakeRay = new THREE.Raycaster();
-  const frontSurface = (x: number, y: number) => {
-    intakeRay.ray.origin.set(x, y, halfLen + 1);
-    intakeRay.ray.direction.set(0, 0, -1);
-    return intakeRay.intersectObject(bm, false)[0]?.point.z ?? sh.surfaceZ(x, y, 1);
-  };
+  const frontSurface = (x: number, y: number) => projectZ(bm, x, y, true) ?? sh.surfaceZ(x, y, 1);
 
   /**
    * Гладкая панель по поверхности торца (front +1 / rear -1): сетка x×y, z — по поверхности кузова.
@@ -179,9 +175,7 @@ export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity =
       const z = -0.58 - 0.44 * u + 0.025 * (2 * u - 1) * corner;
       const low = 0.46 + 0.025 * u, high = 0.82 - 0.12 * u;
       const y = low + (high - low) * v;
-      intakeRay.ray.origin.set(side * 2, y, z);
-      intakeRay.ray.direction.set(-side, 0, 0);
-      const surface = intakeRay.intersectObject(bm, false)[0]?.point.x ?? side * sh.xAt(z, y);
+      const surface = projectX(bm, y, z, side > 0) ?? side * sh.xAt(z, y);
       return new THREE.Vector3(surface + side * offset, y, z);
     };
     const intake = new THREE.PlaneGeometry(1, 1, 24, 20);
@@ -203,11 +197,7 @@ export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity =
 
   // Крышка двигателя, рамка и жалюзи следуют кривизне задней панели.
   {
-    const deckHeight = (x: number, z: number) => {
-      intakeRay.ray.origin.set(x, 2, z);
-      intakeRay.ray.direction.set(0, -1, 0);
-      return intakeRay.intersectObject(bm, false)[0]?.point.y ?? sh.top(z);
-    };
+    const deckHeight = (x: number, z: number) => projectY(bm, x, z, true) ?? sh.top(z);
     const deckPanel = (v0: number, v1: number, inset: number, material: THREE.Material,
       frontLift: number, rearLift = frontLift) => {
       const geometry = new THREE.PlaneGeometry(1, 1, 24, Math.max(3, Math.ceil((v1 - v0) * 30)));
@@ -304,9 +294,7 @@ export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity =
     const handleY = 0.82;
     const handle = Array.from({ length: 9 }, (_, i) => {
       const z = -0.45 + i * 0.02;
-      intakeRay.ray.origin.set(side * 2, handleY, z);
-      intakeRay.ray.direction.set(-side, 0, 0);
-      const x = intakeRay.intersectObject(bm, false)[0]?.point.x ?? side * sh.xAt(z, handleY);
+      const x = projectX(bm, handleY, z, side > 0) ?? side * sh.xAt(z, handleY);
       return new THREE.Vector3(x + side * 0.009, handleY, z);
     });
     tube(handle, 0.007, satin);

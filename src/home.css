@@ -35,6 +35,12 @@
   margin: 0;
   font: 900 clamp(23px, 2.5vw, 37px)/1 "Arial Black", "Segoe UI", sans-serif;
   letter-spacing: -.05em;
+  white-space: nowrap;
+}
+#homeTitle .title-en {
+  font: 800 .46em/1 "Arial Black", "Segoe UI", sans-serif;
+  letter-spacing: -.01em;
+  opacity: .75;
 }
 #garage .top-right { margin-left: auto; gap: 8px; }
 #garage.show .top-right > *, #garage.show #tabs { pointer-events: auto; }

@@ -23,6 +23,8 @@ class Vehicle {
   blinker = 0;        // -1/0/+1
   blinkT = 0;         // время с включения поворотника
   cooldown = 0;
+  /** Не даём одному и тому же кузову наносить урон каждый кадр. */
+  hitCooldown = 0;
   braking = false;
   spin = 0;
   roll = 0;
@@ -76,7 +78,8 @@ export class Traffic {
   private rnd = mulberry32(4242);
   private frame: RoadFrame;
   private spawnTimer = 0;
-  private crashCooldown = 0;
+  /** В этом кадре игрок задевает хотя бы одну машину — нужно расталкивание. */
+  overlapping = false;
   onCrash?: (e: CrashEvent) => void;
 
   constructor(private path: RoadPath, readonly assets: TrafficAssets) {
@@ -196,7 +199,6 @@ export class Traffic {
   }
 
   update(dt: number, p: PlayerState, odo: number, time: number, playerCanCrash = true) {
-    this.crashCooldown = Math.max(0, this.crashCooldown - dt);
     // выгрузка далёких
     for (let i = this.list.length - 1; i >= 0; i--) {
       const v = this.list[i];
@@ -213,7 +215,7 @@ export class Traffic {
     }
 
     this.list.sort((a, b) => a.s - b.s);
-    for (const v of this.list) this.drive(v, dt, p);
+    for (const v of this.list) { v.hitCooldown = Math.max(0, v.hitCooldown - dt); this.drive(v, dt, p); }
     for (const v of this.list) this.place(v, dt, time);
     this.updateFlying(dt, p);
     if (playerCanCrash) this.collide(p);
@@ -335,25 +337,26 @@ export class Traffic {
 
   /** Столкновения игрока с трафиком в координатах дороги (s, d). */
   private collide(p: PlayerState) {
-    if (this.crashCooldown > 0) return;
+    this.overlapping = false;
     for (const v of this.list) {
       const ds = v.s - p.s, dd = v.d - p.d;
       const ox = (v.length + p.length) / 2 - Math.abs(ds);
       const oy = (v.width + p.width) / 2 - 0.12 - Math.abs(dd);
       if (ox <= 0 || oy <= 0) continue;
+      this.overlapping = true;
+      // Кузов, с которым уже столкнулись, продолжает расталкивать, но урон повторно не наносит.
+      if (v.hitCooldown > 0) continue;
       const side = oy < ox * 0.6;
       if (v.kind === 'moto') {
         this.knockOff(v, p);
-        this.crashCooldown = 0.6;
         this.onCrash?.({ severity: 0.2, side, knockedMoto: true });
-        return;
+        continue;
       }
       const severity = side ? 0.35 : clamp(Math.abs(p.v - v.v) / 15, 0.25, 1);
-      this.crashCooldown = 1.0;
+      v.hitCooldown = 1.1;
       // удар передаёт немного скорости машине трафика
       if (!side && ds > 0) v.v = Math.min(v.v0 + 3, v.v + (p.v - v.v) * 0.35);
       this.onCrash?.({ severity, side });
-      return;
     }
   }
 

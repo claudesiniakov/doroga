@@ -628,6 +628,13 @@ export class DriveScene {
     this.world.update(this.s, this.car.root.position);
     const canCrash = this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'policeOut';
     this.traffic.update(dt, this.playerState(), this.odometer, time, canCrash);
+    // Расталкивание со всеми задетыми машинами: даже после удара сквозь кузов не проехать.
+    if (this.traffic.overlapping && canCrash) {
+      const r = this.traffic.resolve(this.playerState());
+      this.s += r.ds;
+      if (r.v !== null) this.v = r.v;
+      if (r.lane !== null) { this.lane = r.lane; this.dv *= -0.4; }
+    }
     this.updatePolice(time);
     this.updateChase(dt, time);
     if (this.endless) {
@@ -1050,12 +1057,6 @@ export class DriveScene {
   private crash(e: CrashEvent) {
     if (this.phase !== 'drive' && this.phase !== 'pitOut' && this.phase !== 'policeOut') return;
     this.crashes++;
-    if (!e.knockedMoto) {
-      const r = this.traffic.resolve(this.playerState());
-      this.s += r.ds;
-      if (r.v !== null) this.v = r.v;
-      if (r.lane !== null) { this.lane = r.lane; this.dv *= -0.4; }
-    }
     this.shakeAmp = 0.35 + e.severity * 0.65;
     this.pitchV += (e.side ? 0 : 0.5) * e.severity;
     this.rollV += (e.side ? 0.9 : 0.25) * (Math.random() - 0.5) * 2;

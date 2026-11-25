@@ -52,6 +52,17 @@ async function main() {
   const quality: QualityName = detectQuality();
   const renderer = new Renderer(canvas, quality);
   const pmrem = new THREE.PMREMGenerator(renderer.gl);
+  if (!SHOT) {
+    const built = new Date(__BUILD_TIME__);
+    const stamp = new Intl.DateTimeFormat('ru-RU', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow',
+    }).format(built);
+    const buildTag = $('buildTag');
+    buildTag.textContent = `${__BUILD_REV__} · ${stamp} МСК`;
+    buildTag.title = `Сборка: ${built.toISOString()}`;
+    buildTag.hidden = false;
+  }
   loadBar(0.1, 'Собираем машину…');
   await nextFrame();
 

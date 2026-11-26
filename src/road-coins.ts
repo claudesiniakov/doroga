@@ -5,8 +5,8 @@ import { ROAD } from './textures';
 
 export const ROAD_COIN_VALUE = 1;
 /** Сколько литров и процентов ремонта даёт подобранный набор. */
-export const ROAD_FUEL_AMOUNT = 6;
-export const ROAD_REPAIR_AMOUNT = 10;
+export const ROAD_FUEL_AMOUNT = 3;
+export const ROAD_REPAIR_AMOUNT = 5;
 
 export type RoadPickupKind = 'coin' | 'fuel' | 'repair';
 export interface RoadPickup { kind: RoadPickupKind; amount: number; }
@@ -42,8 +42,8 @@ export class RoadCoins {
 
   private pickKind(): RoadPickupKind {
     const roll = this.random();
-    if (roll < 0.08) return 'fuel';
-    if (roll < 0.18) return 'repair';
+    if (roll < 0.16) return 'fuel';
+    if (roll < 0.36) return 'repair';
     return 'coin';
   }
 
@@ -101,14 +101,14 @@ function fuelMesh() {
   return group;
 }
 
-/** Ремкомплект: синий ящик с белым крестом. */
+/** Ремкомплект: золотой ящик с белым крестом. */
 function repairMesh() {
   const group = new THREE.Group();
   const body = new THREE.Mesh(
     new THREE.BoxGeometry(0.42, 0.26, 0.3),
-    new THREE.MeshStandardMaterial({ color: 0x1f6fd0, emissive: 0x0a2547, emissiveIntensity: 0.5, roughness: 0.4, metalness: 0.3 }),
+    new THREE.MeshStandardMaterial({ color: 0xffcb38, emissive: 0xa05b0b, emissiveIntensity: 0.5, metalness: 0.5, roughness: 0.32 }),
   );
-  const cross = new THREE.MeshBasicMaterial({ color: 0xf4f8ff });
+  const cross = new THREE.MeshBasicMaterial({ color: 0xfff6d8 });
   const vertical = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.02, 0.2), cross);
   const horizontal = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.02, 0.07), cross);
   vertical.position.y = 0.14;

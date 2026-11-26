@@ -75,15 +75,6 @@ export async function runShot(kind: string, ctx: {
       console.warn('ZEROPARTS', out.join(' '));
     }
     console.warn('NAN', JSON.stringify({ meshes, nanN, zeroN, nanP, maxPitchDeg: (maxPitch * 57.3).toFixed(1), maxRollDeg: (maxRoll * 57.3).toFixed(1) }));
-  } else if (kind === 'gate') {
-    const d = ctx.drive;
-    await ctx.startDrive(true, 30);
-    d.s = d.finishS - 120;
-    let t = 0;
-    for (let i = 0; i < 5; i++) { t += 1 / 60; d.update(1 / 60, { throttle: 0, brake: 0, laneShift: 0 }, t); }
-    const g = (d as any).finishGate as THREE.Group;
-    const car = (d.scene.getObjectByName('car') as THREE.Object3D).position;
-    console.warn('GATE', JSON.stringify({ exists: !!g, visible: g?.visible, inScene: !!g?.parent, dist: g ? g.position.distanceTo(car).toFixed(1) : null, finishS: d.finishS, s: d.s.toFixed(0), children: g?.children.length, y: g?.position.y.toFixed(1), carY: car.y.toFixed(1) }));
   } else if (kind === 'exitsim') {
     const d = ctx.drive, log: string[] = [];
     let t = 0;
@@ -108,79 +99,6 @@ export async function runShot(kind: string, ctx: {
       }
     }
     console.warn('EXITSIM ' + log.join(' | '));
-  } else if (kind === 'stops') {
-    const d = ctx.drive, log: string[] = [];
-    let t = 0;
-    const run = (cond: () => boolean, kmh?: number, max = 90) => {
-      const t0 = t;
-      while (!cond() && t - t0 < max) { t += 1 / 60; if (kmh && d.phase === 'drive') d.v = kmh / 3.6; d.update(1 / 60, { throttle: kmh ? 1 : 0, brake: 0, laneShift: 0 }, t); }
-    };
-    const osago = document.getElementById('insOsago')!;
-    if (osago.classList.contains('on')) osago.click();
-    for (const kmh of [90, 200]) {
-      await ctx.startDrive(true, 30);
-      d.policeS = d.s + 900; d.fuel = 60;
-      let minGap = Infinity;
-      const t0 = t;
-      while (d.phase !== 'protocol' && t - t0 < 90) {
-        t += 1 / 60; if (d.phase === 'drive') d.v = kmh / 3.6;
-        d.update(1 / 60, { throttle: 1, brake: 0, laneShift: 0 }, t);
-        minGap = Math.min(minGap, d.policeS! - d.s);
-      }
-      log.push(`ДПС на ${kmh} км/ч: phase=${d.phase}, встал за ${(d.policeS! - d.s).toFixed(1)} м, ближе всего ${minGap.toFixed(1)} м`);
-    }
-    for (const kmh of [90, 200]) {
-      await ctx.startDrive(true, 30);
-      d.policeS = null; d.fuel = 60;
-      d.s = d.finishS - 300;
-      run(() => d.phase === 'finish', kmh);
-      const sF = d.s;
-      run(() => d.phase === 'stopped');
-      log.push(`финиш на ${kmh} км/ч: остановка через ${(d.s - sF).toFixed(0)} м после линии`);
-    }
-    for (const km of [4, 6, 10, 20]) {
-      d.world.path.planTrip(30, 30 + km * 1000);
-      const ex = d.world.path.exits.filter((e) => e.sStop > 30 && e.sStop < 30 + km * 1000);
-      log.push(`${km} км: ` + ex.map((e) => `${e.kind === 'repair' ? 'сервис' : 'заправка'} ${((e.sStop - 30) / 1000).toFixed(1)}`).join(', '));
-    }
-    console.warn('STOPS ' + log.join(' | '));
-  } else if (kind === 'trip') {
-    for (const k of ['doroga.wallet', 'doroga.trip', 'doroga.kaskoPrice', 'doroga.stats', 'doroga.ins']) localStorage.removeItem(k);
-    location.search.includes('reloaded') || null;
-    const d = ctx.drive, log: string[] = [];
-    const txt = (id: string) => document.getElementById(id)!.textContent;
-    const kasko = document.getElementById('insKasko')!;
-    let t = 0;
-    const runTo = (cond: () => boolean, max = 120) => { const t0 = t; while (!cond() && t - t0 < max) { t += 1 / 60; d.update(1 / 60, { throttle: 1, brake: 0, laneShift: 0 }, t); } };
-    log.push(`старт: кошелёк ${txt('walletTop')}, кнопка «${txt('go')}», КАСКО ${txt('kaskoPrice')}`);
-    // 1) поездка с КАСКО без ремонта → финиш
-    if (!kasko.classList.contains('on')) kasko.click();
-    await ctx.startDrive(true, 30);
-    log.push(`поездка 1: цель ${d.tripKm} км, на поездку ${d.coins} монет, патруль ${d.policeS === null ? 'нет' : `на ${((d.policeS - d.startS) / 1000).toFixed(1)} км`}`);
-    d.s = d.finishS - 250; d.fuel = 50;
-    runTo(() => d.phase === 'stopped');
-    log.push(`  финиш: причина=${d.endReason}, экран «${txt('ovTitle')}», награда +${txt('ovReward')}, кошелёк ${txt('ovCoins')}, кнопка «${txt('ovAgain')}»`);
-    log.push(`  КАСКО без ремонта → ${txt('kaskoPrice')}`);
-    // 2) поездка с КАСКО и бесплатным ремонтом → финиш
-    if (!kasko.classList.contains('on')) kasko.click();
-    await ctx.startDrive(true, 30);
-    d.health = 50; d.repair(100);
-    log.push(`поездка 2: цель ${d.tripKm} км, ремонт по КАСКО списал ${d.startCoins - d.coins}`);
-    d.s = d.finishS - 250; d.fuel = 50;
-    runTo(() => d.phase === 'stopped');
-    log.push(`  КАСКО после ремонта → ${txt('kaskoPrice')}, кошелёк ${txt('ovCoins')}`);
-    // 3) неудача: бак пуст → та же дистанция
-    await ctx.startDrive(true, 30);
-    d.fuel = 0.01;
-    runTo(() => d.phase === 'stopped');
-    log.push(`поездка 3: «${txt('ovTitle')}», кнопка «${txt('ovAgain')}»`);
-    // ДПС — внутри поездки
-    const kasko2 = document.getElementById('insOsago')!;
-    if (kasko2.classList.contains('on')) kasko2.click();
-    let inside = 0, any = 0;
-    for (let k = 0; k < 20; k++) { await ctx.startDrive(true, 30); if (d.policeS !== null) { any++; if (d.policeS > d.startS + 999 && d.policeS < d.finishS - 799) inside++; } }
-    log.push(`ДПС без ОСАГО: в ${any} из 20 поездок, внутри поездки ${inside}`);
-    console.warn('TRIP ' + log.join(' | '));
   } else if (kind === 'police') {
     const d = ctx.drive, log: string[] = [];
     const osago = document.getElementById('insOsago')!;

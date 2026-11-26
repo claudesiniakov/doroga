@@ -105,7 +105,6 @@ async function main() {
     const { DriveScene } = await loadDrive();
     if (drive) return drive;
     const scene = new DriveScene(pmrem, renderer.quality.textureSize, renderer.anisotropy, Number(params.get('seed') || 1337));
-    scene.endless = !SHOT;
     if (SHOT) scene.setSnow(params.get('snow') !== '0');
     scene.setShadowMapSize(renderer.quality.shadowMap);
     scene.resize(innerWidth / innerHeight);
@@ -122,9 +121,6 @@ async function main() {
   let wallet = lsNum('doroga.wallet', START_COINS);
   let trip = lsNum('doroga.trip', 1);
   let kaskoPrice = lsNum('doroga.kaskoPrice', KASKO);
-  const TRIP_REWARD = 100;
-  /** Первая поездка — 4 км, каждая следующая на 2 км длиннее. */
-  const tripKm = (n: number) => 4 + 2 * (n - 1);
   const fmtKm = (km: number) => `${km.toFixed(1).replace('.', ',')} км`;
   const updateEconomyUI = () => {
     $('walletTop').textContent = String(wallet);
@@ -364,7 +360,6 @@ async function main() {
       // Страховки оплачиваются только после успешной подготовки поездки.
       const startCoins = Math.max(0, wallet - insCost());
       drive.insurance = { ...ins, osagoPrice: osagoPrice(kbm) };
-      drive.tripKm = tripKm(trip);
       drive.startCoins = startCoins;
       if (!SHOT) {
         loadBar(0.45, 'Прокладываем трассу…');
@@ -390,7 +385,7 @@ async function main() {
       activeRunSeconds = 0;
       setOdo(0);
       runCrashes = 0;
-      rankingRun = drive.endless ? startRecordRun().catch(() => undefined) : undefined;
+      rankingRun = startRecordRun().catch(() => undefined);
       state = 'drive';
       show('hud');
       $('ctrlHint').classList.remove('hide');
@@ -417,12 +412,11 @@ async function main() {
     if (runClosed) return;
     $('policeFlash').hidden = true;
     runClosed = true;
-    // итог поездки: награда за финиш, кошелёк, статистика
-    const finished = drive.endReason === 'finish' || drive.endReason === 'year';
-    const reward = finished && SHOT ? TRIP_REWARD : 0;
+    // итог поездки: кошелёк и статистика
+    const finished = drive.endReason === 'year';
     const km = drive.tripDone / 1000;
-    lastTrip = { finished, km, crashes: drive.crashes, reward, num: trip };
-    wallet = renewingInsurance || SHOT ? Math.max(0, drive.coins) + reward : START_COINS;
+    lastTrip = { finished, km, crashes: drive.crashes, reward: 0, num: trip };
+    wallet = renewingInsurance ? Math.max(0, drive.coins) : START_COINS;
     runCrashes += drive.crashes;
     if (finished) trip++;
     if (drive.insurance.kasko) {
@@ -812,11 +806,11 @@ async function main() {
     state = 'over';
     input.enabled = false;
     const t = lastTrip;
-    $('ovEyebrow').hidden = drive.endless;
-    $('ovEyebrow').textContent = `Поездка №${t.num} · ${tripKm(t.num)} км`;
+    $('ovEyebrow').hidden = true;
+    $('ovEyebrow').textContent = `Страховой год №${t.num}`;
     $('ovTitle').textContent = drive.endReason === 'wreck' ? 'Машина разбита'
       : drive.endReason === 'fuel' ? 'Топливо кончилось' : 'Заезд завершён';
-    const durationMs = drive.endless ? Math.floor(activeRunSeconds * 1000) : 0;
+    const durationMs = Math.floor(activeRunSeconds * 1000);
     recordSaved = false;
     rankedSummary = undefined;
     recordForm.reset();
@@ -842,12 +836,11 @@ async function main() {
       });
     }
     $('ovGarage').textContent = 'На главную';
-    $('ovKmRow').hidden = drive.endless;
+    $('ovKmRow').hidden = true;
     $('ovKm').textContent = fmtKm(t.km);
-    $('ovDaysRow').hidden = !drive.endless;
+    $('ovDaysRow').hidden = false;
     $('ovDays').textContent = formatRecordDays(durationMs);
-    $('ovRewardRow').style.display = t.finished ? '' : 'none';
-    $('ovReward').textContent = String(t.reward);
+    $('ovRewardRow').style.display = 'none';
     $('ovCrashes').textContent = String(runCrashes);
     const { osago, kasko, ownVictims, ownService, hadOsago, hadKasko } = drive.payouts;
     $('ovOsagoRow').hidden = !hadOsago;
@@ -856,11 +849,11 @@ async function main() {
     $('ovKasko').replaceChildren(coinAmount(kasko));
     $('ovOwnVictims').replaceChildren(coinAmount(ownVictims));
     $('ovOwnService').replaceChildren(coinAmount(ownService));
-    $('ovWalletRow').hidden = drive.endless;
+    $('ovWalletRow').hidden = true;
     $('ovCoins').textContent = String(wallet);
     $('ovAgain').textContent = 'Начать новый заезд';
     const ch = lastKbmChange;
-    $('ovKbmRow').hidden = !ch || drive.endless;
+    $('ovKbmRow').hidden = !ch;
     if (ch) $('ovKbm').replaceChildren(...(ch.from === ch.to ? [`класс ${KBM[ch.to].cls} (без изменений)`]
       : [`класс ${KBM[ch.from].cls} → ${KBM[ch.to].cls} · ОСАГО `, coinAmount(osagoPrice(ch.from)), ' → ', coinAmount(osagoPrice(ch.to))]));
     show('hud', 'over');
@@ -1147,14 +1140,7 @@ async function main() {
     const place = kind === 'repair' ? '🔧 Автосервис' : '⛽ Заправка';
     const toPlace = toStation;
     const toPolice = drive.policeS !== null && drive.policeFine === 0 ? drive.policeS - drive.s : Infinity;
-    const toFinish = drive.finishS - drive.s;
-    const notes: string[] = [];
-    if (ph === 'drive' && hp < 0.35) notes.push(`Ремонт через ${daysFor(toStation)} дн.`);
-    if (ph === 'drive' && f < 0.2) notes.push(`Заправка через ${daysFor(toStation)} дн.`);
-    hudNote.textContent = notes.join(' · ');
-    if (ph === 'finish') setBanner('🏁 Финиш!');
-    else if (!drive.endless && ph === 'drive' && toFinish > 0 && toFinish < 500) setBanner(`🏁 Финиш через ${daysFor(toFinish)} дн.`);
-    else if (ph === 'policeIn' || ph === 'protocol') setBanner('🚓 Остановка ДПС<small>проверка документов</small>', true);
+    if (ph === 'policeIn' || ph === 'protocol') setBanner('🚓 Остановка ДПС<small>проверка документов</small>', true);
     else if (ph === 'drive' && toPolice > 0 && toPolice < 450) setBanner(`🚓 Впереди пост ДПС<small>через ${daysFor(toPolice)} дн. · ${drive.insurance.osago ? 'проверка документов' : 'полиса ОСАГО нет'}</small>`, true);
     else if (ph === 'pitIn' || ph === 'refuel') setBanner(drive.stationKind === 'repair' ? '🔧 Заезжаем в автосервис' : '⛽ Заезжаем на заправку');
     else if (drive.waitingToMerge) setBanner('Ждём свободную полосу');
@@ -1168,10 +1154,14 @@ async function main() {
         ? `${place} через ${daysFor(toExit)} дн.<small>перестройтесь в правую полосу</small>`
         : `${place}: съезд открыт<small>${touchControls.matches ? 'свайп вправо' : '→'} — съехать</small>`, urgent);
     } else setBanner('');
+    const notes: string[] = [];
+    if (ph === 'drive' && hp < 0.35) notes.push(`Ремонт через ${daysFor(toStation)} дн.`);
+    if (ph === 'drive' && f < 0.2) notes.push(`Заправка через ${daysFor(toStation)} дн.`);
+    hudNote.textContent = notes.join(' · ');
   };
 
   const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
-  $('tripBar').parentElement!.hidden = !SHOT;
+  $('tripBar').parentElement!.hidden = true;
   if (!SHOT) {
     odoEl.querySelector('.dot')?.remove();
     drums[0].classList.replace('tenth', 'units');
@@ -1219,15 +1209,9 @@ async function main() {
         arcEl.style.strokeDashoffset = String(SPEEDO_LEN * (1 - Math.min(1, kmh / cfg.maxSpeedKmh)));
         speedBar.style.width = `${Math.round(Math.min(1, kmh / cfg.maxSpeedKmh) * 100)}%`;
       }
-      if (drive.endless) {
-        setOdo(Math.floor(activeRunSeconds));
-        const date = months[drive.month];
-        if (dateLabel.textContent !== date) dateLabel.textContent = date;
-      } else {
-        setOdo(drive.tripDone / 100);
-        $('odoGoal').textContent = `/ ${drive.tripKm} км`;
-        $('tripBar').style.width = `${Math.min(100, (drive.tripDone / (drive.tripKm * 1000)) * 100)}%`;
-      }
+      setOdo(Math.floor(activeRunSeconds));
+      const date = months[drive.month];
+      if (dateLabel.textContent !== date) dateLabel.textContent = date;
     }
     renderer.render(drive.scene, drive.camera, time);
   };

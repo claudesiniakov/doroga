@@ -67,35 +67,14 @@ export class RoadPath {
     if (c0) { this.coastBase.set(c0.index, this.y0); this.sea[0] = this.y0 - 3.2; }
   }
 
-  /** Съезды на заправки: первый на ~2,6 км, дальше через 3,5–7 км. */
-  /**
-   * План съездов под поездку: автосервис — посередине (колонка у середины дистанции),
-   * заправки — с 2,6 км и дальше через 3,5–7 км; попавшая ближе 1,2 км к сервису сдвигается за него.
-   */
-  planTrip(startS: number, finishS: number) {
-    this.exits.length = 0;
-    const mid = (startS + finishS) / 2;
-    const repair = { s0: mid - 300, kind: 'repair' as ExitKind };
-    const list: { s0: number; kind: ExitKind }[] = [repair];
-    let s0 = startS + 2600;
-    const rnd = mulberry32(this.seed * 7 + Math.round(finishS));
-    while (s0 < finishS + 15000) {
-      // заправки есть всегда, как на реальной трассе: рядом с сервисом — сдвигаем за него, а не убираем
-      if (Math.abs(s0 - repair.s0) < 1200) s0 = repair.s0 + 1200;
-      list.push({ s0, kind: 'fuel' });
-      s0 += 3400 + rnd() * 3600;
-    }
-    list.sort((a, b) => a.s0 - b.s0);
-    list.forEach((e, index) => this.exits.push({ index, kind: e.kind, s0: e.s0, sStop: e.s0 + 300, sEnd: e.s0 + 420 }));
-  }
-
   private ensureExits(s: number) {
     while (!this.exits.length || this.exits[this.exits.length - 1].sEnd < s + 3000) {
       const last = this.exits[this.exits.length - 1];
-      const s0 = last ? last.sEnd + 3400 + this.exitRnd() * 3600 : 2600;
+      // Съезды чаще: первый на 1,4 км, дальше каждые 1,5–3,6 км.
+      const s0 = last ? last.sEnd + 1500 + this.exitRnd() * 2100 : 1400;
       const index = this.exits.length;
-      // каждый третий съезд — автосервис, остальные — заправки
-      this.exits.push({ index, kind: index % 3 === 1 ? 'repair' : 'fuel', s0, sStop: s0 + 300, sEnd: s0 + 420 });
+      // Через раз: заправка и автосервис.
+      this.exits.push({ index, kind: index % 2 === 1 ? 'repair' : 'fuel', s0, sStop: s0 + 300, sEnd: s0 + 420 });
     }
   }
 
@@ -556,13 +535,6 @@ export class RoadWorld {
     const i0 = c.index * CHUNK_STEPS;
     scatterChunk(this, c.index, i0, i0 + CHUNK_STEPS, c.group.position.clone(), c.group);
     c.scattered = true;
-  }
-
-  /** Новый план съездов (поездка): чанки перестраиваются, т.к. полосы съездов — часть геометрии. */
-  planTrip(startS: number, finishS: number) {
-    this.path.planTrip(startS, finishS);
-    for (const c of this.chunks.values()) c.dispose();
-    this.chunks.clear();
   }
 
   /** Сразу построить всё (для старта). */

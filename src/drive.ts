@@ -76,10 +76,7 @@ export class DriveScene {
    * intro — заставка; drive — езда; pitIn — заезд к колонке; refuel — стоим у колонки;
    * pitOut — выезд со съезда; empty — бак пуст, машина катится; stopped — заезд окончен.
    */
-  phase: 'intro' | 'drive' | 'pitIn' | 'refuel' | 'pitOut' | 'policeIn' | 'protocol' | 'policeOut' | 'empty' | 'wrecked' | 'finish' | 'yearBreak' | 'caught' | 'stopped' = 'intro';
-  // поездка: длина задаётся снаружи, финиш — на startS + tripKm
-  tripKm = 4;
-  endless = false;
+  phase: 'intro' | 'drive' | 'pitIn' | 'refuel' | 'pitOut' | 'policeIn' | 'protocol' | 'policeOut' | 'empty' | 'wrecked' | 'yearBreak' | 'caught' | 'stopped' = 'intro';
   month = 0;
   private insuranceDays = 0;
   private insuranceStartDay = 0;
@@ -159,19 +156,16 @@ export class DriveScene {
     this.chaseCrashes = 0;
     if (this.chaseCar) this.chaseCar.vis.root.visible = false;
     if (this.police) this.police.vis.root.visible = false;
-    this.schedulePolice();
     this.updatePolice(0);
     this.phase = 'drive';
   }
   startCoins = 100;
   startS = 30;
-  get finishS() { return this.startS + this.tripKm * 1000; }
   /** Пройдено в этой поездке, м. */
   private periodStartOdometer = 0;
-  get tripDone() { return this.endless ? this.odometer - this.periodStartOdometer : Math.max(0, this.s - this.startS); }
+  get tripDone() { return this.odometer - this.periodStartOdometer; }
   /** Был бесплатный ремонт по КАСКО в этой поездке. */
   kaskoRepairUsed = false;
-  private finishGate?: THREE.Group;
   // ДПС: без ОСАГО — случайная проверка, не больше одной за заезд
   /** Где стоит патруль (null — в этом заезде проверки нет). */
   policeS: number | null = null;
@@ -201,7 +195,7 @@ export class DriveScene {
   health = 100;
   insurance = { kasko: false, osago: false, osagoPrice: 10 };
   /** Причина конца заезда. */
-  endReason: 'fuel' | 'wreck' | 'finish' | 'year' | null = null;
+  endReason: 'fuel' | 'wreck' | 'year' | null = null;
   onStation?: (kind: ExitKind) => void;
   onEmpty?: () => void;
   onYearEnd?: () => void;
@@ -334,7 +328,7 @@ export class DriveScene {
   previewRoad(car: CarModel, config: CarConfig, previewLeft?: number) {
     this.previewing = true;
     this.previewLeft = previewLeft;
-    if (this.endless) this.resetCalendar();
+    this.resetCalendar();
     const s = 30;
     const f = this.world.path.frame(s);
     this.attachCar(car, config);
@@ -351,7 +345,6 @@ export class DriveScene {
     car.setBrake(0);
     this.placeCar(0);
     if (this.police) this.police.vis.root.visible = false;
-    if (this.finishGate) this.finishGate.visible = false;
     this.traffic.group.visible = false;
     this.roadCoins.group.visible = false;
     this.world.prime(s, f.pos);
@@ -451,11 +444,8 @@ export class DriveScene {
     this.month = 0;
     this.traffic.summer = false;
     this.traffic.motoSeason = false;
-    if (this.endless) {
-      this.resetCalendar();
-      this.traffic.prepareSeasonal();
-    } else this.world.planTrip(startS, startS + this.tripKm * 1000);
-    this.schedulePolice();
+    this.resetCalendar();
+    this.traffic.prepareSeasonal();
     this.world.prime(this.s, this.car.root.position);
     this.crashes = 0;
     this.shakeAmp = this.shoulderRoughness = 0;
@@ -501,11 +491,11 @@ export class DriveScene {
     const policeApproach = this.phase === 'policeIn';
     const motionDt = policeApproach ? dt * POLICE_APPROACH_RATE : dt;
     const fromS = this.s;
-    if (this.endless && !this.waitingToMerge && (this.phase === 'drive' || this.leavingStop ||
+    if (!this.waitingToMerge && (this.phase === 'drive' || this.leavingStop ||
       this.phase === 'pitIn' || this.phase === 'policeIn')) {
       this.advanceCalendar(elapsed);
     }
-    if (this.endless && this.phase === 'drive' && this.policeS === null && !this.chase.active && this.policeFine === 0) {
+    if (this.phase === 'drive' && this.policeS === null && !this.chase.active && this.policeFine === 0) {
       const mark = this.policeDays[this.policeIndex];
       if (mark !== undefined && this.insuranceDays >= mark) {
         this.policeIndex++;
@@ -562,13 +552,13 @@ export class DriveScene {
       if (this.v + a * dt <= 0.05) { this.v = 0; a = 0; }
     } else if (this.phase === 'refuel' || this.phase === 'stopped') {
       this.v = 0; a = 0; brake = 1;
-    } else if (this.phase === 'empty' || this.phase === 'wrecked' || this.phase === 'finish') {
+    } else if (this.phase === 'empty' || this.phase === 'wrecked') {
       // бак пуст — накат; машина разбита — резко тормозим; финиш — плавно тормозим
-      a = this.phase === 'empty' ? -1.6 - this.v * 0.02 : this.phase === 'finish' ? -9.5 : -6;
+      a = this.phase === 'empty' ? -1.6 - this.v * 0.02 : -6;
       brake = this.phase === 'empty' ? 0 : 1;
       if (this.v + a * dt <= 0.05) {
         this.v = 0; a = 0;
-        this.endReason = this.phase === 'empty' ? 'fuel' : this.phase === 'finish' ? 'finish' : 'wreck';
+        this.endReason = this.phase === 'empty' ? 'fuel' : 'wreck';
         this.phase = 'stopped';
         this.onEmpty?.();
       }
@@ -620,7 +610,6 @@ export class DriveScene {
       if (this.fuel <= 0 && (this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'policeOut' || this.phase === 'policeIn')) this.phase = 'empty';
       if (this.health <= 0 && (this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'policeOut' || this.phase === 'empty')) this.phase = 'wrecked';
       // финиш поездки
-      if (!this.endless && this.s >= this.finishS && (this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'policeOut' || this.phase === 'empty')) this.phase = 'finish';
     }
 
     // смена полосы: пружина с критическим демпфированием
@@ -674,10 +663,8 @@ export class DriveScene {
     }
     this.updatePolice(time);
     this.updateChase(dt, time);
-    if (this.endless) {
-      const pickup = this.roadCoins.update(fromS, this.s, this.d, time, this.phase === 'drive');
-      if (pickup) this.collectPickup(pickup);
-    } else this.updateFinishGate();
+    const pickup = this.roadCoins.update(fromS, this.s, this.d, time, this.phase === 'drive');
+    if (pickup) this.collectPickup(pickup);
     this.shakeAmp = Math.max(0, this.shakeAmp - dt * 1.6);
     this.sky.material.uniforms.time.value = time;
     this.updateCamera(dt, time);
@@ -691,7 +678,7 @@ export class DriveScene {
     }
 
     // Переоформление на годовщину после выезда с АЗС или от ДПС.
-    if (this.endless && this.phase === 'drive' && this.insuranceDays >= INSURANCE_YEAR_DAYS &&
+    if (this.phase === 'drive' && this.insuranceDays >= INSURANCE_YEAR_DAYS &&
       this.health > 0 && this.fuel > 0) {
       this.phase = 'yearBreak';
       this.endReason = 'year';
@@ -855,60 +842,6 @@ export class DriveScene {
     this.fuel = Math.min(this.tank, this.fuel + l);
     this.coins -= l * FUEL_PRICE;
     return l;
-  }
-
-  /** Финишная арка над дорогой. */
-  private updateFinishGate() {
-    if (!this.finishGate) {
-      const g = new THREE.Group();
-      const metal = new THREE.MeshStandardMaterial({ color: 0xd8dade, metalness: 0.7, roughness: 0.35 });
-      const span = ROAD.half * 2 + 1.6;
-      for (const side of [-1, 1]) {
-        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 6.2, 12), metal);
-        pole.position.set(side * span / 2, 3.1, 0);
-        pole.castShadow = true;
-        g.add(pole);
-      }
-      const c = document.createElement('canvas');
-      c.width = 1024; c.height = 128;
-      const x = c.getContext('2d')!;
-      for (let i = 0; i < 64; i++) for (let j = 0; j < 8; j++) { x.fillStyle = (i + j) % 2 ? '#111' : '#f4f4f0'; x.fillRect(i * 16, j * 16, 16, 16); }
-      x.fillStyle = 'rgba(255,138,61,.95)'; x.fillRect(312, 14, 400, 100);
-      x.fillStyle = '#1a0d04'; x.font = '900 76px "Arial Black", Arial'; x.textAlign = 'center'; x.textBaseline = 'middle';
-      x.fillText('ФИНИШ', 512, 68);
-      const t = new THREE.CanvasTexture(c);
-      t.colorSpace = THREE.SRGBColorSpace;
-      const banner = new THREE.Mesh(new THREE.BoxGeometry(span, 1.2, 0.2), [metal, metal, metal, metal,
-        new THREE.MeshStandardMaterial({ map: t, roughness: 0.6 }), new THREE.MeshStandardMaterial({ map: t, roughness: 0.6 })]);
-      banner.position.y = 6.0;
-      banner.castShadow = true;
-      g.add(banner);
-      this.finishGate = g;
-      this.scene.add(g);
-    }
-    const ahead = this.finishS - this.s;
-    this.finishGate.visible = ahead < 1200 && ahead > -150;
-    if (!this.finishGate.visible) return;
-    const f = this.world.path.frame(this.finishS);
-    this.finishGate.position.copy(f.pos);
-    this._x.crossVectors(f.up, f.fwd).normalize();
-    this._m.makeBasis(this._x, f.up, f.fwd);
-    this.finishGate.quaternion.setFromRotationMatrix(this._m);
-  }
-
-  /** Патруль на случайном километре (вдали от съездов) — только если нет ОСАГО, с вероятностью ~65 %. */
-  private schedulePolice() {
-    this.policeS = null;
-    if (this.endless) return;
-    if (this.insurance.osago || Math.random() > 0.65) return;
-    const path = this.world.path;
-    for (let tries = 0; tries < 20; tries++) {
-      // в пределах поездки: не раньше 1 км и не позже 800 м до финиша
-      const span = this.endless ? 2700 : this.finishS - 800 - (this.s + 1000);
-      if (span <= 0) return;
-      const s = this.s + 1000 + Math.random() * span;
-      if (!path.exitNear(s + 300, 900)) { this.policeS = s; return; }
-    }
   }
 
   /** Патрульная машина стоит на обочине, мигалка мигает. */

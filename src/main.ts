@@ -444,7 +444,8 @@ async function main() {
     }
     lsSet('doroga.wallet', wallet); lsSet('doroga.trip', trip); lsSet('doroga.kaskoPrice', kaskoPrice);
     lastKbmChange = null;
-    if (drive.insurance.osago && (renewingInsurance || drive.crashes > 0)) {
+    // КБМ пересчитывается только при закрытии страхового года, а не при обрыве заезда.
+    if (drive.insurance.osago && renewingInsurance) {
       const to = kbmNext(kbm, drive.crashes);
       lastKbmChange = { from: kbm, to };
       kbm = to;

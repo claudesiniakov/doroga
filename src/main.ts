@@ -757,6 +757,10 @@ async function main() {
   };
   $('policeStop').addEventListener('click', () => {
     if (state !== 'policeCheck') return;
+    // Возвращаемся в заезд: машина сама плавно съедет на обочину и встанет.
+    state = 'drive';
+    input.enabled = true;
+    show('hud');
     drive.stopAtPolice();
   });
   $('policeFlee').addEventListener('click', () => {

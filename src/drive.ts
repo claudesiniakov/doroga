@@ -869,9 +869,20 @@ export class DriveScene {
     if (this.chaseCar) this.chaseCar.vis.root.visible = false;
   }
 
-  /** Игрок решил остановиться: сразу протокол и штраф. */
+  /** Игрок решил остановиться: плавно съезжаем на обочину за патрулём, затем протокол. */
   stopAtPolice() {
-    if (this.phase === 'protocol') return;
+    if (this.phase === 'protocol' || this.phase === 'policeIn') return;
+    this.chase.offered = true;
+    const left = this.policeS === null ? Infinity : this.policeS - POLICE_STOP_GAP_M - this.s;
+    if (left > 2 && this.v > 1) {
+      this.phase = 'policeIn';
+      this.lane = RIGHT_SHOULDER;
+      return;
+    }
+    // Уже у патруля или стоим — встаём на обочину сразу.
+    this.lane = RIGHT_SHOULDER;
+    this.d = SHOULDER_OFFSET;
+    this.dv = 0;
     this.v = 0;
     this.phase = 'protocol';
     this.policeFine = this.insurance.osago ? 0 : Math.min(POLICE_FINE, this.coins);

@@ -1115,6 +1115,17 @@ async function main() {
   document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
 
   // ——— полный экран и веб-приложение ———
+  const isIos = /iP(hone|ad|od)/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const iosStandalone = (navigator as unknown as { standalone?: boolean }).standalone === true
+    || matchMedia('(display-mode: standalone)').matches;
+  if (isIos && !iosStandalone && !lsNum('doroga.iosHintSeen', 0) && !SHOT) {
+    $('iosHint').hidden = false;
+    $('iosHintClose').addEventListener('click', () => {
+      $('iosHint').hidden = true;
+      lsSet('doroga.iosHintSeen', 1);
+    });
+  }
   const docEl = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> };
   const fsEnabled = !!(document.fullscreenEnabled || (document as any).webkitFullscreenEnabled);
   const standalone = matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || (navigator as any).standalone === true;

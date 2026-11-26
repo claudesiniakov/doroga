@@ -417,3 +417,40 @@
   #garage .home-section-title { margin-bottom: 8px; }
   #garage .ins-opt small { font-size: 11px; line-height: 1.25; }
 }
+
+/* Подсказка про полноэкранный режим на iPhone (только Safari, не PWA). */
+.ios-hint {
+  position: fixed;
+  left: 50%;
+  top: calc(72px + var(--safe-t));
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(92vw, 520px);
+  padding: 10px 12px 10px 16px;
+  border-radius: 14px;
+  background: rgba(10, 24, 40, .9);
+  color: #eaf4ff;
+  font-size: 13px;
+  line-height: 1.35;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+}
+.ios-hint[hidden] { display: none; }
+.ios-hint button {
+  flex: none;
+  width: 26px; height: 26px;
+  border: 0; border-radius: 50%;
+  background: rgba(255, 255, 255, .14);
+  color: #fff; font-size: 18px; line-height: 1;
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  .ios-hint {
+    left: calc(var(--home-gutter) + var(--safe-l));
+    top: calc(70px + var(--safe-t));
+    transform: none;
+    max-width: min(40vw, 360px);
+  }
+}

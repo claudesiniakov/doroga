@@ -5,8 +5,8 @@ import { ROAD } from './textures';
 
 export const ROAD_COIN_VALUE = 1;
 /** Сколько литров и процентов ремонта даёт подобранный набор. */
-export const ROAD_FUEL_AMOUNT = 12;
-export const ROAD_REPAIR_AMOUNT = 18;
+export const ROAD_FUEL_AMOUNT = 6;
+export const ROAD_REPAIR_AMOUNT = 10;
 
 export type RoadPickupKind = 'coin' | 'fuel' | 'repair';
 export interface RoadPickup { kind: RoadPickupKind; amount: number; }
@@ -42,8 +42,8 @@ export class RoadCoins {
 
   private pickKind(): RoadPickupKind {
     const roll = this.random();
-    if (roll < 0.18) return 'fuel';
-    if (roll < 0.34) return 'repair';
+    if (roll < 0.08) return 'fuel';
+    if (roll < 0.18) return 'repair';
     return 'coin';
   }
 

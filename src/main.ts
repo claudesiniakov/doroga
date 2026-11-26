@@ -118,6 +118,8 @@ async function main() {
     try { const raw = localStorage.getItem(k); const v = Number(raw); return raw !== null && Number.isFinite(v) ? v : d; } catch { return d; }
   };
   const lsSet = (k: string, v: unknown) => { try { localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v)); } catch { /* нет хранилища */ } };
+  /** Награда за успешно закрытый страховой год. */
+  const YEAR_BONUS = 25;
   let wallet = lsNum('doroga.wallet', START_COINS);
   let trip = lsNum('doroga.trip', 1);
   let kaskoPrice = lsNum('doroga.kaskoPrice', KASKO);
@@ -416,7 +418,10 @@ async function main() {
     const finished = drive.endReason === 'year';
     const km = drive.tripDone / 1000;
     lastTrip = { finished, km, crashes: drive.crashes, reward: 0, num: trip };
-    wallet = renewingInsurance ? Math.max(0, drive.coins) : START_COINS;
+    // Успешный год: остаток монет + награда. Провал: сохраняем 75 % монет, а не всё.
+    wallet = renewingInsurance
+      ? Math.max(0, drive.coins) + YEAR_BONUS
+      : Math.max(50, Math.round(drive.coins * 0.75));
     runCrashes += drive.crashes;
     if (finished) trip++;
     if (drive.insurance.kasko) {
@@ -887,6 +892,7 @@ async function main() {
     $('yearKm').textContent = fmtKm(lastTrip.km);
     $('yearCrashes').textContent = String(lastTrip.crashes);
     $('yearCoins').textContent = String(drive.coinsCollected);
+    $('yearBonus').textContent = String(YEAR_BONUS);
     const change = lastKbmChange;
     $('yearKbmRow').hidden = !change;
     if (change) $('yearKbm').textContent = `${fmtK(KBM[change.from].k)} → ${fmtK(KBM[change.to].k)}`;

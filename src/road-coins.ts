@@ -5,7 +5,7 @@ import { ROAD } from './textures';
 
 export const ROAD_COIN_VALUE = 1;
 /** Сколько процентов заряда даёт подобранная батарейка. */
-export const ROAD_BATTERY_AMOUNT = 12;
+export const ROAD_BATTERY_AMOUNT = 6;
 
 export type RoadPickupKind = 'coin' | 'battery';
 export interface RoadPickup { kind: RoadPickupKind; amount: number; }
@@ -39,7 +39,7 @@ export class RoadCoins {
   }
 
   private pickKind(): RoadPickupKind {
-    return this.random() < 0.16 ? 'battery' : 'coin';
+    return this.random() < 0.32 ? 'battery' : 'coin';
   }
 
   private schedule(s: number) {

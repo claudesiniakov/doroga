@@ -162,6 +162,16 @@ async function main() {
     lastRecordNickname = nickname;
     lsSet(recordNicknameKey, nickname);
   });
+  let latestRecordRow: HTMLTableRowElement | undefined;
+  const scrollToLatestRecord = () => {
+    const row = latestRecordRow;
+    const box = $('recordsScroll');
+    if (!row || box.hidden) return;
+    const rowRect = row.getBoundingClientRect();
+    const boxRect = box.getBoundingClientRect();
+    const top = box.scrollTop + (rowRect.top - boxRect.top) - box.clientHeight / 2 + rowRect.height / 2;
+    box.scrollTop = Math.max(0, Math.min(top, box.scrollHeight - box.clientHeight));
+  };
   const renderRecords = async () => {
     const request = ++recordLoad;
     const status = $('recordsEmpty');
@@ -195,7 +205,10 @@ async function main() {
         }
         return row;
       });
+      latestRecordRow = rows.find((row) => row.classList.contains('last-record'));
       $('recordsBody').replaceChildren(...rows);
+      const slide = document.querySelector('#slides .slide[data-name="Рекорды"]');
+      if (slide?.classList.contains('active')) requestAnimationFrame(() => scrollToLatestRecord());
     } catch {
       if (request === recordLoad) status.textContent = 'Общие рекорды пока недоступны.';
     }
@@ -277,7 +290,7 @@ async function main() {
     openInsuranceTab = () => markSlide(insuranceIndex);
     openInsuranceTab();
     const recordsIndex = slides.findIndex((slide) => slide.dataset.name === 'Рекорды');
-    openRecordsTab = () => markSlide(recordsIndex);
+    openRecordsTab = () => { markSlide(recordsIndex); requestAnimationFrame(() => scrollToLatestRecord()); };
     tabsEl.addEventListener('click', (e) => {
       const button = (e.target as HTMLElement).closest('button');
       if (!button) return;
@@ -308,6 +321,8 @@ async function main() {
   clock.connect(document);
   let time = 0;
   let hintTimer = 0;
+  let hintSeen = false;
+  try { hintSeen = localStorage.getItem('doroga.hintSeen') === '1'; } catch { /* нет хранилища */ }
   let renderedBackdrop: State | undefined;
   const desktopPreview = matchMedia('(pointer: fine) and (min-width: 900px)');
   const previewLeft = () => desktopPreview.matches
@@ -413,9 +428,14 @@ async function main() {
       rankingRun = startRecordRun().catch(() => undefined);
       state = 'drive';
       show('hud');
-      $('ctrlHint').classList.remove('hide');
-      $('touchHint').classList.remove('hide');
-      hintTimer = 0;
+      if (hintSeen) {
+        $('ctrlHint').classList.add('hide');
+        $('touchHint').classList.add('hide');
+      } else {
+        $('ctrlHint').classList.remove('hide');
+        $('touchHint').classList.remove('hide');
+        hintTimer = 0;
+      }
       clock.update();
     } catch (error) {
       if (SHOT) throw error;
@@ -1279,9 +1299,11 @@ if (!SHOT) {
       updateHud();
       if (drive.phase === 'drive' && !input.enabled) input.enabled = true;
       if (drive.phase === 'drive') hintTimer += dt;
-      if (hintTimer > 7) {
+      if (hintTimer > 7 && !hintSeen) {
         $('ctrlHint').classList.add('hide');
         $('touchHint').classList.add('hide');
+        hintSeen = true;
+        lsSet('doroga.hintSeen', 1);
       }
       const kmh = Math.round(drive.speedKmh);
       if (kmh !== lastSpeed) {

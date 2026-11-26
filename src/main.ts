@@ -355,6 +355,7 @@ async function main() {
     state = 'garage';
     updateEconomyUI();
     show('garage');
+    $('fade').classList.remove('on');
   };
 
   let startingDrive = false;
@@ -789,6 +790,7 @@ async function main() {
     state = 'returningHome';
     await fade(true);
     enterGarage();
+    await fade(false);
   });
   $('prSign').addEventListener('click', () => {
     if (state !== 'protocol') return;
@@ -955,21 +957,19 @@ async function main() {
     drive.phase = 'stopped';
     showRunSummary();
   });
-  ovAgain.addEventListener('click', async () => {
-    if (state !== 'over' || savingRecord || !await saveSummaryRecord() || state !== 'over') return;
-    // Новый заезд начинается с выбора страховки, как и первый.
+  // Сохранение рекорда не должно блокировать выход с итогов.
+  const leaveSummary = async (openRecords: boolean) => {
+    if (state !== 'over' || savingRecord) return;
+    await saveSummaryRecord().catch(() => false);
+    if (state !== 'over') return;
     state = 'returningHome';
     await fade(true);
     enterGarage();
-  });
-  ovGarage.addEventListener('click', async () => {
-    if (state !== 'over' || savingRecord || !await saveSummaryRecord() || state !== 'over') return;
-    state = 'returningHome';
-    await fade(true);
-    enterGarage();
-    if (recordSaved) openRecordsTab();
     await fade(false);
-  });
+    if (openRecords && recordSaved) openRecordsTab();
+  };
+  ovAgain.addEventListener('click', () => { void leaveSummary(false); });
+  ovGarage.addEventListener('click', () => { void leaveSummary(true); });
   const onCrash: NonNullable<DriveScene['onCrash']> = (e) => {
     const hit = $('hit');
     hit.style.setProperty('--k', String(e.severity));

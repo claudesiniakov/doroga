@@ -5,7 +5,7 @@ import { ROAD } from './textures';
 
 export const ROAD_COIN_VALUE = 1;
 /** Сколько процентов заряда даёт подобранная батарейка. */
-export const ROAD_BATTERY_AMOUNT = 6;
+export const ROAD_BATTERY_AMOUNT = 5;
 
 export type RoadPickupKind = 'coin' | 'battery';
 export interface RoadPickup { kind: RoadPickupKind; amount: number; }

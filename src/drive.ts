@@ -10,7 +10,7 @@ import { mountainRing } from './props';
 import { makeWaterNormal } from './textures';
 import { clamp, damp, lerp, smoothstep } from './noise';
 import { RoadCoins, type RoadPickup, type RoadPickupKind } from './road-coins';
-import { START_COINS, CHARGE_PER_KM, CHARGE_PRICE, REPAIR_PRICE, POLICE_FINE, ROADSIDE_ASSISTANCE_PRICE } from './drive-rules';
+import { START_COINS, DAYS_PER_SECOND, CHARGE_PER_KM, CHARGE_PRICE, REPAIR_PRICE, POLICE_FINE, ROADSIDE_ASSISTANCE_PRICE } from './drive-rules';
 
 export interface DriveInput {
   throttle: number;
@@ -121,7 +121,7 @@ export class DriveScene {
 
   private advanceCalendar(elapsed: number) {
     const oldDay = Math.floor(this.insuranceDays);
-    this.insuranceDays = Math.min(INSURANCE_YEAR_DAYS, this.insuranceDays + elapsed);
+    this.insuranceDays = Math.min(INSURANCE_YEAR_DAYS, this.insuranceDays + elapsed * DAYS_PER_SECOND);
     const newDay = Math.floor(this.insuranceDays);
     if (oldDay === newDay) return;
     let day = (this.insuranceStartDay + newDay) % INSURANCE_YEAR_DAYS;

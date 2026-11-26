@@ -10,9 +10,9 @@ export const ROAD_BATTERY_AMOUNT = 6;
 export type RoadPickupKind = 'coin' | 'battery';
 export interface RoadPickup { kind: RoadPickupKind; amount: number; }
 
-// В среднем ~260 м между наборами: монеты и батарейки.
-const MIN_GAP_M = 170;
-const GAP_VARIATION_M = 180;
+// В среднем ~130 м между наборами: дни идут вдвое быстрее, плотность на игровой день та же.
+const MIN_GAP_M = 85;
+const GAP_VARIATION_M = 90;
 
 export class RoadCoins {
   readonly group = new THREE.Group();

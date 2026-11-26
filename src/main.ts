@@ -9,7 +9,7 @@ import { buildPlayerCar } from './player-car';
 import { KBM, loadKbm, saveKbm, osagoPrice, osagoFactors, kbmNext, fmtK } from './kbm';
 import { GarageScene } from './garage';
 import type { DriveScene } from './drive';
-import { START_COINS, CHARGE_PRICE, KASKO, REPAIR_PRICE, POLICE_FINE } from './drive-rules';
+import { START_COINS, DAYS_PER_SECOND, CHARGE_PRICE, KASKO, REPAIR_PRICE, POLICE_FINE } from './drive-rules';
 import { Input } from './input';
 import { OSAGO_LESSON } from './osago-lesson';
 import { finishRecordRun, formatRecordDays, loadRecords, MAX_NICKNAME_LENGTH, saveRecord, startRecordRun } from './records';
@@ -1163,7 +1163,8 @@ async function main() {
     }
     const ph = drive.phase;
     // Игровое время: одна секунда = один день, поэтому расстояние переводим в дни по текущей скорости.
-    const daysFor = (meters: number) => Math.max(1, Math.round(meters / Math.max(10, drive.v)));
+    // Дни идут быстрее, поэтому за день машина проезжает больше метров.
+    const daysFor = (meters: number) => Math.max(1, Math.round(meters / Math.max(10, drive.v * DAYS_PER_SECOND)));
     const toExit = drive.nextExitStartDist, toStation = drive.nextServiceDist;
     const place = '🔧 Автосервис';
     const toPlace = toStation;
@@ -1221,7 +1222,7 @@ async function main() {
       updateHud();
     }
     if (state === 'drive') {
-      if (drive.phase !== 'intro' && !drive.waitingToMerge) activeRunSeconds += elapsed;
+      if (drive.phase !== 'intro' && !drive.waitingToMerge) activeRunSeconds += elapsed * DAYS_PER_SECOND;
       input.poll();
       drive.update(dt, { throttle: input.throttle, brake: input.brake, laneShift: input.take() }, time, elapsed);
       updateHud();

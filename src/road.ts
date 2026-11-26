@@ -70,8 +70,8 @@ export class RoadPath {
   private ensureExits(s: number) {
     while (!this.exits.length || this.exits[this.exits.length - 1].sEnd < s + 3000) {
       const last = this.exits[this.exits.length - 1];
-      // Съезды чаще: первый на 1,4 км, дальше каждые 1,5–3,6 км.
-      const s0 = last ? last.sEnd + 1500 + this.exitRnd() * 2100 : 1400;
+      // Дни идут вдвое быстрее — съезды вдвое ближе: первый на 0,7 км, дальше каждые 0,75–1,8 км.
+      const s0 = last ? last.sEnd + 750 + this.exitRnd() * 1050 : 700;
       const index = this.exits.length;
       // Только автосервисы: заправок больше нет, машина электрическая.
       this.exits.push({ index, kind: 'repair', s0, sStop: s0 + 300, sEnd: s0 + 420 });

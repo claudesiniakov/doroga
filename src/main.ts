@@ -110,6 +110,7 @@ async function main() {
     scene.resize(innerWidth / innerHeight);
     Object.assign(scene, { onStation, onPolice, onPoliceCheck, onPoliceOk, onCaught, onPickup, onDamage, onEmpty, onCrash, onYearEnd });
     drive = scene;
+    (window as unknown as { __drive: typeof scene }).__drive = scene;
     return scene;
   };
 
@@ -461,6 +462,7 @@ async function main() {
   lsSet('doroga.kaskoPrice', kaskoPrice);
   let runClosed = true;
   let lastKbmChange: { from: number; to: number } | null = null;
+  let lastKbmClaims = 0;
   let lastTrip = { finished: false, km: 0, crashes: 0, reward: 0, num: 1 };
   const finishRun = (renewing = false) => {
     if (runClosed) return;
@@ -481,6 +483,7 @@ async function main() {
           : claims <= 2 ? kbm
             : Math.max(0, kbm - 1);
         lastKbmChange = { from: kbm, to };
+        lastKbmClaims = drive.crashes;
         kbm = to;
         saveKbm(kbm);
       } else lastKbmChange = null;
@@ -534,6 +537,12 @@ async function main() {
     $('insKasko').setAttribute('aria-pressed', String(ins.kasko));
     $('insOsago').setAttribute('aria-pressed', String(ins.osago));
     $('osagoPrice').textContent = String(osagoPrice(kbm));
+    const change = lastKbmChange && lastKbmChange.from !== lastKbmChange.to ? lastKbmChange : null;
+    $('kbmNow').replaceChildren('Ваш КБМ: ', String(fmtK(KBM[kbm].k)), ' · класс ', KBM[kbm].cls);
+    if (change) {
+      $('kbmNow').append(` · за год: ${fmtK(KBM[change.from].k)} → ${fmtK(KBM[change.to].k)}`);
+    }
+    $('kbmWhy').hidden = !change;
     $('startCoins').textContent = String(wallet - insCost());
     applyLivery();
     updateEconomyUI();
@@ -646,7 +655,31 @@ async function main() {
     showOsagoConfirmation();
     $('kbmTitle').focus({ preventScroll: true });
   };
+  const openKbmWhy = (trigger: HTMLElement) => {
+    const change = lastKbmChange;
+    const claims = lastKbmClaims;
+    const reason = claims === 0
+      ? 'За прошлый страховой год не было ДТП, поэтому класс стал лучше на один.'
+      : claims > 2
+        ? `За прошлый год было ${claims} ДТП — больше двух, поэтому класс стал хуже на один.`
+        : `За прошлый год было ${claims} ДТП — не больше двух, поэтому класс не изменился.`;
+    const detail = change
+      ? ` Было: класс ${KBM[change.from].cls}, КБМ ${fmtK(KBM[change.from].k)}, ОСАГО ${osagoPrice(change.from)}. Стало: класс ${KBM[change.to].cls}, КБМ ${fmtK(KBM[change.to].k)}, ОСАГО ${osagoPrice(change.to)}.`
+      : '';
+    $('kbmWhyBody').textContent = `${reason}${detail} КБМ меняется раз в страховой год: чистый год — на класс лучше, 1–2 ДТП — без изменений, 3 и больше — на класс хуже. Когда заезд заканчивается, КБМ сбрасывается к начальному.`;
+    kbmTrigger = trigger;
+    renderKbmTable();
+    show('garage', 'kbm');
+    $('osagoLesson').hidden = true;
+    $('osagoConfirm').hidden = true;
+    $('kbmWhyPane').hidden = false;
+    $('kbmTitle').hidden = true;
+    $('kbmWhyTitle').focus({ preventScroll: true });
+  };
+
   const openKbm = (trigger: HTMLElement, reviewLesson = false) => {
+    $('kbmWhyPane').hidden = true;
+    $('kbmTitle').hidden = false;
     kbmTrigger = trigger;
     renderKbmTable();
     show('garage', 'kbm');
@@ -657,6 +690,8 @@ async function main() {
     }
   };
   const closeKbm = () => {
+    $('kbmWhyPane').hidden = true;
+    $('kbmTitle').hidden = false;
     show('garage');
     kbmTrigger?.focus({ preventScroll: true });
   };
@@ -666,6 +701,8 @@ async function main() {
     openKbm($('insOsago'));
   });
   $('kbmLink').addEventListener('click', () => openKbm($('kbmLink'), true));
+  $('kbmWhy').addEventListener('click', () => openKbmWhy($('kbmWhy')));
+  $('kbmWhyOk').addEventListener('click', closeKbm);
   $('osagoReplay').addEventListener('click', startOsagoLesson);
   $('osagoSkip').addEventListener('click', finishOsagoLesson);
   lessonBack.addEventListener('click', () => {

@@ -41,6 +41,10 @@
                 <button class="ins-opt" id="insKasko"><span class="chk"></span><span class="t"><b>КАСКО · <span class="coin-amount"><span id="kaskoPrice">40</span><span class="coin" role="img" aria-label="монет"></span></span></b><small>В игре оплачивает ремонт вашей машины независимо от виновника ДТП и эвакуацию, если машина разбита.</small></span></button>
                 <div class="osago-option">
                   <button class="ins-opt" id="insOsago"><span class="chk"></span><span class="t"><b>ОСАГО · <span class="coin-amount"><span id="osagoPrice">10</span><span class="coin" role="img" aria-label="монет"></span></span></b><small>Если вы виноваты в ДТП, ОСАГО возмещает каждому потерпевшему ущерб имуществу до 400 000 ₽ и вред жизни или здоровью до 500 000 ₽.</small></span></button>
+                  <div class="kbm-current" id="kbmCurrent">
+                    <span id="kbmNow">Ваш КБМ: 1,17 · класс 3</span>
+                    <button type="button" class="kbm-why" id="kbmWhy" hidden>Почему?</button>
+                  </div>
                   <button class="osago-help" id="kbmLink" type="button">Как рассчитывается цена?</button>
                 </div>
               </div>
@@ -283,6 +287,11 @@
           <button id="osagoNext" type="button" class="ghost">Далее</button>
         </div>
         <button id="osagoSkip" type="button" class="osago-skip">Пропустить</button>
+      </div>
+      <div id="kbmWhyPane" class="kbm-why-pane" hidden>
+        <h2 id="kbmWhyTitle" tabindex="-1">Почему такой КБМ</h2>
+        <p id="kbmWhyBody"></p>
+        <button id="kbmWhyOk" class="go">Понятно</button>
       </div>
       <div id="osagoConfirm" class="osago-confirm">
         <p id="osagoCalculation" class="osago-game-value"></p>

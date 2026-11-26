@@ -385,3 +385,35 @@
   #garage .startcoins { margin-top: 6px; }
   #garage .slide { padding-bottom: 6px; }
 }
+
+/* Текущий КБМ в блоке ОСАГО */
+.kbm-current {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 2px var(--home-ins-inset) 10px;
+  color: var(--home-muted);
+  font-size: 12px;
+}
+.kbm-current b { color: var(--ui-ink); font-weight: 700; }
+.kbm-why {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--home-accent);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.kbm-why[hidden] { display: none; }
+.kbm-why-pane { display: grid; gap: 12px; }
+.kbm-why-pane[hidden] { display: none; }
+.kbm-why-pane p { margin: 0; color: var(--home-muted); line-height: 1.45; }
+
+@media (pointer: fine) and (min-width: 900px) and (max-height: 500px) {
+  #garage .kbm-current { font-size: 11px; margin: 0 var(--home-ins-inset) 6px; }
+  #garage .home-section-title { margin-bottom: 8px; }
+  #garage .ins-opt small { font-size: 11px; line-height: 1.25; }
+}

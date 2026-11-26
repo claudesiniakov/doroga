@@ -10,7 +10,7 @@ import { projectX, projectY, projectZ } from './surface-ray';
 /**
  * «Комета» в духе современного среднемоторного американского спорткара (без марок и логотипов):
  * кабина сдвинута вперёд, короткий низкий нос, широкие задние «бёдра», боковые воздухозаборники,
- * крышка двигателя за кабиной, четыре трубы по центру. Ливрея (полосы + надпись) — по setLivery().
+ * крышка двигателя за кабиной. Ливрея (полосы + надпись) — по setLivery().
  */
 export const VETTE = { R: 0.345, axF: 1.3, axR: -1.42, track: 0.82, halfLen: 2.315 };
 
@@ -255,7 +255,7 @@ export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity =
     tube(xs.map((x) => onSurf(x, yL(x) + 0.018, 1, 0.02)), 0.008, headMat);
     tube(xs.slice(1, 4).map((x) => onSurf(x, yL(x) - 0.016, 1, 0.02)), 0.006, headMat);
   }
-  // ——— зад: угловатые двухсекционные фонари, четыре трубы по центру, номер ———
+  // ——— зад: угловатые двухсекционные фонари и номер ———
   for (const side of [-1, 1]) {
     const pts = [0.36, 0.5, 0.64, 0.76, 0.82].map((x, i) => onSurf(side * x, 0.98 - i * 0.012 - (i > 2 ? (i - 2) * 0.05 : 0), -1, 0.012));
     tube(pts.map((p) => p.clone().add(new THREE.Vector3(0, 0, 0.02))), 0.03, black);
@@ -263,14 +263,6 @@ export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity =
     tube(pts.map((p) => p.clone().add(new THREE.Vector3(0, -0.04, 0))), 0.009, tailMat);
   }
   {
-    const zr = sh.surfaceZ(0.2, 0.36, -1);
-    for (const x of [-0.17, -0.06, 0.06, 0.17]) {
-      const pipe = add(new THREE.CylinderGeometry(0.042, 0.042, 0.12, 20, 1, true), chrome, x, 0.36, zr + 0.03, false);
-      pipe.rotation.x = Math.PI / 2;
-      (pipe.material as THREE.Material).side = THREE.DoubleSide;
-      const inner = add(new THREE.CircleGeometry(0.038, 20), under, x, 0.36, zr + 0.05, false);
-      inner.rotation.y = Math.PI;
-    }
     const y = 0.62, z = sh.surfaceZ(0.27, y, -1) - 0.01;
     const plate = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.112),
       new THREE.MeshStandardMaterial({ map: makePlateTexture(cfg.plate), roughness: 0.4, metalness: 0.2 }));

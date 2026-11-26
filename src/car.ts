@@ -12,7 +12,7 @@ export interface CarConfig {
   brake: number;        // м/с²
   laneChangeTime: number;
   plate: string;
-  /** Объём бака, л. */
+  /** Ёмкость батареи, %. */
   tankL: number;
   body?: 'coupe' | 'suv' | 'van' | 'vette' | 'classic';
   /** Множитель крена/клевка кузова (мягкая подвеска > 1). */

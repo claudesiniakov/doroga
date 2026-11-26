@@ -1067,7 +1067,30 @@ async function main() {
     }
   }
   for (const ev of ['fullscreenchange', 'webkitfullscreenchange']) document.addEventListener(ev, () => setTimeout(resize, 50));
-  if ('serviceWorker' in navigator && !SHOT && location.protocol === 'https:') navigator.serviceWorker.register('./sw.js').catch(() => undefined);
+  if ('serviceWorker' in navigator && !SHOT && location.protocol === 'https:') {
+  navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' })
+    .then((registration) => { void registration.update(); })
+    .catch(() => undefined);
+}
+
+// Если вкладка открыта давно, она может работать на старой сборке.
+// Сравниваем ревизию с build.txt и обновляемся, пока игрок в гараже.
+const checkBuild = async () => {
+  try {
+    const response = await fetch('./build.txt', { cache: 'no-store' });
+    if (!response.ok) return;
+    const latest = (await response.text()).trim();
+    if (!latest || latest === 'dev' || latest === __BUILD_REV__) return;
+    if (state !== 'garage' && state !== 'loading') return;
+    if (sessionStorage.getItem('doroga.reloadedFor') === latest) return;
+    sessionStorage.setItem('doroga.reloadedFor', latest);
+    location.reload();
+  } catch { /* нет сети — остаёмся на текущей сборке */ }
+};
+if (!SHOT) {
+  setTimeout(() => { void checkBuild(); }, 5000);
+  setInterval(() => { void checkBuild(); }, 120000);
+}
 
   $('go').addEventListener('click', () => {
     if (!$('kbm').inert) return;

@@ -1,7 +1,11 @@
 // Сервис-воркер игры: сначала сеть (всегда свежая версия), при отсутствии сети — кеш.
-const CACHE = 'doroga-v1';
+const CACHE = 'doroga-v2';
 self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+self.addEventListener('activate', (e) => e.waitUntil((async () => {
+  const keys = await caches.keys();
+  await Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)));
+  await self.clients.claim();
+})()));
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   const url = new URL(req.url);

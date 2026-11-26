@@ -18,12 +18,20 @@ function revision() {
   }
 }
 
+const rev = revision();
+
 export default defineConfig({
   base: './',
   define: {
-    __BUILD_REV__: JSON.stringify(revision()),
+    __BUILD_REV__: JSON.stringify(rev),
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
   },
+  plugins: [{
+    name: 'emit-build-info',
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'build.txt', source: rev });
+    },
+  }],
   server: { proxy },
   preview: { proxy },
   build: {

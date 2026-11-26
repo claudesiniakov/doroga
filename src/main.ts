@@ -6,7 +6,7 @@ import cars from './cars.json';
 import { Renderer, detectQuality, QualityName } from './render';
 import type { CarConfig } from './car';
 import { buildPlayerCar } from './player-car';
-import { KBM, loadKbm, saveKbm, osagoPrice, osagoFactors, kbmNext, fmtK } from './kbm';
+import { KBM, loadKbm, saveKbm, osagoPrice, osagoFactors, fmtK } from './kbm';
 import { GarageScene } from './garage';
 import type { DriveScene } from './drive';
 import { START_COINS, DAYS_PER_SECOND, CHARGE_PRICE, KASKO, REPAIR_PRICE, POLICE_FINE } from './drive-rules';
@@ -445,8 +445,12 @@ async function main() {
     lsSet('doroga.wallet', wallet); lsSet('doroga.trip', trip); lsSet('doroga.kaskoPrice', kaskoPrice);
     lastKbmChange = null;
     // КБМ пересчитывается только при закрытии страхового года, а не при обрыве заезда.
+    // Чистый год — класс лучше; 1–2 ДТП — класс не меняется; 3+ — на класс хуже.
     if (drive.insurance.osago && renewingInsurance) {
-      const to = kbmNext(kbm, drive.crashes);
+      const claims = drive.crashes;
+      const to = claims === 0 ? Math.min(KBM.length - 1, kbm + 1)
+        : claims <= 2 ? kbm
+          : Math.max(0, kbm - 1);
       lastKbmChange = { from: kbm, to };
       kbm = to;
       saveKbm(kbm);

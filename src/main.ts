@@ -920,7 +920,10 @@ async function main() {
   });
   ovAgain.addEventListener('click', async () => {
     if (state !== 'over' || savingRecord || !await saveSummaryRecord() || state !== 'over') return;
-    await startDrive();
+    // Новый заезд начинается с выбора страховки, как и первый.
+    state = 'returningHome';
+    await fade(true);
+    enterGarage();
   });
   ovGarage.addEventListener('click', async () => {
     if (state !== 'over' || savingRecord || !await saveSummaryRecord() || state !== 'over') return;

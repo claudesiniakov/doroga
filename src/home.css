@@ -346,3 +346,25 @@
 
 @media (pointer: fine) and (min-width: 900px) and (max-height: 640px) {
 }
+
+/* Кнопка «Поехать» — внизу экрана, отдельно от панели. */
+@media (pointer: fine) and (min-width: 900px) {
+  #garage .home-layout {
+    bottom: calc(var(--home-launch-bottom) + var(--home-launch-height) + var(--home-launch-gap) + var(--safe-b));
+    grid-template-rows: minmax(0, 1fr);
+  }
+  #garage .home-content { min-height: 0; display: grid; }
+  #garage .slides { height: 100%; min-height: 0; display: grid; }
+  #garage .slides > .slide.active { min-height: 0; overflow-y: auto; max-height: none; }
+  #garage .home-launch {
+    position: fixed;
+    left: 0; right: 0;
+    bottom: calc(var(--home-launch-bottom) + var(--safe-b));
+    width: auto;
+    display: flex;
+    justify-content: center;
+    padding: 0 calc(var(--home-gutter) + var(--safe-r)) 0 calc(var(--home-gutter) + var(--safe-l));
+    z-index: 4;
+  }
+  #garage #go { width: min(560px, 100%); max-width: none; margin: 0 auto; }
+}

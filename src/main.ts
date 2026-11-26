@@ -785,7 +785,10 @@ async function main() {
     if (state !== 'caught') return;
     $('policeFlash').hidden = true;
     finishRun();
-    await startDrive();
+    // Новый заезд тоже начинается с выбора страховки.
+    state = 'returningHome';
+    await fade(true);
+    enterGarage();
   });
   $('prSign').addEventListener('click', () => {
     if (state !== 'protocol') return;

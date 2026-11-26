@@ -6,7 +6,7 @@ import cars from './cars.json';
 import { Renderer, detectQuality, QualityName } from './render';
 import type { CarConfig } from './car';
 import { buildPlayerCar } from './player-car';
-import { KBM, KBM_START, loadKbm, saveKbm, osagoPrice, osagoFactors, fmtK } from './kbm';
+import { KBM, KBM_START, loadKbm, saveKbm, osagoPrice, osagoFactors, kbmNext, fmtK } from './kbm';
 import { GarageScene } from './garage';
 import type { DriveScene } from './drive';
 import { START_COINS, DAYS_PER_SECOND, CHARGE_PRICE, KASKO, REPAIR_PRICE, POLICE_FINE } from './drive-rules';
@@ -110,7 +110,6 @@ async function main() {
     scene.resize(innerWidth / innerHeight);
     Object.assign(scene, { onStation, onPolice, onPoliceCheck, onPoliceOk, onCaught, onPickup, onDamage, onEmpty, onCrash, onYearEnd });
     drive = scene;
-    (window as unknown as { __drive: typeof scene }).__drive = scene;
     return scene;
   };
 
@@ -479,9 +478,8 @@ async function main() {
       wallet = Math.max(0, drive.coins) + YEAR_BONUS;
       if (drive.insurance.osago) {
         const claims = drive.crashes;
-        const to = claims === 0 ? Math.min(KBM.length - 1, kbm + 1)
-          : claims <= 2 ? kbm
-            : Math.max(0, kbm - 1);
+        // Настоящая таблица КБМ: 0 ДТП — класс лучше, каждое ДТП опускает по таблице.
+        const to = kbmNext(kbm, claims);
         lastKbmChange = { from: kbm, to };
         lastKbmClaims = drive.crashes;
         kbm = to;
@@ -659,14 +657,12 @@ async function main() {
     const change = lastKbmChange;
     const claims = lastKbmClaims;
     const reason = claims === 0
-      ? 'За прошлый страховой год не было ДТП, поэтому класс стал лучше на один.'
-      : claims > 2
-        ? `За прошлый год было ${claims} ДТП — больше двух, поэтому класс стал хуже на один.`
-        : `За прошлый год было ${claims} ДТП — не больше двух, поэтому класс не изменился.`;
+      ? 'За прошлый страховой год не было ДТП, поэтому класс стал лучше.'
+      : `За прошлый год было ${claims} ДТП — класс изменился по таблице КБМ.`;
     const detail = change
       ? ` Было: класс ${KBM[change.from].cls}, КБМ ${fmtK(KBM[change.from].k)}, ОСАГО ${osagoPrice(change.from)}. Стало: класс ${KBM[change.to].cls}, КБМ ${fmtK(KBM[change.to].k)}, ОСАГО ${osagoPrice(change.to)}.`
       : '';
-    $('kbmWhyBody').textContent = `${reason}${detail} КБМ меняется раз в страховой год: чистый год — на класс лучше, 1–2 ДТП — без изменений, 3 и больше — на класс хуже. Когда заезд заканчивается, КБМ сбрасывается к начальному.`;
+    $('kbmWhyBody').textContent = `${reason}${detail} КБМ пересчитывается раз в страховой год по таблице: без ДТП класс растёт, каждое ДТП опускает его по таблице (до класса «М»). Когда заезд заканчивается, КБМ сбрасывается к начальному классу 3.`;
     kbmTrigger = trigger;
     renderKbmTable();
     show('garage', 'kbm');

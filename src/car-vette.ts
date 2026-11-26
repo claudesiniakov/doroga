@@ -14,6 +14,44 @@ import { projectX, projectY, projectZ } from './surface-ray';
  */
 export const VETTE = { R: 0.345, axF: 1.3, axR: -1.42, track: 0.82, halfLen: 2.315 };
 
+let solarTex: THREE.CanvasTexture | undefined;
+/** Солнечная панель: тёмно-синие фотоэлементы с сеткой и шинами. */
+function solarTexture() {
+  if (solarTex) return solarTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#0a1830';
+  g.fillRect(0, 0, 512, 512);
+  const cols = 6, rows = 8, gap = 6;
+  const cw = (512 - gap * (cols + 1)) / cols;
+  const ch = (512 - gap * (rows + 1)) / rows;
+  for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) {
+    const x = gap + i * (cw + gap), y = gap + j * (ch + gap);
+    const grd = g.createLinearGradient(x, y, x + cw, y + ch);
+    grd.addColorStop(0, '#2f63b8');
+    grd.addColorStop(0.5, '#1b4585');
+    grd.addColorStop(1, '#2a5aa4');
+    g.fillStyle = grd;
+    g.fillRect(x, y, cw, ch);
+    g.strokeStyle = 'rgba(220,235,255,.45)';
+    g.lineWidth = 2;
+    for (let k = 1; k < 4; k++) {
+      g.beginPath();
+      g.moveTo(x, y + (ch * k) / 4);
+      g.lineTo(x + cw, y + (ch * k) / 4);
+      g.stroke();
+    }
+  }
+  g.strokeStyle = 'rgba(220,235,255,.35)';
+  g.lineWidth = 3;
+  g.strokeRect(1.5, 1.5, 509, 509);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return (solarTex = t);
+}
+
 export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity = 1): CarModel {
   const { R, axF, axR, track, halfLen } = VETTE;
   const sh = new Shape({
@@ -216,13 +254,12 @@ export function buildVette(cfg: CarConfig & { sponsor?: string }, envIntensity =
       add(geometry, material, 0, 0, 0, false);
     };
 
+    // Вместо карбоновых жалюзи — солнечная батарея на крышке моторного отсека.
+    const solar = new THREE.MeshStandardMaterial({
+      map: solarTexture(), roughness: 0.42, metalness: 0.2, envMapIntensity: envIntensity * 0.55,
+    });
     deckPanel(0, 1, 0, carbon, 0.007);
-    deckPanel(0.035, 0.34, 0.023, glass, 0.014);
-    deckPanel(0.36, 0.96, 0.022, under, 0.014);
-    for (let k = 0; k < 6; k++) {
-      const start = 0.391 + k * 0.091;
-      deckPanel(start, start + 0.045, 0.038, carbon, 0.030, 0.019);
-    }
+    deckPanel(0.015, 0.985, 0.015, solar, 0.012);
   }
 
   // ——— задний спойлер: карбоновое антикрыло на двух стойках с торцевыми пластинами ———

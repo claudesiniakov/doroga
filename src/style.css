@@ -399,7 +399,7 @@ kbd {
 .kbm-table th.n { text-align: center; padding-top: 2px; }
 
 /* ——— протокол ДПС ——— */
-#protocol, #policeCheck, #caught { display: grid; place-items: center; background: rgba(5, 6, 8, .45); }
+#protocol, #policeCheck, #policeOk, #caught { display: grid; place-items: center; background: rgba(5, 6, 8, .45); }
 .police-note { margin: 0; color: var(--ink-2); font-size: 14px; line-height: 1.45; }
 .police-article { margin: 0; color: var(--ink-2); font-size: 13px; line-height: 1.45; }
 #caught h2 { margin: 0; color: #ff8a7a; }

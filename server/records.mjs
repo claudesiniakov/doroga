@@ -11,6 +11,8 @@ function json(response, status, body) {
 
 // 220 км/ч с ускоренным въездом на пост ДПС (×1,7) и округлением пробега.
 const MAX_METERS_PER_SECOND = 105;
+// Клиент считает игровые дни: два дня за реальную секунду.
+const DAYS_PER_SECOND = 2;
 const RUN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 async function readJson(request) {
@@ -108,7 +110,7 @@ export function openRecords(databasePath) {
         }
         const elapsed = now - started.started_at;
         // Запрос регистрации может попасть на сервер уже после начала игры.
-        const maximum = byTime ? elapsed + 8000 : Math.ceil(elapsed * MAX_METERS_PER_SECOND / 1000) + 1;
+        const maximum = byTime ? elapsed * DAYS_PER_SECOND + 8000 : Math.ceil(elapsed * MAX_METERS_PER_SECOND / 1000) + 1;
         if (!Number.isSafeInteger(score) || score <= 0 || score > maximum) {
           return json(response, 400, { error: byTime ? 'invalid_duration' : 'invalid_distance' });
         }

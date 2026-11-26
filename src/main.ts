@@ -666,6 +666,7 @@ async function main() {
     kbmTrigger = trigger;
     renderKbmTable();
     show('garage', 'kbm');
+    $('kbm').setAttribute('aria-labelledby', 'kbmWhyTitle');
     $('osagoLesson').hidden = true;
     $('osagoConfirm').hidden = true;
     $('kbmWhyPane').hidden = false;
@@ -1115,17 +1116,23 @@ async function main() {
   document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
 
   // ——— полный экран и веб-приложение ———
-  const isIos = /iP(hone|ad|od)/.test(navigator.userAgent)
-    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const ua = navigator.userAgent;
+  const isIosSafari = (/iP(hone|ad|od)/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua))
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1
+      && /Safari\//.test(ua) && !/Chrome|Chromium|CriOS|Edg|OPR|Firefox|FxiOS/.test(ua));
   const iosStandalone = (navigator as unknown as { standalone?: boolean }).standalone === true
     || matchMedia('(display-mode: standalone)').matches;
-  if (isIos && !iosStandalone && !lsNum('doroga.iosHintSeen', 0) && !SHOT) {
-    $('iosHint').hidden = false;
-    $('iosHintClose').addEventListener('click', () => {
-      $('iosHint').hidden = true;
-      lsSet('doroga.iosHintSeen', 1);
-    });
-  }
+  const landscape = matchMedia('(orientation: landscape)');
+  const showIosHint = () => {
+    if (!isIosSafari || iosStandalone || SHOT || lsNum('doroga.iosHintSeen', 0)) return;
+    $('iosHint').hidden = !landscape.matches;
+  };
+  showIosHint();
+  landscape.addEventListener('change', showIosHint);
+  $('iosHintClose').addEventListener('click', () => {
+    $('iosHint').hidden = true;
+    lsSet('doroga.iosHintSeen', 1);
+  });
   const docEl = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> };
   const fsEnabled = !!(document.fullscreenEnabled || (document as any).webkitFullscreenEnabled);
   const standalone = matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || (navigator as any).standalone === true;

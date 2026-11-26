@@ -863,3 +863,12 @@ html, body { height: 100dvh; }
   .hud-left .fbar { width: 16px; }
   .hud-row #fsHud { width: 32px; height: 32px; }
 }
+
+/* Очень узкий портрет: месяц уходит на вторую строку к страховкам. */
+@media (max-width: 340px) and (orientation: portrait) {
+  .hud-row .calendar-month {
+    position: fixed;
+    top: calc(52px + var(--safe-t));
+    left: calc(8px + var(--safe-l));
+  }
+}

@@ -430,6 +430,13 @@ async function main() {
 
   // Скидка по КБМ начисляется только за безаварийный страховой период, завершившийся сменой года.
   let kbm = loadKbm();
+  // Равные стартовые условия: старые сохранения кошелька, КБМ и цены КАСКО не используем.
+  kbm = KBM_START;
+  wallet = START_COINS;
+  kaskoPrice = KASKO;
+  saveKbm(kbm);
+  lsSet('doroga.wallet', wallet);
+  lsSet('doroga.kaskoPrice', kaskoPrice);
   let runClosed = true;
   let lastKbmChange: { from: number; to: number } | null = null;
   let lastTrip = { finished: false, km: 0, crashes: 0, reward: 0, num: 1 };

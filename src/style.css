@@ -593,6 +593,14 @@ html, body { height: 100dvh; }
 .records-table th { color: var(--ink-2); font-weight: 600; }
 .records-table td:nth-child(2) { overflow-wrap: anywhere; }
 .records-table td:last-child, .records-table th:last-child { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.records-table tr.own-record td { background: rgba(90, 170, 255, .10); }
+.records-table tr.last-record td { background: rgba(255, 203, 56, .16); }
+.own-record-label {
+  display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 999px;
+  font-size: 10px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase;
+  background: rgba(90, 170, 255, .22); color: #bfe3ff; vertical-align: middle; white-space: nowrap;
+}
+.records-table tr.last-record .own-record-label { background: rgba(255, 203, 56, .26); color: #ffe9a6; }
 .record-form:not([hidden]) { display: grid; gap: 6px; }
 .record-form label, #recordStatus { color: var(--ink-2); font-size: 13px; margin: 0; }
 .record-fields { display: flex; gap: 6px; }

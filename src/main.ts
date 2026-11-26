@@ -141,6 +141,7 @@ async function main() {
     }
   } catch { /* нет хранилища */ }
 
+  let lastOwnRecordId = lsNum('doroga.lastTimeRecord', 0);
   let recordSaved = false;
   let rankingRun: Promise<string | undefined> | undefined;
   let activeRunSeconds = 0;
@@ -179,7 +180,13 @@ async function main() {
         for (const cell of [String(index + 1), nickname, formatRecordDays(durationMs)]) {
           row.insertCell().textContent = cell;
         }
-        if (ownRecords.has(id)) {
+        if (id === lastOwnRecordId) {
+          row.classList.add('own-record', 'last-record');
+          const label = document.createElement('span');
+          label.className = 'own-record-label';
+          label.textContent = 'Ваш последний заезд';
+          row.cells[1].append(' ', label);
+        } else if (ownRecords.has(id)) {
           row.classList.add('own-record');
           const label = document.createElement('span');
           label.className = 'own-record-label';
@@ -219,6 +226,8 @@ async function main() {
         ownRecords.add(id);
         lsSet(ownRecordKey, [...ownRecords]);
       }
+      lastOwnRecordId = id;
+      lsSet('doroga.lastTimeRecord', id);
       recordSaved = true;
       recordStatus.textContent = place <= 100 ? `Результат сохранён. Место №${place}.`
         : `Результат сохранён. Место №${place} в общем рейтинге.`;

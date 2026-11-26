@@ -9,7 +9,7 @@ import { buildPlayerCar } from './player-car';
 import { KBM, loadKbm, saveKbm, osagoPrice, osagoFactors, kbmNext, fmtK } from './kbm';
 import { GarageScene } from './garage';
 import type { DriveScene } from './drive';
-import { START_COINS, FUEL_PRICE, KASKO, REPAIR_PRICE, POLICE_FINE } from './drive-rules';
+import { START_COINS, KASKO, REPAIR_PRICE, POLICE_FINE } from './drive-rules';
 import { Input } from './input';
 import { OSAGO_LESSON } from './osago-lesson';
 import { finishRecordRun, formatRecordDays, loadRecords, MAX_NICKNAME_LENGTH, saveRecord, startRecordRun } from './records';
@@ -637,71 +637,43 @@ async function main() {
   $('kbmClose').addEventListener('click', closeKbm);
   renderIns();
 
-  // ——— заправка и автосервис: одна панель ———
-  let stationService: 'fuel' | 'repair' = 'fuel';
+  // ——— автосервис ———
   const updateStation = () => {
-    const repair = stationService === 'repair';
-    $('stEyebrow').textContent = drive.stationKind === 'repair' ? 'Автосервис' : 'Заправка «Топливо 24»';
-    for (const [id, active] of [['stFuelTab', !repair], ['stRepairTab', repair]] as const) {
-      const tab = $(id);
-      tab.classList.toggle('on', active);
-      tab.setAttribute('aria-pressed', String(active));
-    }
-    const canLeave = drive.fuel > 0 && drive.health > 0;
+    const canLeave = drive.health > 0;
     const leave = $<HTMLButtonElement>('stLeave');
     leave.disabled = !canLeave;
-    leave.textContent = canLeave ? 'Уехать' : drive.health <= 0 ? 'Для выезда нужен ремонт' : 'Для выезда нужно топливо';
+    leave.textContent = canLeave ? 'Уехать' : 'Для выезда нужен ремонт';
     $('stEnd').hidden = canLeave;
     const full = $<HTMLButtonElement>('stFull'), ten = $<HTMLButtonElement>('stTen');
     $('stCoins').textContent = String(drive.coins);
-    if (!repair) {
-      $('stTitle').textContent = 'Заправиться?';
-      $('stTank').textContent = String(Math.ceil(drive.fuel - 1e-6));
-      $('stUnit').textContent = `/ ${drive.tank} л`;
-      $('stTankBar').style.width = `${(drive.fuel / drive.tank) * 100}%`;
-      $('stBarWrap').classList.remove('hp');
-      $('stPrice').replaceChildren(coinAmount(FUEL_PRICE), ' за литр');
-      const need = Math.ceil(drive.tank - drive.fuel - 1e-6);
-      const can = Math.min(need, Math.floor(drive.coins / FUEL_PRICE));
-      full.disabled = can <= 0;
-      full.replaceChildren(...(can <= 0 ? [need <= 0 ? 'Бак полный' : 'Не хватает монет']
-        : [can < need ? `Заправить ${can} л за ` : `Полный бак · ${need} л за `, coinAmount(can * FUEL_PRICE)]));
-      ten.disabled = can <= 0;
-      ten.replaceChildren('+10 л · ', coinAmount(10 * FUEL_PRICE));
-      ten.style.display = can > 10 ? '' : 'none';
-    } else {
-      $('stTitle').textContent = 'Отремонтировать?';
-      $('stTank').textContent = String(Math.round(drive.health));
-      $('stUnit').textContent = '%';
-      $('stTankBar').style.width = `${drive.health}%`;
-      $('stBarWrap').classList.add('hp');
-      const kasko = drive.insurance.kasko;
-      $('stPrice').replaceChildren(...(kasko ? ['по КАСКО — бесплатно'] : [coinAmount(REPAIR_PRICE), ' за 10 %']));
-      const need = Math.max(0, 100 - drive.health);
-      const canPct = kasko ? need : Math.min(need, Math.floor(drive.coins / REPAIR_PRICE) * 10);
-      full.disabled = canPct <= 0;
-      full.replaceChildren(...(need <= 0 ? ['Машина целая']
-        : canPct <= 0 ? ['Не хватает монет']
-          : [canPct < need ? `Ремонт · +${canPct} % за ` : 'Полный ремонт · ',
-            kasko ? 'бесплатно' : coinAmount(drive.repairCost(canPct))]));
-      ten.disabled = canPct <= 0;
-      ten.replaceChildren('+10 % · ', kasko ? 'бесплатно' : coinAmount(REPAIR_PRICE));
-      ten.style.display = need > 10 && canPct > 0 ? '' : 'none';
-    }
+    $('stEyebrow').textContent = 'Автосервис';
+    $('stTitle').textContent = 'Отремонтировать?';
+    $('stTank').textContent = String(Math.round(drive.health));
+    $('stUnit').textContent = '%';
+    $('stTankBar').style.width = `${drive.health}%`;
+    $('stBarWrap').classList.add('hp');
+    const kasko = drive.insurance.kasko;
+    $('stPrice').replaceChildren(...(kasko ? ['по КАСКО — бесплатно'] : [coinAmount(REPAIR_PRICE), ' за 10 %']));
+    const need = Math.max(0, 100 - drive.health);
+    const canPct = kasko ? need : Math.min(need, Math.floor(drive.coins / REPAIR_PRICE) * 10);
+    full.disabled = canPct <= 0;
+    full.replaceChildren(...(need <= 0 ? ['Машина целая']
+      : canPct <= 0 ? ['Не хватает монет']
+        : [canPct < need ? `Ремонт · +${canPct} % за ` : 'Полный ремонт · ',
+          kasko ? 'бесплатно' : coinAmount(drive.repairCost(canPct))]));
+    ten.disabled = canPct <= 0;
+    ten.replaceChildren('+10 % · ', kasko ? 'бесплатно' : coinAmount(REPAIR_PRICE));
+    ten.style.display = need > 10 && canPct > 0 ? '' : 'none';
   };
-  const onStation: NonNullable<DriveScene['onStation']> = (kind) => {
-    stationService = drive.health <= 0 ? 'repair' : drive.fuel <= 0 ? 'fuel' : kind;
+  const onStation: NonNullable<DriveScene['onStation']> = () => {
     state = 'station';
     input.enabled = false;
     updateStation();
     show('hud', 'station');
   };
-  $('stFuelTab').addEventListener('click', () => { stationService = 'fuel'; updateStation(); });
-  $('stRepairTab').addEventListener('click', () => { stationService = 'repair'; updateStation(); });
   const buyService = (full: boolean) => {
     if (state !== 'station') return;
-    if (stationService === 'repair') drive.repair(full ? 100 : 10);
-    else drive.refuel(full ? drive.tank : 10);
+    drive.repair(full ? 100 : 10);
     updateStation();
   };
   $('stFull').addEventListener('click', () => buyService(true));
@@ -791,10 +763,10 @@ async function main() {
   });
   // ——— удары: здоровье и ОСАГО ———
   let toastTimer = 0;
-  const onPickup: NonNullable<DriveScene['onPickup']> = (kind, amount) => {
+  const onPickup: NonNullable<DriveScene['onPickup']> = (_kind, amount) => {
     const toast = $('toast');
     const line = document.createElement('div');
-    line.textContent = kind === 'fuel' ? `+${amount} л топлива` : `+${amount} % ремонта`;
+    line.textContent = `+${amount} % заряда`;
     toast.replaceChildren(line);
     toast.classList.add('ok');
     toast.classList.add('on');
@@ -829,7 +801,7 @@ async function main() {
     $('ovEyebrow').hidden = true;
     $('ovEyebrow').textContent = `Страховой год №${t.num}`;
     $('ovTitle').textContent = drive.endReason === 'wreck' ? 'Машина разбита'
-      : drive.endReason === 'fuel' ? 'Топливо кончилось' : 'Заезд завершён';
+      : drive.endReason === 'charge' ? 'Заряд кончился' : 'Заезд завершён';
     const durationMs = Math.floor(activeRunSeconds * 1000);
     recordSaved = false;
     rankedSummary = undefined;
@@ -887,8 +859,6 @@ async function main() {
       const minimum = drive.assistanceMinimumCost;
       $('towPrice').replaceChildren(coinAmount(cost));
       $('towRepair').replaceChildren(coinAmount(drive.repairCost(10)));
-      $('towFuelRow').hidden = drive.fuel > 0;
-      $('towFuel').replaceChildren(coinAmount(FUEL_PRICE));
       const call = $<HTMLButtonElement>('towCall');
       call.disabled = drive.coins < minimum;
       call.replaceChildren(...(call.disabled ? ['Для выезда нужно ', coinAmount(minimum)]
@@ -943,8 +913,8 @@ async function main() {
     if (state === 'breakdown') showRunSummary();
   });
   $('stEnd').addEventListener('click', () => {
-    if (state !== 'station' || (drive.fuel > 0 && drive.health > 0)) return;
-    drive.endReason = drive.health <= 0 ? 'wreck' : 'fuel';
+    if (state !== 'station' || drive.health > 0) return;
+    drive.endReason = 'wreck';
     drive.phase = 'stopped';
     showRunSummary();
   });
@@ -1162,27 +1132,25 @@ async function main() {
     // Игровое время: одна секунда = один день, поэтому расстояние переводим в дни по текущей скорости.
     const daysFor = (meters: number) => Math.max(1, Math.round(meters / Math.max(10, drive.v)));
     const toExit = drive.nextExitStartDist, toStation = drive.nextServiceDist;
-    const kind = drive.nextExitKind;
-    const place = kind === 'repair' ? '🔧 Автосервис' : '⛽ Заправка';
+    const place = '🔧 Автосервис';
     const toPlace = toStation;
     const toPolice = drive.policeS !== null && drive.policeFine === 0 ? drive.policeS - drive.s : Infinity;
     if (ph === 'policeIn' || ph === 'protocol') setBanner('🚓 Остановка ДПС<small>проверка документов</small>', true);
     else if (ph === 'drive' && toPolice > 0 && toPolice < 450) setBanner(`🚓 Впереди пост ДПС<small>через ${daysFor(toPolice)} дн. · ${drive.insurance.osago ? 'проверка документов' : 'полиса ОСАГО нет'}</small>`, true);
-    else if (ph === 'pitIn' || ph === 'refuel') setBanner(drive.stationKind === 'repair' ? '🔧 Заезжаем в автосервис' : '⛽ Заезжаем на заправку');
+    else if (ph === 'pitIn' || ph === 'refuel') setBanner('🔧 Заезжаем в автосервис');
     else if (drive.waitingToMerge) setBanner('Ждём свободную полосу');
     else if (ph === 'pitOut' || ph === 'policeOut') setBanner('Выезжаем на дорогу');
-    else if (ph === 'empty') setBanner('Топливо кончилось', true);
+    else if (ph === 'empty') setBanner('Заряд кончился', true);
     else if (ph === 'wrecked') setBanner('Машина разбита', true);
-    else if (ph === 'drive' && drive.lane === 2) setBanner(`${place}<small>${kind === 'repair' ? 'бокс' : 'колонка'} через ${daysFor(toPlace)} дн.</small>`);
+    else if (ph === 'drive' && drive.lane === 2) setBanner(`${place}<small>бокс через ${daysFor(toPlace)} дн.</small>`);
     else if (ph === 'drive' && toExit < 700 && toPlace > 30) {
-      const urgent = kind === 'repair' ? hp < 0.35 : f < 0.2;
+      const urgent = hp < 0.35;
       setBanner(!drive.exitOpen
         ? `${place} через ${daysFor(toExit)} дн.<small>перестройтесь в правую полосу</small>`
         : `${place}: съезд открыт<small>${touchControls.matches ? 'свайп вправо' : '→'} — съехать</small>`, urgent);
     } else setBanner('');
     const notes: string[] = [];
     if (ph === 'drive' && hp < 0.35) notes.push(`Ремонт через ${daysFor(toStation)} дн.`);
-    if (ph === 'drive' && f < 0.2) notes.push(`Заправка через ${daysFor(toStation)} дн.`);
     hudNote.textContent = notes.join(' · ');
   };
 

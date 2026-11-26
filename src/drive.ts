@@ -10,7 +10,7 @@ import { mountainRing } from './props';
 import { makeWaterNormal } from './textures';
 import { clamp, damp, lerp, smoothstep } from './noise';
 import { RoadCoins, type RoadPickup, type RoadPickupKind } from './road-coins';
-import { START_COINS, LITERS_PER_KM, FUEL_PRICE, REPAIR_PRICE, POLICE_FINE, ROADSIDE_ASSISTANCE_PRICE } from './drive-rules';
+import { START_COINS, CHARGE_PER_KM, REPAIR_PRICE, POLICE_FINE, ROADSIDE_ASSISTANCE_PRICE } from './drive-rules';
 
 export interface DriveInput {
   throttle: number;
@@ -73,7 +73,7 @@ export class DriveScene {
   introT = 0;
   readonly introDur = 4.2;
   /**
-   * intro — заставка; drive — езда; pitIn — заезд к колонке; refuel — стоим у колонки;
+   * intro — заставка; drive — езда; pitIn — заезд к сервису; refuel — стоим у сервиса;
    * pitOut — выезд со съезда; empty — бак пуст, машина катится; stopped — заезд окончен.
    */
   phase: 'intro' | 'drive' | 'pitIn' | 'refuel' | 'pitOut' | 'policeIn' | 'protocol' | 'policeOut' | 'empty' | 'wrecked' | 'yearBreak' | 'caught' | 'stopped' = 'intro';
@@ -174,7 +174,7 @@ export class DriveScene {
   private policeDays: number[] = [];
   private policeIndex = 0;
   onPolice?: () => void;
-  /** Подобрали монеты, топливо или ремкомплект. */
+  /** Подобрали монеты или батарейку. */
   onPickup?: (kind: RoadPickupKind, amount: number) => void;
   /** Первая остановка патрулём: игрок выбирает, подчиниться или уехать. */
   onPoliceCheck?: () => void;
@@ -187,15 +187,16 @@ export class DriveScene {
   private checkSpeed = 0;
   private chaseCar?: { vis: { root: THREE.Group }; red: THREE.MeshStandardMaterial; blue: THREE.MeshStandardMaterial };
   private police!: { vis: { root: THREE.Group }; red: THREE.MeshStandardMaterial; blue: THREE.MeshStandardMaterial };
-  // топливо и деньги
+  // заряд и деньги
+  /** Заряд батареи, 0–100 %. */
   fuel = 0;
   coins = START_COINS;
-  get tank() { return this.cfg.tankL; }
+  get tank() { return 100; }
   // здоровье и страховки
   health = 100;
   insurance = { kasko: false, osago: false, osagoPrice: 10 };
   /** Причина конца заезда. */
-  endReason: 'fuel' | 'wreck' | 'year' | null = null;
+  endReason: 'charge' | 'wreck' | 'year' | null = null;
   onStation?: (kind: ExitKind) => void;
   onEmpty?: () => void;
   onYearEnd?: () => void;
@@ -414,7 +415,7 @@ export class DriveScene {
     this.introT = skipIntro ? this.introDur : 0;
     this.phase = skipIntro ? 'drive' : 'intro';
     this.odometer = this.periodStartOdometer = 0;
-    this.fuel = this.cfg.tankL;
+    this.fuel = this.tank;
     this.health = 100;
     this.endReason = null;
     // страховки покупаются на старте из стартовых монет
@@ -558,7 +559,7 @@ export class DriveScene {
       brake = this.phase === 'empty' ? 0 : 1;
       if (this.v + a * dt <= 0.05) {
         this.v = 0; a = 0;
-        this.endReason = this.phase === 'empty' ? 'fuel' : 'wreck';
+        this.endReason = this.phase === 'empty' ? 'charge' : 'wreck';
         this.phase = 'stopped';
         this.onEmpty?.();
       }
@@ -567,7 +568,7 @@ export class DriveScene {
       if (input.laneShift && this.phase === 'drive') this.shiftLane(Math.sign(input.laneShift));
       // съезд кончается — вливаемся обратно
       if (this.lane === 2 && path.extraAt(this.s + 35) < EXIT_W * 0.7) this.lane = 1;
-      // в полосе съезда перед колонкой — заезд на заправку
+      // в полосе съезда перед боксом — заезд в автосервис
       const ex = path.exitNear(this.s, 0);
       // в полосе съезда до колонки — сразу заезд (машина сама тормозит и встаёт у колонки)
       if (this.phase === 'drive' && this.lane === 2 && ex && this.s > ex.s0 && this.s < ex.sStop - 6) {
@@ -589,7 +590,7 @@ export class DriveScene {
       const shoulderAccel = Math.min(a, Math.max(-5, (SHOULDER_SPEED - this.v) * 0.85));
       a = lerp(a, shoulderAccel, this.shoulderRoughness);
     }
-    // тормозом ниже MIN_SPEED не сбросить, но после удара/заправки скорость может быть меньше — машина разгонится сама
+    // тормозом ниже MIN_SPEED не сбросить, но после удара/сервиса скорость может быть меньше — машина разгонится сама
     const floor = this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'policeOut' ? Math.min(MIN_SPEED, this.v) : 0;
     const previousSpeed = this.v;
     this.v = clamp(this.v + a * motionDt, floor, vmax);
@@ -606,7 +607,7 @@ export class DriveScene {
     this.odometer += ds;
     // расход: 2 л на км
     if (this.phase !== 'intro') {
-      this.fuel = Math.max(0, this.fuel - (ds / 1000) * LITERS_PER_KM);
+      this.fuel = Math.max(0, this.fuel - (ds / 1000) * CHARGE_PER_KM);
       if (this.fuel <= 0 && (this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'policeOut' || this.phase === 'policeIn')) this.phase = 'empty';
       if (this.health <= 0 && (this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'policeOut' || this.phase === 'empty')) this.phase = 'wrecked';
       // финиш поездки
@@ -694,11 +695,7 @@ export class DriveScene {
       this.coinsCollected++;
       return;
     }
-    if (pickup.kind === 'fuel') {
-      this.fuel = Math.min(this.cfg.tankL, this.fuel + pickup.amount);
-    } else {
-      this.health = Math.min(100, this.health + pickup.amount);
-    }
+    this.fuel = Math.min(this.tank, this.fuel + pickup.amount);
     this.onPickup?.(pickup.kind, pickup.amount);
   }
 
@@ -832,16 +829,6 @@ export class DriveScene {
       const k = 1 / 27;
       this.waterNormal.offset.set(((px * k) % 1) + time * 0.004, ((-pz * k) % 1) + time * 0.0025);
     }
-  }
-
-  /** Залить литры (не больше, чем влезет и чем хватит монет). Возвращает фактически залитое. */
-  refuel(liters: number): number {
-    // литры — целые (доливка до полного — округляется вверх), цена — 1 монета за литр
-    const space = Math.ceil(this.tank - this.fuel - 1e-6);
-    const l = Math.max(0, Math.min(Math.floor(liters), space, Math.floor(this.coins / FUEL_PRICE)));
-    this.fuel = Math.min(this.tank, this.fuel + l);
-    this.coins -= l * FUEL_PRICE;
-    return l;
   }
 
   /** Патрульная машина стоит на обочине, мигалка мигает. */
@@ -986,7 +973,7 @@ export class DriveScene {
   get assistanceCost() { return this.insurance.kasko ? 0 : ROADSIDE_ASSISTANCE_PRICE; }
 
   get assistanceMinimumCost() {
-    return this.assistanceCost + this.repairCost(10) + (this.fuel <= 0 ? FUEL_PRICE : 0);
+    return this.assistanceCost + this.repairCost(10);
   }
 
   get assistanceDestination() { return this.world.path.nearestExit(this.s); }

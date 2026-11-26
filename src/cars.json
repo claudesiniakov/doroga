@@ -16,7 +16,7 @@
       "brakes": 0.72
     },
     "body": "vette",
-    "tankL": 32
+    "tankL": 100
   },
   {
     "id": "kedr",
@@ -36,7 +36,7 @@
       "handling": 0.55,
       "brakes": 0.6
     },
-    "tankL": 24
+    "tankL": 100
   },
   {
     "id": "prostor",
@@ -48,7 +48,7 @@
     "brake": 9.5,
     "laneChangeTime": 0.5,
     "plate": "ПРС 007",
-    "tankL": 38,
+    "tankL": 100,
     "body": "van",
     "roll": 1.35,
     "stats": {
@@ -68,7 +68,7 @@
     "brake": 8.5,
     "laneChangeTime": 0.56,
     "plate": "ВАЗ 207",
-    "tankL": 22,
+    "tankL": 100,
     "body": "classic",
     "roll": 1.4,
     "stats": {

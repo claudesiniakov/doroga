@@ -4,7 +4,7 @@ import type { RoadWorld } from './road';
 import { EXIT_W } from './road';
 import { ROAD } from './textures';
 import { BiomeId } from './biomes';
-import { PropId, BuildingParts, house, tower, exitStation, repairShop, withColor } from './props';
+import { PropId, BuildingParts, house, tower, repairShop, withColor } from './props';
 import { mulberry32, fbm1, smoothstep, vnoise2 } from './noise';
 
 const STEP = 2;
@@ -198,11 +198,11 @@ export function scatterChunk(world: RoadWorld, k: number, i0: number, i1: number
     }
   }
 
-  // ——— заправка у съезда и знаки перед ней ———
+  // ——— автосервис у съезда и знаки перед ним ———
   {
     const e = p.exitNear(s0c, 0) ?? p.exitNear(s1c - 1, 0) ?? p.exitNear(s0c, 800);
     if (e) {
-      const title = e.kind === 'fuel' ? 'ТОПЛИВО 24' : 'АВТОСЕРВИС';
+      const title = 'АВТОСЕРВИС';
       sign(e.s0 - 500, `dir:${title}|500 м`, 2.6, 0.95, 1.9);
       sign(e.s0 - 30, `dir:${title}|↘`, 2.4, 0.95, 1.9);
       foot.push({ side: 1, s0: e.s0, s1: e.sEnd, o0: 0, o1: half + EXIT_W + 3.5 });
@@ -213,8 +213,7 @@ export function scatterChunk(world: RoadWorld, k: number, i0: number, i1: number
         _basis.makeBasis(f, UP, r);
         _q.setFromRotationMatrix(_basis);
         _m.compose(_pos.copy(c).sub(origin), _q, _sc.set(1, 1, 1));
-        if (e.kind === 'fuel') exitStation(parts, _m);
-        else {
+        {
           repairShop(parts, _m);
           // вывеска над воротами
           const sb = new THREE.Mesh(new THREE.PlaneGeometry(9, 2.25), kit.sign('service'));
@@ -227,7 +226,7 @@ export function scatterChunk(world: RoadWorld, k: number, i0: number, i1: number
         const ps = ground(i - 22, half + EXIT_W + 4, new THREE.Vector3(), 0.1);
         const q = quatZ(fwd(i - 22).negate()).clone();
         solidAt(new THREE.BoxGeometry(0.5, 7, 0.5).translate(0, 3.5, 0), 0xdedede, ps, q);
-        const board = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.9), kit.sign(e.kind === 'fuel' ? 'fuel' : 'service'));
+        const board = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.9), kit.sign('service'));
         board.position.copy(ps).sub(origin).add(new THREE.Vector3(0, 6.4, 0)).addScaledVector(fwd(i - 22), -0.27);
         board.quaternion.copy(q);
         group.add(board);

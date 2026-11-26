@@ -78,10 +78,10 @@ export async function runShot(kind: string, ctx: {
   } else if (kind === 'exitsim') {
     const d = ctx.drive, log: string[] = [];
     let t = 0;
-    for (const kind2 of ['repair', 'fuel'] as const) {
+    for (const kind2 of ['repair'] as const) {
       for (const kmh of [90, 130, 170, 200]) {
         await ctx.startDrive(true, 30);
-        d.policeS = null; d.fuel = 60;
+        d.policeS = null; d.fuel = 100;
         const ex = d.world.path.nextExit(0, kind2);
         d.s = ex.s0 - 300; d.v = kmh / 3.6;
         let shifted = false, result = 'проехал мимо';
@@ -191,7 +191,7 @@ export async function runShot(kind: string, ctx: {
     for (const kasko of [false, true]) {
       setIns(kasko, false);
       await ctx.startDrive(true, ex.s0 - 150);
-      d.fuel = 50;
+      d.fuel = 100;
       log.push(`старт (КАСКО=${kasko}): монет ${d.coins}`);
       d.health = 40;
       const c0 = d.coins;
@@ -208,7 +208,7 @@ export async function runShot(kind: string, ctx: {
     for (const osago of [false, true]) {
       setIns(false, osago);
       await ctx.startDrive(true, 300);
-      d.fuel = 60;
+      d.fuel = 100;
       const payouts: number[] = [];
       d.onDamage = ({ paidToVictim }) => payouts.push(paidToVictim);
       let nextShift = 0;
@@ -226,10 +226,10 @@ export async function runShot(kind: string, ctx: {
     const d = ctx.drive;
     // план съездов строится при старте поездки — берём заправку из него и подъезжаем к ней
     await ctx.startDrive(true, 30);
-    const ex = d.world.path.nextExit(0, 'fuel');
+    const ex = d.world.path.nextExit(0, 'repair');
     d.s = ex.s0 - 200;
     const log: string[] = [`exit s0=${Math.round(ex.s0)} stop=${Math.round(ex.sStop)}`];
-    d.fuel = 9;
+    d.fuel = 20;
     let t = 0;
     const step = (shift = 0) => { t += 1 / 60; d.update(1 / 60, { throttle: 0, brake: 0, laneShift: shift }, t); };
     for (let i = 0; i < 60 * 3; i++) step();
@@ -246,9 +246,7 @@ export async function runShot(kind: string, ctx: {
       const car = (d.scene.getObjectByName('car') as THREE.Object3D).position;
       log.push(`колонка↔машина: ${st.distanceTo(car).toFixed(2)} м`);
     }
-    log.push(`у колонки: phase=${d.phase} s=${Math.round(d.s)} (stop ${Math.round(ex.sStop)}) v=${d.v.toFixed(2)} fuel=${d.fuel.toFixed(1)} coins=${d.coins}`);
-    const got = d.refuel(d.tank);
-    log.push(`залили ${got} л: fuel=${d.fuel.toFixed(1)} coins=${d.coins}`);
+    log.push(`у бокса: phase=${d.phase} s=${Math.round(d.s)} (stop ${Math.round(ex.sStop)}) v=${d.v.toFixed(2)} charge=${d.fuel.toFixed(1)} coins=${d.coins}`);
     for (let i = 0; i < 60 * 2; i++) step();
     log.push(`стоим: v=${d.v.toFixed(2)} phase=${d.phase}`);
     d.leaveStation();

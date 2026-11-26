@@ -24,8 +24,8 @@ export function terrainHeight(x: number, z: number, seed: number): number {
   return big + mid + small;
 }
 
-/** Съезд на заправку: полоса открывается с s0, колонка у sStop, полоса сливается к sEnd. */
-export type ExitKind = 'fuel' | 'repair';
+/** Съезд в автосервис: полоса открывается с s0, бокс у sStop, полоса сливается к sEnd. */
+export type ExitKind = 'repair';
 export interface Exit { index: number; kind: ExitKind; s0: number; sStop: number; sEnd: number; }
 export const EXIT_W = 3.5;
 const EXIT_TAPER = 80;
@@ -73,8 +73,8 @@ export class RoadPath {
       // Съезды чаще: первый на 1,4 км, дальше каждые 1,5–3,6 км.
       const s0 = last ? last.sEnd + 1500 + this.exitRnd() * 2100 : 1400;
       const index = this.exits.length;
-      // Через раз: заправка и автосервис.
-      this.exits.push({ index, kind: index % 2 === 1 ? 'repair' : 'fuel', s0, sStop: s0 + 300, sEnd: s0 + 420 });
+      // Только автосервисы: заправок больше нет, машина электрическая.
+      this.exits.push({ index, kind: 'repair', s0, sStop: s0 + 300, sEnd: s0 + 420 });
     }
   }
 
@@ -111,7 +111,7 @@ export class RoadPath {
     return EXIT_W * smoothstep(e.s0, e.s0 + EXIT_TAPER, s) * (1 - smoothstep(e.sEnd - EXIT_TAPER, e.sEnd, s));
   }
 
-  /** 1 — площадка заправки (рельеф выравнивается до уровня дороги). */
+  /** 1 — площадка автосервиса (рельеф выравнивается до уровня дороги). */
   stationFlat(s: number): number {
     const e = this.exitNear(s, 0) ?? this.exitNear(s + 100, 0);
     if (!e) return 0;
@@ -497,7 +497,7 @@ export class RoadWorld {
   groundRaw(i: number, so: number, out: THREE.Vector3) {
     const p = this.path, half = ROAD.half;
     const o = Math.abs(so);
-    // справа обочина сдвигается на ширину полосы съезда; у заправки рельеф ровный
+    // справа обочина сдвигается на ширину полосы съезда; у сервиса рельеф ровный
     const e = so > 0 ? p.extraAt(i * STEP) : 0;
     const flat = so > 0 ? p.stationFlat(i * STEP) : 0;
     const oRel = o - e;
@@ -606,7 +606,7 @@ export class RoadWorld {
       // 4) отбойник (на обеих сторонах, непрерывный)
       const railO = half + 1.1;
       const NP = RAIL_PROFILE.length;
-      // у заправки справа отбойника нет — строим его отрезками
+      // у сервиса справа отбойника нет — строим его отрезками
       const railHere = (i: number) => side < 0 || p.stationFlat(i * STEP) < 0.02;
       for (let a = i0; a < i1;) {
         while (a < i1 && !railHere(a)) a++;

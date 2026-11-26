@@ -4,14 +4,13 @@ import type { RoadPath } from './road';
 import { ROAD } from './textures';
 
 export const ROAD_COIN_VALUE = 1;
-/** Сколько литров и процентов ремонта даёт подобранный набор. */
-export const ROAD_FUEL_AMOUNT = 3;
-export const ROAD_REPAIR_AMOUNT = 5;
+/** Сколько процентов заряда даёт подобранная батарейка. */
+export const ROAD_BATTERY_AMOUNT = 12;
 
-export type RoadPickupKind = 'coin' | 'fuel' | 'repair';
+export type RoadPickupKind = 'coin' | 'battery';
 export interface RoadPickup { kind: RoadPickupKind; amount: number; }
 
-// В среднем ~260 м между наборами: чаще попадаются монеты, канистры и ремкомплекты.
+// В среднем ~260 м между наборами: монеты и батарейки.
 const MIN_GAP_M = 170;
 const GAP_VARIATION_M = 180;
 
@@ -20,8 +19,7 @@ export class RoadCoins {
   private readonly holder = new THREE.Group();
   private readonly visuals: Record<RoadPickupKind, THREE.Group> = {
     coin: coinMesh(),
-    fuel: fuelMesh(),
-    repair: repairMesh(),
+    battery: batteryMesh(),
   };
   private readonly random: () => number;
   private kind: RoadPickupKind = 'coin';
@@ -41,10 +39,7 @@ export class RoadCoins {
   }
 
   private pickKind(): RoadPickupKind {
-    const roll = this.random();
-    if (roll < 0.16) return 'fuel';
-    if (roll < 0.36) return 'repair';
-    return 'coin';
+    return this.random() < 0.16 ? 'battery' : 'coin';
   }
 
   private schedule(s: number) {
@@ -59,7 +54,7 @@ export class RoadCoins {
   update(from: number, to: number, d: number, time: number, canCollect: boolean): RoadPickup | null {
     const collected = canCollect && to > from && to >= this.at - 1.35 && from <= this.at + 1.35
       && Math.abs(d - this.lane) < 0.95;
-    const amount = this.kind === 'coin' ? ROAD_COIN_VALUE : this.kind === 'fuel' ? ROAD_FUEL_AMOUNT : ROAD_REPAIR_AMOUNT;
+    const amount = this.kind === 'coin' ? ROAD_COIN_VALUE : ROAD_BATTERY_AMOUNT;
     const pickup = collected ? { kind: this.kind, amount } : null;
     if (collected || to > this.at + 10) this.schedule(to);
     this.group.visible = this.at - to < 260;
@@ -79,41 +74,25 @@ function coinMesh() {
   return group;
 }
 
-/** Канистра с топливом. */
-function fuelMesh() {
+/** Батарейка: золотой элемент питания с клеммой. */
+function batteryMesh() {
   const group = new THREE.Group();
   const body = new THREE.Mesh(
-    new THREE.BoxGeometry(0.34, 0.44, 0.24),
+    new THREE.BoxGeometry(0.26, 0.5, 0.26),
     new THREE.MeshStandardMaterial({ color: 0xffcb38, emissive: 0xa05b0b, emissiveIntensity: 0.5, metalness: 0.5, roughness: 0.32 }),
   );
-  const cap = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.06, 0.06, 0.08, 8),
+  const plus = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08, 0.08, 0.08, 12),
     new THREE.MeshStandardMaterial({ color: 0x7a5210, roughness: 0.45, metalness: 0.4 }),
   );
-  cap.position.set(0.09, 0.26, 0);
-  const handle = new THREE.Mesh(
-    new THREE.BoxGeometry(0.16, 0.04, 0.05),
-    new THREE.MeshStandardMaterial({ color: 0x7a5210, roughness: 0.45, metalness: 0.4 }),
+  plus.position.y = 0.29;
+  const stripe = new THREE.Mesh(
+    new THREE.BoxGeometry(0.27, 0.09, 0.27),
+    new THREE.MeshBasicMaterial({ color: 0xfff6d8 }),
   );
-  handle.position.set(-0.06, 0.25, 0);
-  group.add(body, cap, handle);
-  group.scale.set(1.9, 1.7, 1.7);
+  stripe.position.y = 0.12;
+  group.add(body, plus, stripe);
+  group.scale.set(1.7, 2.0, 1.7);
   return group;
 }
 
-/** Ремкомплект: золотой ящик с белым крестом. */
-function repairMesh() {
-  const group = new THREE.Group();
-  const body = new THREE.Mesh(
-    new THREE.BoxGeometry(0.42, 0.26, 0.3),
-    new THREE.MeshStandardMaterial({ color: 0xffcb38, emissive: 0xa05b0b, emissiveIntensity: 0.5, metalness: 0.5, roughness: 0.32 }),
-  );
-  const cross = new THREE.MeshBasicMaterial({ color: 0xfff6d8 });
-  const vertical = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.02, 0.2), cross);
-  const horizontal = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.02, 0.07), cross);
-  vertical.position.y = 0.14;
-  horizontal.position.y = 0.14;
-  group.add(body, vertical, horizontal);
-  group.scale.set(1.8, 1.55, 1.55);
-  return group;
-}

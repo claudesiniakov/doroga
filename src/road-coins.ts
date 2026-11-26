@@ -11,9 +11,9 @@ export const ROAD_REPAIR_AMOUNT = 18;
 export type RoadPickupKind = 'coin' | 'fuel' | 'repair';
 export interface RoadPickup { kind: RoadPickupKind; amount: number; }
 
-// В среднем ~390 м между наборами: при 90 км/ч сбор покрывает топливо и часть штрафов ДПС.
-const MIN_GAP_M = 240;
-const GAP_VARIATION_M = 250;
+// В среднем ~260 м между наборами: чаще попадаются монеты, канистры и ремкомплекты.
+const MIN_GAP_M = 170;
+const GAP_VARIATION_M = 180;
 
 export class RoadCoins {
   readonly group = new THREE.Group();
@@ -42,8 +42,8 @@ export class RoadCoins {
 
   private pickKind(): RoadPickupKind {
     const roll = this.random();
-    if (roll < 0.1) return 'fuel';
-    if (roll < 0.2) return 'repair';
+    if (roll < 0.18) return 'fuel';
+    if (roll < 0.34) return 'repair';
     return 'coin';
   }
 
@@ -84,20 +84,20 @@ function fuelMesh() {
   const group = new THREE.Group();
   const body = new THREE.Mesh(
     new THREE.BoxGeometry(0.34, 0.44, 0.24),
-    new THREE.MeshStandardMaterial({ color: 0xd6322c, emissive: 0x4a0a06, emissiveIntensity: 0.45, roughness: 0.45, metalness: 0.25 }),
+    new THREE.MeshStandardMaterial({ color: 0xffcb38, emissive: 0xa05b0b, emissiveIntensity: 0.5, metalness: 0.5, roughness: 0.32 }),
   );
   const cap = new THREE.Mesh(
     new THREE.CylinderGeometry(0.06, 0.06, 0.08, 8),
-    new THREE.MeshStandardMaterial({ color: 0x2a2c30, roughness: 0.6 }),
+    new THREE.MeshStandardMaterial({ color: 0x7a5210, roughness: 0.45, metalness: 0.4 }),
   );
   cap.position.set(0.09, 0.26, 0);
   const handle = new THREE.Mesh(
     new THREE.BoxGeometry(0.16, 0.04, 0.05),
-    new THREE.MeshStandardMaterial({ color: 0x2a2c30, roughness: 0.6 }),
+    new THREE.MeshStandardMaterial({ color: 0x7a5210, roughness: 0.45, metalness: 0.4 }),
   );
   handle.position.set(-0.06, 0.25, 0);
   group.add(body, cap, handle);
-  group.scale.setScalar(1.35);
+  group.scale.set(1.9, 1.7, 1.7);
   return group;
 }
 
@@ -114,6 +114,6 @@ function repairMesh() {
   vertical.position.y = 0.14;
   horizontal.position.y = 0.14;
   group.add(body, vertical, horizontal);
-  group.scale.setScalar(1.35);
+  group.scale.set(1.8, 1.55, 1.55);
   return group;
 }

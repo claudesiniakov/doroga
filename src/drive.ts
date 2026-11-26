@@ -141,6 +141,9 @@ export class DriveScene {
 
   renewInsurance(insurance: DriveScene['insurance'], coins: number) {
     this.insuranceDays = 0;
+    this.yearNo++;
+    this.traffic.yearNo = this.yearNo;
+    this.roadCoins.batteryWeight = Math.max(0.08, 0.32 - 0.04 * (this.yearNo - 1));
     this.insurance = insurance;
     this.schedulePoliceDays();
     this.payouts.hadOsago ||= insurance.osago;
@@ -174,6 +177,8 @@ export class DriveScene {
   kaskoRepairUsed = false;
   // ДПС: без ОСАГО — случайная проверка, не больше одной за заезд
   /** Где стоит патруль (null — в этом заезде проверки нет). */
+  /** Номер страхового года в заезде (1, 2, 3…). */
+  yearNo = 1;
   policeS: number | null = null;
   policeFine = 0;
   /** Дни года (0…365), в которые патруль выходит на дорогу. */
@@ -415,6 +420,9 @@ export class DriveScene {
     this.previewing = false;
     this.camera.clearViewOffset();
     this.s = startS;
+    this.yearNo = 1;
+    this.traffic.yearNo = 1;
+    this.roadCoins.batteryWeight = 0.32;
     this.v = skipIntro ? CRUISE : 0;
     this.lane = 1;
     this.d = skipIntro ? ROAD.laneWidth : ROAD.half - 0.9;
@@ -615,7 +623,7 @@ export class DriveScene {
     this.odometer += ds;
     // расход: 2 л на км
     if (this.phase !== 'intro') {
-      this.fuel = Math.max(0, this.fuel - (ds / 1000) * CHARGE_PER_KM);
+      this.fuel = Math.max(0, this.fuel - (ds / 1000) * this.chargePerKm);
       if (this.fuel <= 0 && (this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'policeOut' || this.phase === 'policeIn')) this.phase = 'empty';
       if (this.health <= 0 && (this.phase === 'drive' || this.phase === 'pitOut' || this.phase === 'policeOut' || this.phase === 'empty')) this.phase = 'wrecked';
       // финиш поездки
@@ -970,11 +978,21 @@ export class DriveScene {
     car.blue.emissiveIntensity = on ? 0.2 : 7;
   }
 
-  private repairValue(pct: number) { return Math.ceil(pct / 10 - 1e-6) * REPAIR_PRICE; }
+  private repairValue(pct: number) { return Math.ceil(pct / 10 - 1e-6) * this.repairPrice; }
 
   /** Цена ремонта на pct процентов (с КАСКО — бесплатно). */
   repairCost(pct: number) {
     return this.insurance.kasko ? 0 : this.repairValue(pct);
+  }
+
+  /** Расход заряда на км с учётом скорости: выше 90 км/ч — дороже. */
+  get chargePerKm() {
+    return CHARGE_PER_KM + Math.max(0, this.v * 3.6 - 90) * 0.02;
+  }
+
+  /** Цена ремонта за 10 % с учётом года: с каждым годом дороже. */
+  get repairPrice() {
+    return REPAIR_PRICE + (this.yearNo - 1);
   }
 
   /** Цена зарядки на pct процентов в автосервисе. */
@@ -997,7 +1015,7 @@ export class DriveScene {
   repair(pct: number): number {
     let want = Math.min(pct, 100 - this.health);
     if (want <= 0) return 0;
-    if (!this.insurance.kasko) want = Math.min(want, Math.floor(this.coins / REPAIR_PRICE) * 10);
+    if (!this.insurance.kasko) want = Math.min(want, Math.floor(this.coins / this.repairPrice) * 10);
     if (want <= 0) return 0;
     const value = this.repairValue(want);
     if (this.insurance.kasko) {

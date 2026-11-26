@@ -56,6 +56,8 @@ export class Traffic {
   };
   summer = false;
   motoSeason = false;
+  /** Номер страхового года внутри заезда: трафик плотнее и активнее. */
+  yearNo = 1;
   private readonly flying: FallenMoto[] = [];
   private seasonal?: typeof import('./seasonal-vehicles');
   private preparingSeasonal = false;
@@ -99,7 +101,11 @@ export class Traffic {
   }
 
   /** Плотность растёт с пройденным расстоянием: от ~11 до ~22 машин в зоне. */
-  private targetCount(odo: number) { return Math.round(clamp(11 + odo / 500, 11, 22)); }
+  private targetCount(odo: number) {
+    const year = Math.max(1, this.yearNo);
+    const cap = Math.min(40, 22 + 4 * (year - 1));
+    return Math.round(clamp(11 + odo / 500 + 4 * (year - 1), 11, cap));
+  }
 
   private acquire(kind: RoadTrafficKind) {
     const vis = this.pool[kind].pop() ?? (kind === 'moto' ? this.seasonal!.createMoto(this.assets)
@@ -289,7 +295,7 @@ export class Traffic {
       const slowAhead = cur.gap < 70 && cur.v < v.v0 - 2.5;
       const options: number[] = [];
       if (slowAhead) options.push(v.lane - 1, v.lane + 1);          // обгон
-      else if (this.rnd() < 0.25) options.push(v.lane + 1);          // вернуться правее
+      else if (this.rnd() < Math.min(0.6, 0.25 + 0.06 * (Math.max(1, this.yearNo) - 1))) options.push(v.lane + 1); // вернуться правее
       for (const to of options) {
         if (to < -1 || to > 1) continue;
         if ((truck && to < 0) || v.kind === 'tiller') continue;

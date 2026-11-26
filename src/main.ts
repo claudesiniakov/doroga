@@ -9,7 +9,7 @@ import { buildPlayerCar } from './player-car';
 import { KBM, KBM_START, loadKbm, saveKbm, osagoPrice, osagoFactors, kbmNext, fmtK } from './kbm';
 import { GarageScene } from './garage';
 import type { DriveScene } from './drive';
-import { START_COINS, DAYS_PER_SECOND, CHARGE_PRICE, KASKO, REPAIR_PRICE, POLICE_FINE } from './drive-rules';
+import { START_COINS, DAYS_PER_SECOND, CHARGE_PRICE, KASKO, POLICE_FINE } from './drive-rules';
 import { Input } from './input';
 import { OSAGO_LESSON } from './osago-lesson';
 import { finishRecordRun, formatRecordDays, loadRecords, MAX_NICKNAME_LENGTH, saveRecord, startRecordRun } from './records';
@@ -739,16 +739,16 @@ async function main() {
       $('stTankBar').style.width = `${drive.health}%`;
       $('stBarWrap').classList.add('hp');
       const kasko = drive.insurance.kasko;
-      $('stPrice').replaceChildren(...(kasko ? ['по КАСКО — бесплатно'] : [coinAmount(REPAIR_PRICE), ' за 10 %']));
+      $('stPrice').replaceChildren(...(kasko ? ['по КАСКО — бесплатно'] : [coinAmount(drive.repairPrice), ' за 10 %']));
       const need = Math.max(0, 100 - drive.health);
-      const canPct = kasko ? need : Math.min(need, Math.floor(drive.coins / REPAIR_PRICE) * 10);
+      const canPct = kasko ? need : Math.min(need, Math.floor(drive.coins / drive.repairPrice) * 10);
       full.disabled = canPct <= 0;
       full.replaceChildren(...(need <= 0 ? ['Машина целая']
         : canPct <= 0 ? ['Не хватает монет']
           : [canPct < need ? `Ремонт · +${canPct} % за ` : 'Полный ремонт · ',
             kasko ? 'бесплатно' : coinAmount(drive.repairCost(canPct))]));
       ten.disabled = canPct <= 0;
-      ten.replaceChildren('+10 % · ', kasko ? 'бесплатно' : coinAmount(REPAIR_PRICE));
+      ten.replaceChildren('+10 % · ', kasko ? 'бесплатно' : coinAmount(drive.repairPrice));
       ten.style.display = need > 10 && canPct > 0 ? '' : 'none';
     } else {
       $('stTitle').textContent = 'Зарядить батарею?';

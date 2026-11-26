@@ -23,6 +23,8 @@ export class RoadCoins {
   };
   private readonly random: () => number;
   private kind: RoadPickupKind = 'coin';
+  /** Доля батареек среди подборов; падает с каждым годом заезда. */
+  batteryWeight = 0.32;
   private at = 0;
   private lane = 0;
 
@@ -39,7 +41,7 @@ export class RoadCoins {
   }
 
   private pickKind(): RoadPickupKind {
-    return this.random() < 0.32 ? 'battery' : 'coin';
+    return this.random() < this.batteryWeight ? 'battery' : 'coin';
   }
 
   private schedule(s: number) {

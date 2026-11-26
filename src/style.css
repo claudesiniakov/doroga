@@ -842,3 +842,24 @@ html, body { height: 100dvh; }
   #kbm .osago-skip { padding: 4px 6px; font-size: 12px; }
   #kbm .eyebrow { font-size: 11px; }
 }
+
+/* Портрет: страховки — отдельной строкой под паузой, чтобы верхний ряд не сжимался. */
+@media (max-width: 480px) and (orientation: portrait) {
+  .hud-row .chips {
+    position: fixed;
+    top: calc(52px + var(--safe-t));
+    right: calc(8px + var(--safe-r));
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    overflow: visible;
+    z-index: 2;
+  }
+}
+
+@media (max-width: 480px) and (orientation: portrait) {
+  .hud-left { gap: 3px; }
+  .hud-left .fuel { padding: 4px 6px; }
+  .hud-left .fbar { width: 16px; }
+  .hud-row #fsHud { width: 32px; height: 32px; }
+}

@@ -92,7 +92,7 @@ export async function runShot(kind: string, ctx: {
           if (!shifted && d.exitOpen && d.phase === 'drive') { sh = 1; shifted = true; }
           if (d.phase === 'drive' && !shifted) d.v = kmh / 3.6;
           d.update(1 / 60, { throttle: d.phase === 'drive' ? 1 : 0, brake: 0, laneShift: sh }, t);
-          if (d.phase === 'refuel') { result = `встал у колонки (${(ex.sStop - d.s).toFixed(1)} м)`; break; }
+          if (d.phase === 'refuel') { result = `встал у бокса (${(ex.sStop - d.s).toFixed(1)} м)`; break; }
           if (d.s > ex.sEnd + 20) break;
         }
         log.push(`${kind2} ${kmh} км/ч: ${result}`);
@@ -222,9 +222,9 @@ export async function runShot(kind: string, ctx: {
     }
     console.warn('REPAIR ' + log.join(' | '));
   } else if (kind === 'pit') {
-    // сценарий заправки: съезд → колонка → полный бак → выезд → пустой бак
+    // сценарий сервиса: съезд → бокс → ремонт → выезд → пустой заряд
     const d = ctx.drive;
-    // план съездов строится при старте поездки — берём заправку из него и подъезжаем к ней
+    // съезды строятся по ходу — берём ближайший сервис и подъезжаем к нему
     await ctx.startDrive(true, 30);
     const ex = d.world.path.nextExit(0, 'repair');
     d.s = ex.s0 - 200;

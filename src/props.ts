@@ -496,34 +496,7 @@ export function tower(out: BuildingParts, m: THREE.Matrix4, rnd: () => number, h
 }
 
 
-/**
- * Заправка у съезда. Локальные оси: +X — вдоль дороги, +Z — от дороги (вправо), начало — центр полосы съезда у колонки.
- */
-export function exitStation(out: BuildingParts, m: THREE.Matrix4) {
-  const S = (g: THREE.BufferGeometry, c: number) => out.solid.push(withColor(g, c, false).applyMatrix4(m));
-  // площадка (толстая — закрывает неровности под ней)
-  S(new THREE.BoxGeometry(64, 1.6, 24).translate(0, -0.79, 13.8), 0x6a6d70);
-  S(new THREE.BoxGeometry(64, 0.02, 0.2).translate(0, 0.02, 2.0), 0xd8d6cf);
-  // островок с колонками у правого края полосы
-  S(new THREE.BoxGeometry(12, 0.22, 1.3).translate(0, 0.11, 2.75), 0xb8b6b0);
-  for (const x of [-3.2, 3.2]) {
-    S(new THREE.BoxGeometry(0.9, 1.75, 0.55).translate(x, 1.1, 2.75), 0xeeeeec);
-    S(new THREE.BoxGeometry(0.92, 0.35, 0.57).translate(x, 1.8, 2.75), 0xd2401f);
-    S(new THREE.BoxGeometry(0.5, 0.35, 0.02).translate(x, 1.35, 2.47), 0x1c2a33);
-    S(new THREE.BoxGeometry(0.06, 0.06, 0.5).translate(x - 0.3, 1.0, 2.35), 0x222222);
-  }
-  // навес над полосой: колонны справа, консоль над машиной
-  for (const x of [-6, 6]) for (const z of [2.75, 9]) S(new THREE.BoxGeometry(0.45, 5.2, 0.45).translate(x, 2.6, z), 0xe2e2e0);
-  S(new THREE.BoxGeometry(16, 0.7, 11.5).translate(0, 5.55, 4.2), 0xf3f3f1);
-  S(new THREE.BoxGeometry(16.1, 0.35, 11.6).translate(0, 5.05, 4.2), 0xd2401f);
-  S(new THREE.BoxGeometry(15.4, 0.04, 11).translate(0, 5.18, 4.2), 0xfff4dc);
-  // магазин
-  out.wall.push(withColor(boxUV(14, 4, 8, 4, 3), 0xf3f0ea, true).translate(0, 1.6, 18).applyMatrix4(m));
-  S(new THREE.BoxGeometry(14.4, 0.6, 8.4).translate(0, 3.9, 18), 0xd2401f);
-  S(new THREE.BoxGeometry(3, 2.4, 0.1).translate(-3, 1.2, 13.98), 0x1c2a33);
-}
-
-/** Автосервис у съезда (те же локальные оси, что у заправки): боксы с воротами, подъёмник, шины. */
+/** Автосервис у съезда: боксы с воротами, подъёмник, шины. */
 export function repairShop(out: BuildingParts, m: THREE.Matrix4) {
   const S = (g: THREE.BufferGeometry, c: number) => out.solid.push(withColor(g, c, false).applyMatrix4(m));
   S(new THREE.BoxGeometry(64, 1.6, 24).translate(0, -0.79, 13.8), 0x6a6d70);
@@ -629,7 +602,7 @@ export class PropKit {
       ['ШИНЫ ГРИП', 'держат дорогу', '#111', '#f5c518'],
       ['МОТЕЛЬ 24', 'через 3 км направо', '#fff', '#2f6b4f'],
       ['МОРЕ БЛИЗКО', 'Солнечная Бухта · 12 км', '#0d3b66', '#f4d35e'],
-      ['КОФЕ С СОБОЙ', 'на каждой заправке', '#fff', '#6b3e26'],
+      ['КОФЕ С СОБОЙ', 'на каждой остановке', '#fff', '#6b3e26'],
     ].map(([a, b, fg, bg]) => new THREE.MeshStandardMaterial({ roughness: 0.6, map: canvasTex(1024, 384, (g) => {
       g.fillStyle = bg; g.fillRect(0, 0, 1024, 384);
       g.fillStyle = fg; g.globalAlpha = 0.18; g.beginPath(); g.arc(860, 300, 260, 0, Math.PI * 2); g.fill(); g.globalAlpha = 1;

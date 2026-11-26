@@ -273,7 +273,7 @@ kbd {
   box-shadow: inset 0 0 160px 40px rgba(255, 40, 20, .55); }
 #hit.on { opacity: 1; transition: none; }
 
-/* ——— топливо и монеты ——— */
+/* ——— заряд и монеты ——— */
 .hud-left { display: grid; gap: 8px; justify-items: start; }
 .fuel, .coins {
   display: flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 12px;
@@ -317,7 +317,7 @@ kbd {
   .banner small { font-size: 13.5px; }
 }
 
-/* Подпись под индикаторами: ремонт/заправка в игровых днях. */
+/* Подпись под индикаторами: ремонт в игровых днях. */
 .hud-note {
   position: absolute; left: 0; top: calc(100% + 4px);
   font-size: 11px; font-weight: 700; letter-spacing: .02em;
@@ -779,7 +779,7 @@ html, body { height: 100dvh; }
   .result-actions { min-height: 0; overflow-y: auto; touch-action: pan-y; }
 }
 
-/* Альбомная ориентация: спидометр — полоса между топливом и монетами, одометр — под паузой. */
+/* Альбомная ориентация: спидометр — полоса между зарядом и монетами, одометр — под паузой. */
 @media (max-height: 500px) and (orientation: landscape) {
   .speedo {
     left: calc(27% + var(--safe-l)); right: calc(24% + var(--safe-r));

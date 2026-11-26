@@ -538,7 +538,7 @@ async function main() {
     $('insOsago').setAttribute('aria-pressed', String(ins.osago));
     $('osagoPrice').textContent = String(osagoPrice(kbm));
     const change = lastKbmChange && lastKbmChange.from !== lastKbmChange.to ? lastKbmChange : null;
-    $('kbmNow').replaceChildren('Ваш КБМ: ', String(fmtK(KBM[kbm].k)), ' · класс ', KBM[kbm].cls);
+    $('kbmNow').replaceChildren('Ваш текущий КБМ: ', String(fmtK(KBM[kbm].k)), ' · класс ', KBM[kbm].cls);
     if (change) {
       $('kbmNow').append(` · за год: ${fmtK(KBM[change.from].k)} → ${fmtK(KBM[change.to].k)}`);
     }

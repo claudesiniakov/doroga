@@ -118,6 +118,8 @@ async function main() {
     try { const raw = localStorage.getItem(k); const v = Number(raw); return raw !== null && Number.isFinite(v) ? v : d; } catch { return d; }
   };
   const lsSet = (k: string, v: unknown) => { try { localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v)); } catch { /* нет хранилища */ } };
+  /** Награда за успешно закрытый страховой год (внутри заезда). */
+  const YEAR_BONUS = 25;
   let wallet = lsNum('doroga.wallet', START_COINS);
   let trip = lsNum('doroga.trip', 1);
   let kaskoPrice = lsNum('doroga.kaskoPrice', KASKO);
@@ -460,7 +462,7 @@ async function main() {
   let runClosed = true;
   let lastKbmChange: { from: number; to: number } | null = null;
   let lastTrip = { finished: false, km: 0, crashes: 0, reward: 0, num: 1 };
-  const finishRun = () => {
+  const finishRun = (renewing = false) => {
     if (runClosed) return;
     $('policeFlash').hidden = true;
     runClosed = true;
@@ -468,17 +470,30 @@ async function main() {
     const finished = drive.endReason === 'year';
     const km = drive.tripDone / 1000;
     lastTrip = { finished, km, crashes: drive.crashes, reward: 0, num: trip };
-    // Каждый заезд начинается с одинаковых условий: 100 монет, КБМ класса 3,
-    // базовые цены полисов. Награды и переносы кошелька не накапливаются.
-    wallet = START_COINS;
-    kbm = KBM_START;
-    kaskoPrice = KASKO;
     runCrashes += drive.crashes;
     if (finished) trip++;
+    if (renewing) {
+      // Год внутри заезда: кошелёк переносится, КБМ пересчитывается за год.
+      wallet = Math.max(0, drive.coins) + YEAR_BONUS;
+      if (drive.insurance.osago) {
+        const claims = drive.crashes;
+        const to = claims === 0 ? Math.min(KBM.length - 1, kbm + 1)
+          : claims <= 2 ? kbm
+            : Math.max(0, kbm - 1);
+        lastKbmChange = { from: kbm, to };
+        kbm = to;
+        saveKbm(kbm);
+      } else lastKbmChange = null;
+    } else {
+      // Заезд закончен: кошелёк и КБМ возвращаются к стартовым.
+      wallet = START_COINS;
+      kbm = KBM_START;
+      kaskoPrice = KASKO;
+      lastKbmChange = null;
+      saveKbm(kbm);
+    }
     lsSet('doroga.wallet', wallet); lsSet('doroga.trip', trip);
     lsSet('doroga.kaskoPrice', kaskoPrice);
-    saveKbm(kbm);
-    lastKbmChange = null;
     renderIns();
   };
 
@@ -952,12 +967,13 @@ async function main() {
   };
   const YEAR_REPORT_MS = 3000;
   const onYearEnd = () => {
-    finishRun();
+    finishRun(true);
     state = 'yearReport';
     input.enabled = false;
     $('yearKm').textContent = fmtKm(lastTrip.km);
     $('yearCrashes').textContent = String(lastTrip.crashes);
     $('yearCoins').textContent = String(drive.coinsCollected);
+    $('yearBonus').textContent = String(YEAR_BONUS);
     const change = lastKbmChange;
     $('yearKbmRow').hidden = !change;
     if (change) $('yearKbm').textContent = `${fmtK(KBM[change.from].k)} → ${fmtK(KBM[change.to].k)}`;

@@ -102,20 +102,25 @@ export class DriveScene {
     this.traffic.summer = season === 'summer';
   }
 
+  /** Сколько проверок за год: с ОСАГО — одна, без полиса — четыре. */
+  private schedulePoliceDays() {
+    const count = this.insurance.osago ? 1 : 4;
+    const marks: number[] = [];
+    while (marks.length < count) {
+      const day = 20 + Math.random() * 320;
+      if (marks.every((m) => Math.abs(m - day) > 25)) marks.push(day);
+    }
+    this.policeDays = marks.sort((a, b) => a - b);
+    this.policeIndex = 0;
+  }
+
   private resetCalendar(date = new Date()) {
     this.month = date.getMonth();
     this.calendarDay = Math.min(date.getDate(), MONTH_SECONDS[this.month]);
     this.insuranceStartDay = this.calendarDay - 1;
     for (let m = 0; m < this.month; m++) this.insuranceStartDay += MONTH_SECONDS[m];
     this.insuranceDays = 0;
-    // Четыре случайные проверки за страховой год, не ближе 25 дней друг к другу.
-    const marks: number[] = [];
-    while (marks.length < 4) {
-      const day = 20 + Math.random() * 320;
-      if (marks.every((m) => Math.abs(m - day) > 25)) marks.push(day);
-    }
-    this.policeDays = marks.sort((a, b) => a - b);
-    this.policeIndex = 0;
+    this.schedulePoliceDays();
     this.updateCalendarSeason(true);
   }
 
@@ -137,6 +142,7 @@ export class DriveScene {
   renewInsurance(insurance: DriveScene['insurance'], coins: number) {
     this.insuranceDays = 0;
     this.insurance = insurance;
+    this.schedulePoliceDays();
     this.payouts.hadOsago ||= insurance.osago;
     this.payouts.hadKasko ||= insurance.kasko;
     this.coins = coins;
@@ -178,6 +184,8 @@ export class DriveScene {
   onPickup?: (kind: RoadPickupKind, amount: number) => void;
   /** Первая остановка патрулём: игрок выбирает, подчиниться или уехать. */
   onPoliceCheck?: () => void;
+  /** С ОСАГО инспектор просто желает счастливого пути — без протокола. */
+  onPoliceOk?: () => void;
   onChase?: () => void;
   onCaught?: () => void;
   readonly chase = { active: false, offered: false, peak: 0, slow: 0, catchT: -1, done: false };
@@ -673,9 +681,15 @@ export class DriveScene {
 
     if (reachedPoliceStop && this.phase === 'policeIn') {
       this.phase = 'protocol';
-      this.policeFine = Math.min(POLICE_FINE, this.coins);
-      this.coins -= this.policeFine;
-      this.onPolice?.();
+      if (this.insurance.osago) {
+        // Полис есть — протокол не составляется.
+        this.policeFine = 0;
+        this.onPoliceOk?.();
+      } else {
+        this.policeFine = Math.min(POLICE_FINE, this.coins);
+        this.coins -= this.policeFine;
+        this.onPolice?.();
+      }
     }
 
     // Переоформление на годовщину после выезда с АЗС или от ДПС.

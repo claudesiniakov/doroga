@@ -246,7 +246,7 @@ kbd {
     font-size: 16px; line-height: 1.35;
     white-space: normal; text-align: center; color: var(--ink);
   }
-  body:has(.screen.show:is(#pause, #station, #protocol, #breakdown, #over, #policeCheck, #caught)) .touch-hint { visibility: hidden; }
+  body:has(.screen.show:is(#pause, #station, #protocol, #breakdown, #over, #policeCheck, #policeOk, #caught)) .touch-hint { visibility: hidden; }
   .speedo { right: 50%; transform: translateX(50%) scale(.8); transform-origin: bottom center; }
   .hint.drag-hint { display: none; }
 }

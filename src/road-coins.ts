@@ -74,24 +74,32 @@ function coinMesh() {
   return group;
 }
 
-/** Батарейка: золотой элемент питания с клеммой. */
+/** Батарейка: зелёный элемент питания в полупрозрачном шаре. */
 function batteryMesh() {
   const group = new THREE.Group();
   const body = new THREE.Mesh(
     new THREE.BoxGeometry(0.26, 0.5, 0.26),
-    new THREE.MeshStandardMaterial({ color: 0xffcb38, emissive: 0xa05b0b, emissiveIntensity: 0.5, metalness: 0.5, roughness: 0.32 }),
+    new THREE.MeshStandardMaterial({ color: 0x35d06b, emissive: 0x0b5a2a, emissiveIntensity: 0.6, metalness: 0.35, roughness: 0.32 }),
   );
   const plus = new THREE.Mesh(
     new THREE.CylinderGeometry(0.08, 0.08, 0.08, 12),
-    new THREE.MeshStandardMaterial({ color: 0x7a5210, roughness: 0.45, metalness: 0.4 }),
+    new THREE.MeshStandardMaterial({ color: 0x0e6b34, roughness: 0.45, metalness: 0.4 }),
   );
   plus.position.y = 0.29;
   const stripe = new THREE.Mesh(
     new THREE.BoxGeometry(0.27, 0.09, 0.27),
-    new THREE.MeshBasicMaterial({ color: 0xfff6d8 }),
+    new THREE.MeshBasicMaterial({ color: 0xd9ffe7 }),
   );
   stripe.position.y = 0.12;
-  group.add(body, plus, stripe);
+  const shell = new THREE.Mesh(
+    new THREE.SphereGeometry(0.5, 24, 16),
+    new THREE.MeshStandardMaterial({
+      color: 0xc8ffdd, emissive: 0x2f8f52, emissiveIntensity: 0.1,
+      transparent: true, opacity: 0.11, roughness: 0.08, metalness: 0,
+      depthWrite: false, side: THREE.DoubleSide,
+    }),
+  );
+  group.add(shell, body, plus, stripe);
   group.scale.set(1.7, 2.0, 1.7);
   return group;
 }

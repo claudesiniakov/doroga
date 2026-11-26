@@ -15,7 +15,7 @@ import { OSAGO_LESSON } from './osago-lesson';
 import { finishRecordRun, formatRecordDays, loadRecords, MAX_NICKNAME_LENGTH, saveRecord, startRecordRun } from './records';
 import { checkNickname } from '../server/nickname-rules.mjs';
 
-type State = 'loading' | 'garage' | 'drive' | 'pause' | 'station' | 'over' | 'protocol' | 'renewal' | 'breakdown' | 'yearReport' | 'returningHome' | 'policeCheck' | 'caught';
+type State = 'loading' | 'garage' | 'drive' | 'pause' | 'station' | 'over' | 'protocol' | 'renewal' | 'breakdown' | 'yearReport' | 'returningHome' | 'policeCheck' | 'policeOk' | 'caught';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const coinAmount = (value: string | number) => {
@@ -33,7 +33,7 @@ const params = new URLSearchParams(location.search);
 const SHOT = params.get('shot'); // служебный режим для автоматических снимков
 if (SHOT) document.documentElement.classList.add('shot');
 
-const screens = ['loading', 'garage', 'hud', 'pause', 'station', 'breakdown', 'over', 'kbm', 'protocol', 'yearReport', 'policeCheck', 'caught'] as const;
+const screens = ['loading', 'garage', 'hud', 'pause', 'station', 'breakdown', 'over', 'kbm', 'protocol', 'yearReport', 'policeCheck', 'policeOk', 'caught'] as const;
 function show(...ids: string[]) {
   for (const s of screens) $(s).classList.toggle('show', ids.includes(s));
   $('garage').inert = !ids.includes('garage') || ids.includes('kbm');
@@ -108,7 +108,7 @@ async function main() {
     if (SHOT) scene.setSnow(params.get('snow') !== '0');
     scene.setShadowMapSize(renderer.quality.shadowMap);
     scene.resize(innerWidth / innerHeight);
-    Object.assign(scene, { onStation, onPolice, onPoliceCheck, onCaught, onPickup, onDamage, onEmpty, onCrash, onYearEnd });
+    Object.assign(scene, { onStation, onPolice, onPoliceCheck, onPoliceOk, onCaught, onPickup, onDamage, onEmpty, onCrash, onYearEnd });
     drive = scene;
     return scene;
   };
@@ -747,8 +747,8 @@ async function main() {
     state = 'policeCheck';
     input.enabled = false;
     $('policeNote').textContent = drive.insurance.osago
-      ? 'Полис ОСАГО действует: остановитесь, инспектор сверит документы. Уход от требования об остановке — нарушение.'
-      : 'Полиса у вас нет: остановитесь и подпишите протокол. Уход от требования об остановке — нарушение.';
+      ? 'ОСАГО действует: инспектор сверит документы и пожелает счастливого пути.'
+      : 'Полиса ОСАГО нет: остановитесь и подпишите протокол. Уход от требования об остановке — нарушение.';
     show('hud', 'policeCheck');
     $('policeStop').focus({ preventScroll: true });
   };
@@ -764,6 +764,20 @@ async function main() {
     show('hud', 'caught');
     $('caughtRestart').focus({ preventScroll: true });
   };
+  const onPoliceOk: NonNullable<DriveScene['onPoliceOk']> = () => {
+    state = 'policeOk';
+    input.enabled = false;
+    $('toast').classList.remove('on');
+    show('hud', 'policeOk');
+    $('policeOkGo').focus({ preventScroll: true });
+  };
+  $('policeOkGo').addEventListener('click', () => {
+    if (state !== 'policeOk') return;
+    drive.leavePolice();
+    state = 'drive';
+    input.enabled = true;
+    show('hud');
+  });
   $('policeStop').addEventListener('click', () => {
     if (state !== 'policeCheck') return;
     // Возвращаемся в заезд: машина сама плавно съедет на обочину и встанет.
@@ -1214,7 +1228,7 @@ async function main() {
   const frame = (dt: number, elapsed = dt) => {
     time += dt;
     if (state === 'drive' && hudLayoutTick++ % 30 === 0) layoutHud();
-    if (state === 'pause' || state === 'over' || state === 'yearReport' || state === 'renewal' || state === 'policeCheck' || state === 'caught') {
+    if (state === 'pause' || state === 'over' || state === 'yearReport' || state === 'renewal' || state === 'policeCheck' || state === 'policeOk' || state === 'caught') {
       if (renderedBackdrop !== state) {
         renderer.render(drive.scene, drive.camera, time);
         renderedBackdrop = state;

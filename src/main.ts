@@ -307,6 +307,21 @@ async function main() {
     ? (document.querySelector('.home-layout')!.getBoundingClientRect().right + 24) / innerWidth
     : undefined;
 
+  // В альбомной ориентации спидометр-полоса ставится ровно между чипами и месяцем.
+  const speedoEl = document.querySelector('.speedo') as HTMLElement;
+  const landscapeHud = matchMedia('(max-height: 500px) and (orientation: landscape)');
+  const layoutHud = () => {
+    if (!touchControls.matches || !landscapeHud.matches) {
+      speedoEl.style.left = '';
+      speedoEl.style.right = '';
+      return;
+    }
+    const left = document.querySelector('.hud-left')!.getBoundingClientRect();
+    const month = $('calendarDate').getBoundingClientRect();
+    const pad = 12;
+    speedoEl.style.left = `${Math.round(left.right + pad)}px`;
+    speedoEl.style.right = `${Math.round(innerWidth - month.left + pad)}px`;
+  };
   const resize = () => {
     renderedBackdrop = undefined;
     renderer.resize();
@@ -1014,6 +1029,11 @@ async function main() {
   if (fsEnabled && !standalone && !SHOT) {
     $('fsBtn').hidden = false;
     $('fsBtn').addEventListener('click', () => (isFs() ? document.exitFullscreen?.() : enterFs(false)));
+    // На телефоне кнопка полного экрана нужна и во время заезда — в обеих ориентациях.
+    if (touchControls.matches) {
+      $('fsHud').hidden = false;
+      $('fsHud').addEventListener('click', () => (isFs() ? document.exitFullscreen?.() : enterFs(false)));
+    }
   }
   for (const ev of ['fullscreenchange', 'webkitfullscreenchange']) document.addEventListener(ev, () => setTimeout(resize, 50));
   if ('serviceWorker' in navigator && !SHOT && location.protocol === 'https:') navigator.serviceWorker.register('./sw.js').catch(() => undefined);
@@ -1174,8 +1194,10 @@ async function main() {
     $('odoGoal').textContent = 'дн.';
   }
   const dateLabel = $('calendarDate');
+  let hudLayoutTick = 0;
   const frame = (dt: number, elapsed = dt) => {
     time += dt;
+    if (state === 'drive' && hudLayoutTick++ % 30 === 0) layoutHud();
     if (state === 'pause' || state === 'over' || state === 'yearReport' || state === 'renewal' || state === 'policeCheck' || state === 'caught') {
       if (renderedBackdrop !== state) {
         renderer.render(drive.scene, drive.camera, time);

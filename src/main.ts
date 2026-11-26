@@ -434,10 +434,9 @@ async function main() {
     const finished = drive.endReason === 'year';
     const km = drive.tripDone / 1000;
     lastTrip = { finished, km, crashes: drive.crashes, reward: 0, num: trip };
-    // Успешный год: остаток монет + награда. Провал: сохраняем 75 % монет, а не всё.
-    wallet = renewingInsurance
-      ? Math.max(0, drive.coins) + YEAR_BONUS
-      : Math.max(50, Math.round(drive.coins * 0.75));
+    // Кошелёк переносится целиком при любом окончании заезда: прогресс не сгорает.
+    // За успешно закрытый год — ещё и награда.
+    wallet = Math.max(0, drive.coins) + (renewingInsurance ? YEAR_BONUS : 0);
     runCrashes += drive.crashes;
     if (finished) trip++;
     if (drive.insurance.kasko) {

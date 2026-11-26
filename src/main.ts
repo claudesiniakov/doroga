@@ -9,7 +9,7 @@ import { buildPlayerCar } from './player-car';
 import { KBM, loadKbm, saveKbm, osagoPrice, osagoFactors, kbmNext, fmtK } from './kbm';
 import { GarageScene } from './garage';
 import type { DriveScene } from './drive';
-import { START_COINS, KASKO, REPAIR_PRICE, POLICE_FINE } from './drive-rules';
+import { START_COINS, CHARGE_PRICE, KASKO, REPAIR_PRICE, POLICE_FINE } from './drive-rules';
 import { Input } from './input';
 import { OSAGO_LESSON } from './osago-lesson';
 import { finishRecordRun, formatRecordDays, loadRecords, MAX_NICKNAME_LENGTH, saveRecord, startRecordRun } from './records';
@@ -637,35 +637,62 @@ async function main() {
   $('kbmClose').addEventListener('click', closeKbm);
   renderIns();
 
-  // ——— автосервис ———
+  // ——— автосервис: ремонт и зарядка ———
+  let stationService: 'repair' | 'charge' = 'repair';
   const updateStation = () => {
-    const canLeave = drive.health > 0;
+    const repair = stationService === 'repair';
+    for (const [id, active] of [['stRepairTab', repair], ['stChargeTab', !repair]] as const) {
+      const tab = $(id);
+      tab.classList.toggle('on', active);
+      tab.setAttribute('aria-pressed', String(active));
+    }
+    const canLeave = drive.fuel > 0 && drive.health > 0;
     const leave = $<HTMLButtonElement>('stLeave');
     leave.disabled = !canLeave;
-    leave.textContent = canLeave ? 'Уехать' : 'Для выезда нужен ремонт';
+    leave.textContent = canLeave ? 'Уехать'
+      : drive.health <= 0 ? 'Для выезда нужен ремонт' : 'Для выезда нужен заряд';
     $('stEnd').hidden = canLeave;
     const full = $<HTMLButtonElement>('stFull'), ten = $<HTMLButtonElement>('stTen');
     $('stCoins').textContent = String(drive.coins);
     $('stEyebrow').textContent = 'Автосервис';
-    $('stTitle').textContent = 'Отремонтировать?';
-    $('stTank').textContent = String(Math.round(drive.health));
-    $('stUnit').textContent = '%';
-    $('stTankBar').style.width = `${drive.health}%`;
-    $('stBarWrap').classList.add('hp');
-    const kasko = drive.insurance.kasko;
-    $('stPrice').replaceChildren(...(kasko ? ['по КАСКО — бесплатно'] : [coinAmount(REPAIR_PRICE), ' за 10 %']));
-    const need = Math.max(0, 100 - drive.health);
-    const canPct = kasko ? need : Math.min(need, Math.floor(drive.coins / REPAIR_PRICE) * 10);
-    full.disabled = canPct <= 0;
-    full.replaceChildren(...(need <= 0 ? ['Машина целая']
-      : canPct <= 0 ? ['Не хватает монет']
-        : [canPct < need ? `Ремонт · +${canPct} % за ` : 'Полный ремонт · ',
-          kasko ? 'бесплатно' : coinAmount(drive.repairCost(canPct))]));
-    ten.disabled = canPct <= 0;
-    ten.replaceChildren('+10 % · ', kasko ? 'бесплатно' : coinAmount(REPAIR_PRICE));
-    ten.style.display = need > 10 && canPct > 0 ? '' : 'none';
+    if (repair) {
+      $('stTitle').textContent = 'Отремонтировать?';
+      $('stTank').textContent = String(Math.round(drive.health));
+      $('stUnit').textContent = '%';
+      $('stTankBar').style.width = `${drive.health}%`;
+      $('stBarWrap').classList.add('hp');
+      const kasko = drive.insurance.kasko;
+      $('stPrice').replaceChildren(...(kasko ? ['по КАСКО — бесплатно'] : [coinAmount(REPAIR_PRICE), ' за 10 %']));
+      const need = Math.max(0, 100 - drive.health);
+      const canPct = kasko ? need : Math.min(need, Math.floor(drive.coins / REPAIR_PRICE) * 10);
+      full.disabled = canPct <= 0;
+      full.replaceChildren(...(need <= 0 ? ['Машина целая']
+        : canPct <= 0 ? ['Не хватает монет']
+          : [canPct < need ? `Ремонт · +${canPct} % за ` : 'Полный ремонт · ',
+            kasko ? 'бесплатно' : coinAmount(drive.repairCost(canPct))]));
+      ten.disabled = canPct <= 0;
+      ten.replaceChildren('+10 % · ', kasko ? 'бесплатно' : coinAmount(REPAIR_PRICE));
+      ten.style.display = need > 10 && canPct > 0 ? '' : 'none';
+    } else {
+      $('stTitle').textContent = 'Зарядить батарею?';
+      $('stTank').textContent = String(Math.round(drive.fuel));
+      $('stUnit').textContent = '%';
+      $('stTankBar').style.width = `${drive.fuel}%`;
+      $('stBarWrap').classList.remove('hp');
+      $('stPrice').replaceChildren(coinAmount(CHARGE_PRICE), ' за 10 %');
+      const need = Math.max(0, 100 - drive.fuel);
+      const canPct = Math.min(need, Math.floor(drive.coins / CHARGE_PRICE) * 10);
+      full.disabled = canPct <= 0;
+      full.replaceChildren(...(need <= 0 ? ['Батарея полная']
+        : canPct <= 0 ? ['Не хватает монет']
+          : [canPct < need ? `Заряд · +${canPct} % за ` : 'Полный заряд · ', coinAmount(drive.chargeCost(canPct))]));
+      ten.disabled = canPct <= 0;
+      ten.replaceChildren('+10 % · ', coinAmount(CHARGE_PRICE));
+      ten.style.display = need > 10 && canPct > 0 ? '' : 'none';
+    }
   };
   const onStation: NonNullable<DriveScene['onStation']> = () => {
+    stationService = drive.health <= 0 ? 'repair' : drive.fuel <= 0 ? 'charge' : 'repair';
     state = 'station';
     input.enabled = false;
     updateStation();
@@ -673,9 +700,12 @@ async function main() {
   };
   const buyService = (full: boolean) => {
     if (state !== 'station') return;
-    drive.repair(full ? 100 : 10);
+    if (stationService === 'repair') drive.repair(full ? 100 : 10);
+    else drive.charge(full ? 100 : 10);
     updateStation();
   };
+  $('stRepairTab').addEventListener('click', () => { stationService = 'repair'; updateStation(); });
+  $('stChargeTab').addEventListener('click', () => { stationService = 'charge'; updateStation(); });
   $('stFull').addEventListener('click', () => buyService(true));
   $('stTen').addEventListener('click', () => buyService(false));
   // ——— ДПС: протокол за езду без ОСАГО ———

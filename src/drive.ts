@@ -10,7 +10,7 @@ import { mountainRing } from './props';
 import { makeWaterNormal } from './textures';
 import { clamp, damp, lerp, smoothstep } from './noise';
 import { RoadCoins, type RoadPickup, type RoadPickupKind } from './road-coins';
-import { START_COINS, CHARGE_PER_KM, REPAIR_PRICE, POLICE_FINE, ROADSIDE_ASSISTANCE_PRICE } from './drive-rules';
+import { START_COINS, CHARGE_PER_KM, CHARGE_PRICE, REPAIR_PRICE, POLICE_FINE, ROADSIDE_ASSISTANCE_PRICE } from './drive-rules';
 
 export interface DriveInput {
   throttle: number;
@@ -950,6 +950,22 @@ export class DriveScene {
   /** Цена ремонта на pct процентов (с КАСКО — бесплатно). */
   repairCost(pct: number) {
     return this.insurance.kasko ? 0 : this.repairValue(pct);
+  }
+
+  /** Цена зарядки на pct процентов в автосервисе. */
+  chargeCost(pct: number) { return Math.ceil(pct / 10 - 1e-6) * CHARGE_PRICE; }
+
+  /** Зарядить батарею до pct процентов (шагами по 10 %, сколько хватит монет). Возвращает добавленные %. */
+  charge(pct: number): number {
+    let want = Math.min(pct, 100 - this.fuel);
+    if (want <= 0) return 0;
+    want = Math.min(want, Math.floor(this.coins / CHARGE_PRICE) * 10);
+    if (want <= 0) return 0;
+    const value = this.chargeCost(want);
+    this.coins -= value;
+    this.payouts.ownService += value;
+    this.fuel = Math.min(100, this.fuel + want);
+    return want;
   }
 
   /** Отремонтировать до pct процентов (шагами по 10 %, сколько хватит монет). Возвращает восстановленные %. */

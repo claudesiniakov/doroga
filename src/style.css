@@ -600,7 +600,7 @@ html, body { height: 100dvh; }
   font-size: 10px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase;
   background: rgba(90, 170, 255, .22); color: #bfe3ff; vertical-align: middle; white-space: nowrap;
 }
-.records-table tr.last-record .own-record-label { background: rgba(255, 203, 56, .26); color: #ffe9a6; }
+.records-table tr.last-record .own-record-label { background: #ffcb38; color: #3a2a00; }
 .record-form:not([hidden]) { display: grid; gap: 6px; }
 .record-form label, #recordStatus { color: var(--ink-2); font-size: 13px; margin: 0; }
 .record-fields { display: flex; gap: 6px; }

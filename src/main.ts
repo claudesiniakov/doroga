@@ -1335,7 +1335,7 @@ if (!SHOT) {
   }
   const dateLabel = $('calendarDate');
   let hudLayoutTick = 0;
-  const frame = (dt: number, elapsed = dt) => {
+  const frame = (dt: number) => {
     time += dt;
     if (state === 'drive' && hudLayoutTick++ % 30 === 0) layoutHud();
     if (state === 'pause' || state === 'over' || state === 'yearReport' || state === 'renewal' || state === 'policeCheck' || state === 'policeOk' || state === 'caught') {
@@ -1360,9 +1360,10 @@ if (!SHOT) {
       updateHud();
     }
     if (state === 'drive') {
-      if (drive.countingProgress && !drive.waitingToMerge) activeRunSeconds += elapsed * DAYS_PER_SECOND;
+      // Тот же предел шага, что и у физики (50 мс), иначе просадка FPS разгоняет дни.
+      if (drive.countingProgress && !drive.waitingToMerge) activeRunSeconds += Math.min(dt, 1 / 20) * DAYS_PER_SECOND;
       input.poll();
-      drive.update(dt, { throttle: input.throttle, brake: input.brake, laneShift: input.take() }, time, elapsed);
+      drive.update(dt, { throttle: input.throttle, brake: input.brake, laneShift: input.take() }, time);
       updateHud();
       if (drive.phase === 'drive' && !input.enabled) input.enabled = true;
       if (drive.phase === 'drive') hintTimer += dt;
@@ -1421,7 +1422,7 @@ if (!SHOT) {
   renderer.gl.setAnimationLoop((t) => {
     clock.update(t);
     const elapsed = Math.max(0, clock.getDelta());
-    frame(Math.min(elapsed, 0.1), elapsed);
+    frame(Math.min(elapsed, 0.1));
     adaptQuality(elapsed);
   });
 

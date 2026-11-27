@@ -489,7 +489,7 @@ export class DriveScene {
   get braking() { return this.lastBrake; }
   private lastBrake = 0;
 
-  update(dt: number, input: DriveInput, time: number, elapsed = dt) {
+  update(dt: number, input: DriveInput, time: number) {
     if (this.phase === 'yearBreak') return;
     dt = Math.min(dt, 1 / 20);
     const policeLeft = this.policeS === null ? Infinity : this.policeS - POLICE_STOP_GAP_M - this.s;
@@ -515,7 +515,8 @@ export class DriveScene {
     const motionDt = policeApproach ? dt * POLICE_APPROACH_RATE : dt;
     const fromS = this.s;
     if (!this.waitingToMerge && this.countingProgress) {
-      this.advanceCalendar(elapsed);
+      // Календарь идёт тем же шагом, что и физика: длинный кадр не ускоряет дни.
+      this.advanceCalendar(dt);
     }
     if (this.phase === 'drive' && this.policeS === null && !this.chase.active && this.policeFine === 0) {
       const mark = this.policeDays[this.policeIndex];
@@ -527,7 +528,7 @@ export class DriveScene {
     }
     if (this.snowAmount !== this.snowTarget) {
       const distance = this.snowTarget - this.snowAmount;
-      this.applySnow(this.snowAmount + Math.sign(distance) * Math.min(Math.abs(distance), elapsed / 2.5));
+      this.applySnow(this.snowAmount + Math.sign(distance) * Math.min(Math.abs(distance), dt / 2.5));
     }
     const cfg = this.cfg;
     const vmax = cfg.maxSpeedKmh / 3.6;

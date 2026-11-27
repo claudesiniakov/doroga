@@ -1360,7 +1360,7 @@ if (!SHOT) {
       updateHud();
     }
     if (state === 'drive') {
-      if (drive.phase !== 'intro' && !drive.waitingToMerge) activeRunSeconds += elapsed * DAYS_PER_SECOND;
+      if (drive.phase !== 'intro' && drive.phase !== 'caught' && !drive.waitingToMerge) activeRunSeconds += elapsed * DAYS_PER_SECOND;
       input.poll();
       drive.update(dt, { throttle: input.throttle, brake: input.brake, laneShift: input.take() }, time, elapsed);
       updateHud();

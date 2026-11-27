@@ -620,7 +620,8 @@ export class DriveScene {
     const reachedPoliceStop = policeApproach && stoppingDistance - ds < 1e-6;
     if (reachedPoliceStop) this.v = 0;
     this.s += ds;
-    this.odometer += ds;
+    // Задержание — уже не путь: одометр замирает, пока машину тормозят.
+    if (this.phase !== 'caught') this.odometer += ds;
     // расход: 2 л на км
     if (this.phase !== 'intro') {
       this.fuel = Math.max(0, this.fuel - (ds / 1000) * this.chargePerKm);

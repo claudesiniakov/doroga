@@ -41,10 +41,11 @@
         <div class="slides" id="slides">
             <section class="slide insurance-slide" data-name="Страховка">
               <h2 class="home-section-title" id="insuranceHeading">Страховка на год</h2>
+              <p class="ins-lead">ОСАГО обязательно, КАСКО — по желанию. Полисы покупаются на год.</p>
               <div class="ins">
-                <button class="ins-opt" id="insKasko"><span class="chk"></span><span class="t"><b>КАСКО · <span class="coin-amount"><span id="kaskoPrice">40</span><span class="coin" role="img" aria-label="монет"></span></span></b><small>В игре оплачивает ремонт вашей машины независимо от виновника ДТП и эвакуацию, если машина разбита.</small></span></button>
+                <button class="ins-opt" id="insKasko"><span class="chk"></span><span class="t"><span class="ins-head"><b>КАСКО</b><span class="ins-price"><span id="kaskoPrice">18</span><span class="coin" role="img" aria-label="монет"></span> / год</span></span><span class="ins-desc">Ремонт и эвакуация при любой аварии.</span><span class="ins-note">Без него ремонт платный: от 2 монет за 10 %.</span></span></button>
                 <div class="osago-option">
-                  <button class="ins-opt" id="insOsago"><span class="chk"></span><span class="t"><b>ОСАГО · <span class="coin-amount"><span id="osagoPrice">10</span><span class="coin" role="img" aria-label="монет"></span></span></b><small>Если вы виноваты в ДТП, ОСАГО возмещает каждому потерпевшему ущерб имуществу до 400 000 ₽ и вред жизни или здоровью до 500 000 ₽.</small></span></button>
+                  <button class="ins-opt" id="insOsago"><span class="chk"></span><span class="t"><span class="ins-head"><b>ОСАГО</b><span class="ins-price"><span id="osagoPrice">12</span><span class="coin" role="img" aria-label="монет"></span> / год</span></span><span class="ins-desc">Ущерб другим в ДТП по вашей вине: до 400 000 ₽ и 500 000 ₽ за здоровье.</span><span class="ins-note">Без него 4 проверки ГАИ и штраф 8 за каждую.</span></span></button>
                   <div class="kbm-current" id="kbmCurrent">
                     <span id="kbmNow">Ваш текущий КБМ: 1,17 · класс 3</span>
                     <button type="button" class="kbm-why" id="kbmWhy" hidden>Почему?</button>
@@ -52,7 +53,7 @@
                   <button class="osago-help" id="kbmLink" type="button">Как рассчитывается цена?</button>
                 </div>
               </div>
-              <div class="startcoins">В кошельке <b class="coin-amount"><span id="walletCard">100</span><span class="coin" role="img" aria-label="монет"></span></b> · на поездку останется <b class="coin-amount"><span id="startCoins">100</span><span class="coin" role="img" aria-label="монет"></span></b></div>
+              <div class="startcoins"><span>Кошелёк <b class="coin-amount"><span id="walletCard">100</span><span class="coin" role="img" aria-label="монет"></span></b></span><span class="sum-eq">− полисы <b class="coin-amount"><span id="insSum">0</span><span class="coin" role="img" aria-label="монет"></span></b></span><span class="sum-eq">= на поездку <b class="coin-amount"><span id="startCoins">100</span><span class="coin" role="img" aria-label="монет"></span></b></span></div>
             </section>
             <section class="slide" data-name="Рекорды">
               <h2 class="home-section-title" id="recordsTitle">Топ-100 по дням</h2>

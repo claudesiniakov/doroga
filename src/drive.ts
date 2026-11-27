@@ -907,9 +907,15 @@ export class DriveScene {
     this.dv = 0;
     this.v = 0;
     this.phase = 'protocol';
-    this.policeFine = this.insurance.osago ? 0 : Math.min(POLICE_FINE, this.coins);
-    this.coins -= this.policeFine;
-    this.onPolice?.();
+    if (this.insurance.osago) {
+      // Полис есть — даже остановившись у патруля, слышим «счастливого пути».
+      this.policeFine = 0;
+      this.onPoliceOk?.();
+    } else {
+      this.policeFine = Math.min(POLICE_FINE, this.coins);
+      this.coins -= this.policeFine;
+      this.onPolice?.();
+    }
   }
 
   /** Игрок решил уехать: патруль бросается вдогонку. */

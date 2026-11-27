@@ -71,6 +71,6 @@ npm run shot    # снимки кадров в shots/
 sudo bash /root/doroga/deploy/install.sh
 ```
 
-Для следующих релизов используйте `git push deploy main`. После успешной выкладки служба синхронизирует рабочую копию в `/root/doroga` и GitHub `origin`: сбой GitHub не отменяет релиз. Если выкладка прервётся, таймер повторит попытку. Служба записывает SHA в `/var/lib/doroga-deploy/revision` после того, как проверит ответ Nginx для `proto.html`. Журнал доступен через `journalctl -u doroga-deploy.service`.
+Для следующих релизов используйте `git push deploy main`. После успешной выкладки служба синхронизирует рабочую копию в `/root/doroga` и GitHub `origin`: сбой GitHub не отменяет релиз, а результат виден в `journalctl -u doroga-deploy.service | grep GitHub`. Если выкладка прервётся, таймер повторит попытку. Служба записывает SHA в `/var/lib/doroga-deploy/revision` после того, как проверит ответ Nginx для `proto.html`. Журнал доступен через `journalctl -u doroga-deploy.service`.
 
 При первом релизе с общей таблицей на уже настроенном сервере выполните `sudo bash deploy/install-records.sh` перед публикацией сайта. Установщик поднимает `doroga-records.service` и подключает `/api/records` через Nginx. Для обновления серверного кода таблицы запустите установщик снова. SQLite хранит результаты в `/var/lib/doroga-records/records.sqlite` между релизами.

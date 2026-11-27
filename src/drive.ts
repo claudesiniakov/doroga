@@ -889,6 +889,11 @@ export class DriveScene {
     this.phase = 'policeOut';
     this.policeS = null;
     this.policeFine = 0;
+    if (!this.insurance.osago) {
+      // Протокол за отсутствие полиса уже подписан — до конца года не останавливают.
+      this.policeDays = [];
+      this.policeIndex = 0;
+    }
   }
 
   /** Погоня прекращается, когда заканчивается страховой год. */

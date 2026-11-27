@@ -477,6 +477,10 @@ export class DriveScene {
   toggleCamera() { this.camFar = !this.camFar; }
 
   private get leavingStop() { return this.phase === 'pitOut' || this.phase === 'policeOut'; }
+  /** Счётчики пути — одометр, страховой календарь и таймер заезда — идут только здесь. */
+  get countingProgress() {
+    return this.phase === 'drive' || this.leavingStop || this.phase === 'pitIn' || this.phase === 'policeIn';
+  }
   get waitingToMerge() { return this.leavingStop && this.lane !== 1; }
 
   get speedKmh() { return this.v * 3.6; }
@@ -508,8 +512,7 @@ export class DriveScene {
     const policeApproach = this.phase === 'policeIn';
     const motionDt = policeApproach ? dt * POLICE_APPROACH_RATE : dt;
     const fromS = this.s;
-    if (!this.waitingToMerge && (this.phase === 'drive' || this.leavingStop ||
-      this.phase === 'pitIn' || this.phase === 'policeIn')) {
+    if (!this.waitingToMerge && this.countingProgress) {
       this.advanceCalendar(elapsed);
     }
     if (this.phase === 'drive' && this.policeS === null && !this.chase.active && this.policeFine === 0) {
@@ -620,8 +623,9 @@ export class DriveScene {
     const reachedPoliceStop = policeApproach && stoppingDistance - ds < 1e-6;
     if (reachedPoliceStop) this.v = 0;
     this.s += ds;
-    // Задержание — уже не путь: одометр замирает, пока машину тормозят.
-    if (this.phase !== 'caught') this.odometer += ds;
+    // Одометр считает только реальный путь по дороге: без разгона, торможения
+    // после аварии, пустого заряда и задержания.
+    if (this.countingProgress) this.odometer += ds;
     // расход: 2 л на км
     if (this.phase !== 'intro') {
       this.fuel = Math.max(0, this.fuel - (ds / 1000) * this.chargePerKm);

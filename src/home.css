@@ -110,12 +110,6 @@
   line-height: 1.2;
   font-weight: 800;
 }
-#garage .ins-lead { margin: 0 0 10px; color: var(--home-muted); font-size: 13px; line-height: 1.35; }
-#garage .ins-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; }
-#garage .ins-price { display: inline-flex; align-items: center; gap: 3px; color: var(--home-muted); font-size: .62em; font-weight: 600; }
-#garage .ins-price .coin { width: var(--home-coin-size); height: var(--home-coin-size); }
-#garage .ins-desc { display: block; margin-top: 3px; color: var(--ui-ink); font-size: 12px; line-height: 1.35; }
-#garage .ins-note { display: block; margin-top: 2px; color: var(--home-muted); font-size: 12px; line-height: 1.35; }
 #garage .ins { margin: 0; gap: 7px; }
 #garage .ins-opt {
   align-items: flex-start;
@@ -162,9 +156,7 @@
 @media (pointer: coarse) {
   #garage .osago-help { min-height: 44px; }
 }
-#garage .startcoins { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; margin: 8px 0 0; font-size: 12px; }
-#garage .startcoins b { color: var(--ui-ink); }
-#garage .startcoins .sum-eq { color: var(--home-muted); }
+#garage .startcoins { margin: 10px 0 0; font-size: 12px; }
 #garage .records-scroll { max-height: min(300px, 34dvh); }
 #garage .own-record td { background: var(--ui-pale); }
 #garage .own-record td:first-child { box-shadow: inset 3px 0 var(--home-accent); }
@@ -462,42 +454,3 @@
     max-width: min(40vw, 360px);
   }
 }
-
-@media (pointer: fine) and (min-width: 900px) {
-  #garage .ins-lead { font-size: clamp(15px, 1.15vw, 21px); }
-  #garage .ins-desc, #garage .ins-note { font-size: clamp(15px, 1.25vw, 21px); }
-  #garage .ins-price { font-size: clamp(14px, 1vw, 18px); }
-  #garage .startcoins { font-size: clamp(14px, 1.05vw, 19px); }
-}
-
-@media (pointer: fine) and (min-width: 900px) and (max-height: 500px) {
-  #garage .ins-lead { display: none; }
-  #garage .home-section-title { margin-bottom: 4px; }
-  #garage .ins-opt { padding: 5px 14px; }
-  #garage .ins-desc, #garage .ins-note { font-size: 10.5px; line-height: 1.22; }
-  #garage .ins-price { font-size: 11px; }
-  #garage .osago-help { min-height: 24px; font-size: 11px; margin-bottom: 0; }
-  #garage .kbm-current { margin-bottom: 4px; }
-  #garage .startcoins { font-size: 11px; margin-top: 4px; }
-  #garage .ins-head b { font-size: 18px; }
-}
-
-/* Узкий портрет: убираем вводный абзац и поджимаем текст. */
-@media (max-width: 380px) and (orientation: portrait) {
-  #garage .ins-lead { display: none; }
-  #garage .home-section-title { margin-bottom: 8px; }
-  #garage .ins { gap: 6px; }
-  #garage .ins-opt { padding: 7px 10px; }
-  #garage .ins-head b { font-size: 18px; }
-  #garage .ins-desc, #garage .ins-note { font-size: 11px; line-height: 1.25; }
-  #garage .ins-price { font-size: 11px; }
-  #garage .kbm-current { font-size: 11px; margin: 0 10px 6px; }
-  #garage .osago-help { font-size: 12px; min-height: 28px; margin: 0 6px 0 calc(10px + var(--home-ins-check) + var(--home-ins-gap)); }
-  #garage .startcoins { font-size: 11px; margin-top: 6px; }
-}
-
-@media (max-width: 380px) and (orientation: portrait) {
-  #garage .home-section-title { margin-bottom: 6px; }
-}
-
-#garage .startcoins > span { white-space: nowrap; }

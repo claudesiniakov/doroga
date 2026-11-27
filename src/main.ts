@@ -541,7 +541,6 @@ async function main() {
       $('kbmNow').append(` · за год: ${fmtK(KBM[change.from].k)} → ${fmtK(KBM[change.to].k)}`);
     }
     $('kbmWhy').hidden = !change;
-    $('insSum').textContent = String(insCost());
     $('startCoins').textContent = String(wallet - insCost());
     applyLivery();
     updateEconomyUI();

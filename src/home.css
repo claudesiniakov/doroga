@@ -454,3 +454,69 @@
     max-width: min(40vw, 360px);
   }
 }
+
+/* Оформление блока страховки: цена-бейдж, воздух, выбранный полис. */
+#garage .home-section-title { margin-bottom: 16px; }
+#garage .ins { gap: 10px; }
+#garage .ins-opt { padding: 11px var(--home-ins-inset); }
+#garage .ins-opt .t { display: grid; gap: 7px; flex: 1; min-width: 0; }
+#garage .ins-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+#garage .ins-head b { line-height: 1.1; }
+#garage .ins-price {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--home-accent) 11%, transparent);
+  color: var(--home-accent);
+  font-weight: 800;
+  font-size: 13px;
+}
+#garage .ins-price .coin { width: calc(var(--home-coin-size) * .95); height: calc(var(--home-coin-size) * .95); }
+#garage .ins-opt.on { box-shadow: inset 0 0 0 1px var(--home-accent); }
+#garage .osago-option:has(.ins-opt.on) { box-shadow: inset 0 0 0 1px var(--home-accent); }
+#garage .kbm-current { color: var(--ui-ink); font-size: 13px; }
+#garage .kbm-why { font-weight: 800; }
+#garage .startcoins { margin-top: 12px; }
+
+@media (pointer: fine) and (min-width: 900px) {
+  #garage .ins-price { font-size: clamp(15px, 1.15vw, 20px); }
+  #garage .kbm-current { font-size: clamp(15px, 1.15vw, 20px); }
+}
+@media (pointer: fine) and (min-width: 900px) and (max-height: 500px) {
+  #garage .home-section-title { margin-bottom: 6px; }
+  #garage .ins { gap: 6px; }
+  #garage .ins-opt { padding: 6px 14px; }
+  #garage .ins-opt .t { gap: 4px; }
+  #garage .ins-price { font-size: 11px; padding: 2px 7px; }
+  #garage .kbm-current { font-size: 11px; }
+  #garage .startcoins { margin-top: 6px; }
+}
+@media (max-width: 380px) and (orientation: portrait) {
+  #garage .home-section-title { margin-bottom: 10px; }
+  #garage .ins-opt { padding: 9px 12px; }
+  #garage .ins-price { font-size: 12px; }
+  #garage .kbm-current { font-size: 11px; }
+}
+
+@media (max-width: 380px) and (orientation: portrait) {
+  #garage .insurance-slide { max-height: calc(100dvh - 204px - var(--safe-t) - var(--safe-b)); }
+  #garage .home-section-title { margin-bottom: 6px; font-size: 22px; }
+  #garage .ins { gap: 6px; }
+  #garage .ins-opt { padding: 6px 10px; }
+  #garage .ins-opt .t { gap: 4px; }
+  #garage .ins-opt small { font-size: 11px; line-height: 1.3; }
+  #garage .ins-head b { font-size: 18px; }
+  #garage .ins-price { font-size: 11px; padding: 2px 7px; }
+  #garage .kbm-current { font-size: 11px; margin: 0 10px 4px; }
+  #garage .osago-help { font-size: 12px; min-height: 28px; margin: 0 6px 2px calc(10px + var(--home-ins-check) + var(--home-ins-gap)); }
+  #garage .startcoins { font-size: 11px; margin-top: 6px; }
+}

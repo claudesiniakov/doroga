@@ -156,6 +156,8 @@ export class DriveScene {
     this.coinsCollected = 0;
     this.kaskoRepairUsed = false;
     this.policeFine = 0;
+    // Патруль прошлого года не переносим: у нового года своё расписание.
+    this.policeS = null;
     this.chase.active = false;
     this.chase.offered = false;
     this.chase.peak = 0;
